@@ -1,0 +1,32 @@
+{
+  "'admin'": {
+    "ok": "OK"
+  },
+  "'ali'": {
+    "ok": "OK"
+  },
+  "'a'": {
+    "ok": "TOO_SHORT"
+  },
+  "''": {
+    "ok": "EMPTY"
+  },
+  "'   '": {
+    "ok": "EMPTY"
+  },
+  "'user with spaces'": {
+    "ok": "INVALID_CHARS"
+  },
+  "'علی'": {
+    "ok": "INVALID_CHARS"
+  },
+  "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'": {
+    "ok": "OK"
+  },
+  "\"Robert'); DROP TABLE x;--\"": {
+    "ok": "INVALID_CHARS"
+  },
+  "None": {
+    "ok": "EMPTY"
+  }
+}

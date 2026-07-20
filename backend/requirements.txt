@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+oracledb
+pydantic-settings
+pytest
+python-dotenv
+pyjwt
+argon2-cffi
+python-multipart
