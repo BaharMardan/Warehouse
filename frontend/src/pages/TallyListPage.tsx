@@ -903,6 +903,7 @@ import {
 import { useDebouncedValue } from '@mantine/hooks'
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
+import { TallyNumber } from '../components/TallyNumber'
 
 /**
  * TallyListPage — the list of tallies (لیست تالی‌ها), the entry point to the
@@ -920,7 +921,7 @@ import { apiGet } from '../api/client'
 // one row as returned by GET /tally-list (names already resolved by the JOIN)
 type TallyRow = {
   id_tali: number
-  tali_number: number | null
+  tali_number: string | null
   radef_marze: number | null
   date_enter_marze: string | null // ISO
   date_unloading: string | null // ISO
@@ -929,6 +930,11 @@ type TallyRow = {
   country_name: string | null
   company_name: string | null
   owner_name: string | null
+}
+
+function tallyPath(row: TallyRow): string {
+  const publicReference = row.tali_number ?? String(row.id_tali)
+  return `/tally/${encodeURIComponent(publicReference)}`
 }
 
 // ISO "2026-06-26" -> Jalali display "1405/04/05". Blank if empty.
@@ -1223,9 +1229,9 @@ export function TallyListPage() {
                     <Table.Tr
                       key={row.id_tali} className="tlp-row"
                       style={{ cursor: 'pointer' }}
-                      onClick={() => navigate(`/tally/${row.id_tali}`)}
+                      onClick={() => navigate(tallyPath(row))}
                     >
-                      <Table.Td><Text fw={600}>{row.tali_number ?? '—'}</Text></Table.Td>
+                      <Table.Td><Text fw={600}><TallyNumber value={row.tali_number} /></Text></Table.Td>
                       <Table.Td>{row.marze_name ?? '—'}</Table.Td>
                       <Table.Td>{row.country_name ?? '—'}</Table.Td>
                       <Table.Td>{row.company_name?.trim() || '—'}</Table.Td>
@@ -1244,7 +1250,7 @@ export function TallyListPage() {
                         <Tooltip label="مشاهده جزئیات" withArrow>
                           <ActionIcon
                             variant="subtle" color="blue" radius="md"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/tally/${row.id_tali}`) }}
+                            onClick={(e) => { e.stopPropagation(); navigate(tallyPath(row)) }}
                             aria-label="مشاهده جزئیات تالی"
                           >
                             <IconEye size={18} />

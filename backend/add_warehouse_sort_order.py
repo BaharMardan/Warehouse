@@ -24,7 +24,7 @@ Run (backend env, same as run_ddl.py):
 from app.core.db import get_connection
 
 # name_anbar -> display position (this list IS the ordering; edit here to reorder)
-ORDER = {"6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "هنگار": 7, "بارانداز": 8}
+ORDER = {"6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "هانگارد": 7, "بارانداز": 8}
 
 
 def main():

@@ -792,11 +792,11 @@ function normalizeDigits(s: string): string {
  *   - RefSelect   for the 5 foreign-key dropdowns (border, country, company x2, owner)
  *   - JalaliDate  for the 2 Persian date fields (entry / unloading)
  *
- * The form's state mirrors the backend TaliHeaderInput model exactly (ISO dates,
- * numeric FKs), so the payload posts straight to /tally-header with no mapping.
+ * The form sends the editable header fields to /tally-header. The backend owns
+ * tali_number and allocates it only after a successful create transaction.
  */
 
-// Shape matches the backend model field-for-field.
+// Editable form fields. The generated tally number is deliberately excluded.
 type TallyHeaderState = {
   number_karaneh: string
   radef_marze: string // kept as string in the input, sent as number|null
@@ -808,7 +808,6 @@ type TallyHeaderState = {
   id_product_ownear: number | null
   id_country: number | null
   number_bimeh: string
-  tali_number: string
   number_ghabz: string
   name_arzyab: string
   number_barnameh: string
@@ -821,7 +820,7 @@ type TallyHeaderState = {
 const EMPTY: TallyHeaderState = {
   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-  id_country: null, number_bimeh: '', tali_number: '', number_ghabz: '',
+  id_country: null, number_bimeh: '', number_ghabz: '',
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
   accepted_gomrok: '', company_bimeh: '',
 }
@@ -844,7 +843,6 @@ function toPayload(s: TallyHeaderState) {
     id_product_ownear: s.id_product_ownear,
     id_country: s.id_country,
     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
-    tali_number: numOrNull(normalizeDigits(s.tali_number)),
     number_ghabz: numOrNull(normalizeDigits(s.number_ghabz)),  // ← normalized
     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
@@ -869,7 +867,6 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     id_product_ownear: r.id_product_ownear ?? null,
     id_country: r.id_country ?? null,
     number_bimeh: s(r.number_bimeh),
-    tali_number: s(r.tali_number),
     number_ghabz: s(r.number_ghabz),
     name_arzyab: s(r.name_arzyab),
     number_barnameh: s(r.number_barnameh),
@@ -889,16 +886,21 @@ const ownerLabel = (r: Record<string, any>) =>
 
 export function TallyHeaderForm() {
   const navigate = useNavigate()
-  const { id } = useParams<{ id: string }>()
-  const isEdit = id != null
-  const editId = isEdit ? Number(id) : null
+  const { tallyNumber } = useParams<{ tallyNumber: string }>()
+  const isEdit = tallyNumber != null
+  const isLegacyId = Boolean(tallyNumber && /^\d+$/.test(tallyNumber))
 
   // when editing, load the existing header once and populate the form
   const { data: existing } = useQuery({
-    queryKey: ['tally-header', editId],
-    queryFn: () => apiGet<Record<string, any>>(`/tally-header/${editId}`),
+    queryKey: ['tally-header', tallyNumber],
+    queryFn: () => apiGet<Record<string, any>>(
+      isLegacyId
+        ? `/tally-header/${tallyNumber}`
+        : `/tally-header/by-number/${encodeURIComponent(tallyNumber!)}`
+    ),
     enabled: isEdit, // only fetch in edit mode
   })
+  const editId = existing?.id_tali == null ? null : Number(existing.id_tali)
 
   useEffect(() => {
     if (existing) setForm(rowToState(existing))
@@ -932,11 +934,15 @@ export function TallyHeaderForm() {
     setError(null)
     try {
       if (isEdit) {
+        if (editId == null) {
+          throw new Error('اطلاعات تالی هنوز بارگذاری نشده است.')
+        }
         await apiSend(`/tally-header/${editId}`, 'PUT', toPayload(form))
-        navigate(`/tally/${editId}`) // back to the detail page
+        const publicNumber = String(existing?.tali_number ?? tallyNumber)
+        navigate(`/tally/${encodeURIComponent(publicNumber)}`)
       } else {
-        const created = await apiSend<{ id_tali: number }>('/tally-header', 'POST', toPayload(form))
-        navigate(`/tally/${created.id_tali}`) // go to the new tally's detail page
+        const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
+        navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
       }
     } catch (e) {
       setError('ذخیره تالی ناموفق بود. لطفاً دوباره تلاش کنید.')
@@ -1090,9 +1096,10 @@ export function TallyHeaderForm() {
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="شماره تالی"
-              inputMode="numeric"
-              value={form.tali_number}
-              onChange={(e) => set('tali_number', e.currentTarget.value)}
+              value={isEdit ? String(existing?.tali_number ?? '') : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
+              readOnly
+              disabled={!isEdit}
+              styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>

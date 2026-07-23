@@ -1155,7 +1155,7 @@
 //   )
 // }
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -1172,8 +1172,9 @@ import { ContainerFields } from '../components/ContainerFields'
 // import { TallyDiamoundSection } from '../components/TallyDiamoundSection'
 import { TallyJunctionSection } from '../components/TallyJunctionSection'
 import { tallyJunctions } from '../components/junctions'
+import { TallyNumber } from '../components/TallyNumber'
 /**
- * TallyDetailPage — one tally's detail view at /tally/:id.
+ * TallyDetailPage — one tally's detail view at /tally/:tallyNumber.
  * Top: header actions (edit button returns to the form).
  * Below: the goods-lines grid (جزئیات تالی) — add / edit / delete rows, each line
  * scoped to this tally via id_headers_tali.
@@ -1234,8 +1235,8 @@ function normalizeDigits(s: string): string {
 }
 
 export function TallyDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const headerId = Number(id)
+  const { tallyNumber = '' } = useParams<{ tallyNumber: string }>()
+  const isLegacyId = /^\d+$/.test(tallyNumber)
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -1245,18 +1246,42 @@ export function TallyDetailPage() {
   // the commodity picked from the catalog for this line (drives autofill + info display)
   const [picked, setPicked] = useState<Commodity | null>(null)
 
-  const { data: lines, isLoading, isError } = useQuery({
+  // The public URL uses TALI_NUMBER. The database ID is resolved once and then
+  // retained only for relational API calls below this page.
+  const {
+    data: header,
+    isLoading: isHeaderLoading,
+    isError: isHeaderError,
+  } = useQuery({
+    queryKey: ['tally-header', tallyNumber],
+    queryFn: () => apiGet<Record<string, any>>(
+      isLegacyId
+        ? `/tally-header/${tallyNumber}`
+        : `/tally-header/by-number/${encodeURIComponent(tallyNumber)}`
+    ),
+  })
+  const headerId = header?.id_tali == null ? undefined : Number(header.id_tali)
+
+  useEffect(() => {
+    if (isLegacyId && header?.tali_number) {
+      navigate(`/tally/${encodeURIComponent(String(header.tali_number))}`, { replace: true })
+    }
+  }, [header?.tali_number, isLegacyId, navigate])
+
+  const {
+    data: lines,
+    isLoading: areLinesLoading,
+    isError: areLinesError,
+  } = useQuery({
     queryKey: ['tally-details', headerId],
     queryFn: () => apiGet<DetailRow[]>(`/tally/${headerId}/details`),
+    enabled: headerId != null,
   })
-  // load the header so we can show its business tally number (TALI_NUMBER),
-  // not the internal ID_TALI that's in the URL
-  const { data: header } = useQuery({
-    queryKey: ['tally-header', headerId],
-    queryFn: () => apiGet<Record<string, any>>(`/tally-header/${headerId}`),
-  })
+  const isLoading = isHeaderLoading || areLinesLoading
+  const isError = isHeaderError || areLinesError
 
   function toPayload(f: LineForm) {
+    if (headerId == null) throw new Error('شناسه داخلی تالی بارگذاری نشده است.')
     const numOrNull = (v: string) => (v.trim() === '' ? null : Number(normalizeDigits(v)))
     const strOrNull = (v: string) => (v.trim() === '' ? null : v)
     return {
@@ -1350,22 +1375,24 @@ export function TallyDetailPage() {
     <div dir="rtl">
       <Group justify="space-between" mb="md">
         <Title order={2}>
-          جزئیات تالی {header?.tali_number ? `شماره ${header.tali_number}` : `#${headerId}`}
+          جزئیات تالی شماره{' '}
+          <TallyNumber value={header?.tali_number ?? tallyNumber} />
         </Title>
         <Group>
           
-          <Button variant="light" onClick={() => navigate(`/tally/${headerId}/edit`)}>ویرایش سربرگ</Button>
+          <Button variant="light" onClick={() => navigate(`/tally/${encodeURIComponent(tallyNumber)}/edit`)}>ویرایش سربرگ</Button>
           <Button variant="light" color="teal" onClick={async () => {
+            if (headerId == null) return
             const r = await apiSend<{ id_ghabz: number }>(`/ghabz/from-tally/${headerId}`, 'POST')
             navigate(`/ghabz/${r.id_ghabz}/edit`)
-          }}>صدور قبض انبار</Button><BackButton to="/tally" />
+          }} disabled={headerId == null}>صدور قبض انبار</Button><BackButton to="/tally" />
         </Group>
       </Group>
 
       <Paper shadow="xs" p="md">
         <Group justify="space-between" mb="sm">
           <Text fw={600}>ردیف‌های کالا</Text>
-          <Button onClick={openAdd}>افزودن ردیف</Button>
+          <Button onClick={openAdd} disabled={headerId == null}>افزودن ردیف</Button>
         </Group>
         <Divider mb="sm" />
 
@@ -1430,7 +1457,7 @@ export function TallyDetailPage() {
           </Table.ScrollContainer>
         )}
       </Paper>
-      {tallyJunctions.map((cfg) => (
+      {headerId != null && tallyJunctions.map((cfg) => (
         <TallyJunctionSection key={cfg.key} config={cfg} tallyId={headerId} />
       ))}
       <Modal

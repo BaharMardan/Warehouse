@@ -34,8 +34,8 @@ export default function App() {
           <Route path="*" element={<Navigate to={resources[0].route} replace />} />
           <Route path="/tally/new" element={<TallyHeaderForm />} />
           <Route path="/tally" element={<TallyListPage />} />
-          <Route path="/tally/:id" element={<TallyDetailPage />} />
-          <Route path="/tally/:id/edit" element={<TallyHeaderForm />} />
+          <Route path="/tally/:tallyNumber" element={<TallyDetailPage />} />
+          <Route path="/tally/:tallyNumber/edit" element={<TallyHeaderForm />} />
           <Route path="/ghabz" element={<GhabzListPage />} />
           <Route path="/ghabz/:id" element={<GhabzDetailPage />} />
           <Route path="/ghabz/new" element={<GhabzHeaderForm />} />
