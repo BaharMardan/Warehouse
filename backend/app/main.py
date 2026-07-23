@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
 from app.routers import health
 from app.routers.tally import router as tally_router
+from app.routers.tally_header import router as tally_header_router
 from app.routers.ghabz import router as ghabz_router
 from app.routers.invoice import router as invoice_router
 from app.routers.commodity import router as commodity_router
@@ -25,6 +26,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth_router)
 app.include_router(tally_router)
+app.include_router(tally_header_router)
 app.include_router(ghabz_router)
 app.include_router(invoice_router)
 app.include_router(commodity_router)
@@ -37,4 +39,3 @@ for router in crud_routers:
 @app.get("/")
 def root():
     return {"message": "API is running. Open /docs"}
-

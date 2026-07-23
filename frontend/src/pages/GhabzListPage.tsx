@@ -87,11 +87,12 @@ import { BackButton } from '../components/BackButton'
 import { Title, Button, Group, Table, Paper, Loader, Center, Text } from '@mantine/core'
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
+import { TallyNumber } from '../components/TallyNumber'
 
 type GhabzRow = {
   id_ghabz: number
   number_ghabz: number | null
-  number_tali: number | null
+  number_tali: string | null
   tali_id: number | null
   date_unloading: string | null
   marze_name: string | null
@@ -148,7 +149,7 @@ export function GhabzListPage() {
                 <Table.Tr key={row.id_ghabz} style={{ cursor: 'pointer' }}
                   onClick={() => navigate(`/ghabz/${row.id_ghabz}`)}>
                   <Table.Td>{row.number_ghabz ?? '—'}</Table.Td>
-                  <Table.Td>{row.number_tali ?? '—'}</Table.Td>
+                  <Table.Td><TallyNumber value={row.number_tali} /></Table.Td>
                   <Table.Td>{row.marze_name ?? '—'}</Table.Td>
                   <Table.Td>{row.country_name ?? '—'}</Table.Td>
                   <Table.Td>{row.company_name?.trim() || '—'}</Table.Td>

@@ -1133,7 +1133,7 @@ class TaliHeaderInput(BaseModel):
     id_product_ownear: int | None = None    # صاحب کالا → owners (note: DB spelling)
     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
     number_bimeh: str | None = None         # شماره بیمه نامه
-    tali_number: int | None = None          # شماره تالی
+    tali_number: str | None = None          # شماره تالی خودکار، مانند 1405-1
     number_ghabz: int | None = None         # قبض الکترونیک
     name_arzyab: str | None = None          # نام ارزیاب
     number_barnameh: str | None = None      # شماره بارنامه
@@ -1219,7 +1219,7 @@ class GhabzHeaderInput(BaseModel):
     number_ghabz: int | None = None
     number_ghabz_uniqe: int | None = None
     number_karaneh: str | None = None
-    number_tali: int | None = None
+    number_tali: str | None = None
     number_royea: str | None = None
     number_kantiner: int | None = None
     number_mantaghe_azad: int | None = None
@@ -1380,10 +1380,8 @@ crud_routers = [
         model=KalaVehicleEnterInput, tag="kala_vehicle_enter", not_found="ردیف یافت نشد",
         column_overrides={"code": "code", "title": "title", "price": "price"},
     ),
-    make_crud_router(
-        prefix="/tally-header", table="FA_TALI_HEADER", pk="ID_TALI",
-        model=TaliHeaderInput, tag="tally_header", not_found="تالی یافت نشد",
-    ),
+    # /tally-header has a dedicated router because its business number must be
+    # allocated atomically by the backend. See app/routers/tally_header.py.
     make_crud_router(
         prefix="/tally-details", table="FA_TALI_DETAILES", pk="ID_TALI_DETAILS",
         model=TaliDetailInput, tag="tally_details", not_found="ردیف تالی یافت نشد",

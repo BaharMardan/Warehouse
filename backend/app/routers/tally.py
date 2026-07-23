@@ -204,8 +204,9 @@ Two hand-written reads live here (the factory only does single-table SELECT *):
   GET /tally/{id}/details   - one tally's goods lines, with anbar/tagh names, for
                               the master-detail view.
 
-Writes for both the header and the detail lines still go through the factory
-routers (/tally-header and /tally-details). This router is read-only enrichment.
+Header writes go through the dedicated /tally-header router so its business
+number can be allocated atomically. Detail-line writes still use the generic
+/tally-details router. This router contains read-only enrichment.
 """
 from fastapi import APIRouter, Depends
 from app.auth.deps import get_current_user

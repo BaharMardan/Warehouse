@@ -228,7 +228,7 @@ function toPayload(s: GhabzState) {
   return {
     number_ghabz: numOrNull(s.number_ghabz),
     number_karaneh: codeOrNull(s.number_karaneh),
-    number_tali: numOrNull(s.number_tali),
+    number_tali: codeOrNull(s.number_tali),
     date_unloading: s.date_unloading,
     date_enter_marze: s.date_enter_marze,
     id_marze: s.id_marze, id_country: s.id_country, id_company: s.id_company,
@@ -258,8 +258,9 @@ function rowToState(r: Record<string, any>): GhabzState {
 const companyLabel = (r: Record<string, any>) =>
   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 const ownerLabel = (r: Record<string, any>) => `${r.name ?? ''} ${r.family ?? ''}`.trim()
+const isolateLtr = (value: unknown) => `\u2066${String(value)}\u2069`
 const tallyLabel = (r: Record<string, any>) =>
-  `تالی ${r.tali_number ?? r.id_tali}${r.number_karaneh ? ` — کارنه ${r.number_karaneh}` : ''}`.trim()
+  `تالی ${isolateLtr(r.tali_number ?? r.id_tali)}${r.number_karaneh ? ` — کارنه ${r.number_karaneh}` : ''}`.trim()
 
 export function GhabzHeaderForm() {
   const navigate = useNavigate()
@@ -318,8 +319,9 @@ export function GhabzHeaderForm() {
             value={form.number_ghabz} onChange={(e) => set('number_ghabz', e.currentTarget.value)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره کارنه"
             value={form.number_karaneh} onChange={(e) => set('number_karaneh', e.currentTarget.value)} /></Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره تالی" inputMode="numeric"
-            value={form.number_tali} onChange={(e) => set('number_tali', e.currentTarget.value)} /></Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره تالی"
+            value={form.number_tali} readOnly
+            styles={{ input: { direction: 'ltr', textAlign: 'right' } }} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="وزن"
             value={form.weight} onChange={(e) => set('weight', e.currentTarget.value)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><JalaliDate label="تاریخ تخلیه"
