@@ -208,9 +208,9 @@ Header writes go through the dedicated /tally-header router so its business
 number can be allocated atomically. Detail-line writes still use the generic
 /tally-details router. This router contains read-only enrichment.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import get_current_user
-from app.services.base import fetch_all
+from app.services.base import fetch_all, fetch_one
 
 router = APIRouter(prefix="/tally", tags=["tally"])
 
@@ -275,6 +275,52 @@ WHERE d."ID_HEADERS_TALI" = :hid
 ORDER BY d."ID_TALI_DETAILS"
 """
 
+# All display values needed by the landscape A4 tally print form. The normal
+# tally-header endpoint intentionally returns raw foreign keys; printing needs
+# the resolved border/country/company/owner labels. The owner's national ID is
+# an independent, user-entered value stored on the tally header itself.
+PRINT_HEADER_SQL = """
+SELECT
+    h."ID_TALI"                         AS id_tali,
+    h."TALI_NUMBER"                     AS tali_number,
+    h."NUMBER_KARANEH"                  AS number_karaneh,
+    h."RADEF_MARZE"                     AS radef_marze,
+    h."DATE_ENTER_MARZE"                AS date_enter_marze,
+    h."DATE_UNLOADING"                  AS date_unloading,
+    h."NUMBER_BIMEH"                    AS number_bimeh,
+    h."NUMBER_BARNAMEH"                 AS number_barnameh,
+    h."NAME_ARZYAB"                     AS name_arzyab,
+    h."IS_BIMEH"                        AS is_bimeh,
+    h."NAME_ANBARDAR"                   AS name_anbardar,
+    h."ACCEPTED_GOMROK"                 AS accepted_gomrok,
+    h."COMPANY_BIMEH"                   AS company_bimeh,
+    h."OWNER_NATIONAL_CODE"             AS owner_national_code,
+    t_marze."SYS_TERM_VALUE"            AS marze_name,
+    t_country."SYS_TERM_VALUE"          AS country_name,
+    NVL(
+        c_comp."COMPANY",
+        TRIM(c_comp."NAME" || ' ' || c_comp."FAMILY")
+    )                                   AS company_name,
+    NVL(
+        TRIM(c_resp."NAME" || ' ' || c_resp."FAMILY"),
+        c_resp."COMPANY"
+    )                                   AS representative_name,
+    TRIM(o."NAME" || ' ' || o."FAMILY") AS owner_name
+FROM "FA_TALI_HEADER" h
+LEFT JOIN "FA_SYS_TERMS" t_marze
+       ON t_marze."SYS_TERM_ID" = h."ID_MARZE"
+LEFT JOIN "FA_SYS_TERMS" t_country
+       ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
+LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_comp
+       ON c_comp."ID_REPRE_COMPANY" = h."ID_COMPANY"
+LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_resp
+       ON c_resp."ID_REPRE_COMPANY" = h."ID_RESPONS_COMPANY"
+LEFT JOIN "FA_PRODUCT_OWNER" o
+       ON o."ID_OWNER" = h."ID_PRODUCT_OWNEAR"
+WHERE h."ID_TALI" = :hid
+  AND h."IS_DELETED" = 'no'
+"""
+
 
 @router.get("/list", dependencies=[Depends(get_current_user)])
 def list_tallies():
@@ -284,6 +330,22 @@ def list_tallies():
 @router.get("/{header_id}/details", dependencies=[Depends(get_current_user)])
 def list_tally_details(header_id: int):
     return fetch_all(DETAILS_SQL, {"hid": header_id})
+
+
+@router.get("/{header_id}/print")
+def get_tally_print_data(
+    header_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return one print-ready tally with resolved header labels and goods rows."""
+    header = fetch_one(PRINT_HEADER_SQL, {"hid": header_id})
+    if header is None:
+        raise HTTPException(status_code=404, detail="تالی یافت نشد")
+    header["print_user_name"] = (
+        current_user.get("full_name") or current_user.get("username") or ""
+    )
+    header["details"] = fetch_all(DETAILS_SQL, {"hid": header_id})
+    return header
 
 # --- one tally's diamound-rate entries, catalog title/code resolved ---
 DIAMOUND_SQL = """
