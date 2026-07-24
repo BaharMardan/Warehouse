@@ -160,7 +160,6 @@
 #     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
 #     number_bimeh: str | None = None         # شماره بیمه نامه
 #     tali_number: int | None = None          # شماره تالی
-#     number_ghabz: int | None = None         # قبض الکترونیک
 #     name_arzyab: str | None = None          # نام ارزیاب
 #     number_barnameh: str | None = None      # شماره بارنامه
 #     is_bimeh: str | None = None             # آیا بیمه دارد؟ (بله/خیر)
@@ -647,7 +646,6 @@
 #     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
 #     number_bimeh: str | None = None         # شماره بیمه نامه
 #     tali_number: int | None = None          # شماره تالی
-#     number_ghabz: int | None = None         # قبض الکترونیک
 #     name_arzyab: str | None = None          # نام ارزیاب
 #     number_barnameh: str | None = None      # شماره بارنامه
 #     is_bimeh: str | None = None             # آیا بیمه دارد؟ (بله/خیر)
@@ -1131,10 +1129,10 @@ class TaliHeaderInput(BaseModel):
     id_company: int | None = None           # نام شرکت حمل → companies
     id_respons_company: int | None = None   # نام نماینده شرکت حمل → companies
     id_product_ownear: int | None = None    # صاحب کالا → owners (note: DB spelling)
+    owner_national_code: str | None = None  # شناسه ملی صاحب کالا، ورود دستی در تالی
     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
     number_bimeh: str | None = None         # شماره بیمه نامه
     tali_number: str | None = None          # شماره تالی خودکار، مانند 1405-1
-    number_ghabz: int | None = None         # قبض الکترونیک
     name_arzyab: str | None = None          # نام ارزیاب
     number_barnameh: str | None = None      # شماره بارنامه
     is_bimeh: str | None = None             # آیا بیمه دارد؟ (بله/خیر)

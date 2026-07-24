@@ -46,7 +46,6 @@
 //   id_country: number | null
 //   number_bimeh: string
 //   tali_number: string
-//   number_ghabz: string
 //   name_arzyab: string
 //   number_barnameh: string
 //   is_bimeh: string // "بله" | "خیر"
@@ -58,7 +57,7 @@
 // const EMPTY: TallyHeaderState = {
 //   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
 //   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-//   id_country: null, number_bimeh: '', tali_number: '', number_ghabz: '',
+//   id_country: null, number_bimeh: '', tali_number: '',
 //   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
 //   accepted_gomrok: '', company_bimeh: '',
 // }
@@ -82,7 +81,6 @@
 //     id_country: s.id_country,
 //     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
 //     tali_number: numOrNull(normalizeDigits(s.tali_number)),
-//     number_ghabz: numOrNull(normalizeDigits(s.number_ghabz)),  // ← normalized
 //     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
 //     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
 //     is_bimeh: strOrNull(s.is_bimeh),
@@ -107,7 +105,6 @@
 //     id_country: r.id_country ?? null,
 //     number_bimeh: s(r.number_bimeh),
 //     tali_number: s(r.tali_number),
-//     number_ghabz: s(r.number_ghabz),
 //     name_arzyab: s(r.name_arzyab),
 //     number_barnameh: s(r.number_barnameh),
 //     is_bimeh: r.is_bimeh ?? 'خیر',
@@ -306,20 +303,12 @@
 //             />
 //           </Grid.Col>
 
-//           {/* --- row: barnameh number + electronic receipt number --- */}
+//           {/* --- row: barnameh number --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <TextInput
 //               label="شماره بارنامه"
 //               value={form.number_barnameh}
 //               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="قبض الکترونیک"
-//               inputMode="numeric"
-//               value={form.number_ghabz}
-//               onChange={(e) => set('number_ghabz', e.currentTarget.value)}
 //             />
 //           </Grid.Col>
 
@@ -427,7 +416,6 @@
 //   id_country: number | null
 //   number_bimeh: string
 //   tali_number: string
-//   number_ghabz: string
 //   name_arzyab: string
 //   number_barnameh: string
 //   is_bimeh: string // "بله" | "خیر"
@@ -439,7 +427,7 @@
 // const EMPTY: TallyHeaderState = {
 //   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
 //   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-//   id_country: null, number_bimeh: '', tali_number: '', number_ghabz: '',
+//   id_country: null, number_bimeh: '', tali_number: '',
 //   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
 //   accepted_gomrok: '', company_bimeh: '',
 // }
@@ -463,7 +451,6 @@
 //     id_country: s.id_country,
 //     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
 //     tali_number: numOrNull(normalizeDigits(s.tali_number)),
-//     number_ghabz: numOrNull(normalizeDigits(s.number_ghabz)),  // ← normalized
 //     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
 //     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
 //     is_bimeh: strOrNull(s.is_bimeh),
@@ -488,7 +475,6 @@
 //     id_country: r.id_country ?? null,
 //     number_bimeh: s(r.number_bimeh),
 //     tali_number: s(r.tali_number),
-//     number_ghabz: s(r.number_ghabz),
 //     name_arzyab: s(r.name_arzyab),
 //     number_barnameh: s(r.number_barnameh),
 //     is_bimeh: r.is_bimeh ?? 'خیر',
@@ -687,20 +673,12 @@
 //             />
 //           </Grid.Col>
 
-//           {/* --- row: barnameh number + electronic receipt number --- */}
+//           {/* --- row: barnameh number --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <TextInput
 //               label="شماره بارنامه"
 //               value={form.number_barnameh}
 //               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="قبض الکترونیک"
-//               inputMode="numeric"
-//               value={form.number_ghabz}
-//               onChange={(e) => set('number_ghabz', e.currentTarget.value)}
 //             />
 //           </Grid.Col>
 
@@ -806,9 +784,9 @@ type TallyHeaderState = {
   id_company: number | null
   id_respons_company: number | null
   id_product_ownear: number | null
+  owner_national_code: string
   id_country: number | null
   number_bimeh: string
-  number_ghabz: string
   name_arzyab: string
   number_barnameh: string
   is_bimeh: string // "بله" | "خیر"
@@ -820,7 +798,7 @@ type TallyHeaderState = {
 const EMPTY: TallyHeaderState = {
   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-  id_country: null, number_bimeh: '', number_ghabz: '',
+  owner_national_code: '', id_country: null, number_bimeh: '',
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
   accepted_gomrok: '', company_bimeh: '',
 }
@@ -841,9 +819,9 @@ function toPayload(s: TallyHeaderState) {
     id_company: s.id_company,
     id_respons_company: s.id_respons_company,
     id_product_ownear: s.id_product_ownear,
+    owner_national_code: codeOrNull(s.owner_national_code),
     id_country: s.id_country,
     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
-    number_ghabz: numOrNull(normalizeDigits(s.number_ghabz)),  // ← normalized
     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
     is_bimeh: strOrNull(s.is_bimeh),
@@ -865,9 +843,9 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     id_company: r.id_company ?? null,
     id_respons_company: r.id_respons_company ?? null,
     id_product_ownear: r.id_product_ownear ?? null,
+    owner_national_code: s(r.owner_national_code),
     id_country: r.id_country ?? null,
     number_bimeh: s(r.number_bimeh),
-    number_ghabz: s(r.number_ghabz),
     name_arzyab: s(r.name_arzyab),
     number_barnameh: s(r.number_barnameh),
     is_bimeh: r.is_bimeh ?? 'خیر',
@@ -882,7 +860,7 @@ const companyLabel = (r: Record<string, any>) =>
   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 
 const ownerLabel = (r: Record<string, any>) =>
-  `${r.name ?? ''} ${r.family ?? ''}`.trim()
+  `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 
 export function TallyHeaderForm() {
   const navigate = useNavigate()
@@ -1075,7 +1053,7 @@ export function TallyHeaderForm() {
             />
           </Grid.Col>
 
-          {/* --- row: barnameh number + electronic receipt number --- */}
+          {/* --- row: barnameh number --- */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="شماره بارنامه"
@@ -1083,16 +1061,8 @@ export function TallyHeaderForm() {
               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
             />
           </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput
-              label="شناسه ملی صاحب کالا"
-              inputMode="numeric"
-              value={form.number_ghabz}
-              onChange={(e) => set('number_ghabz', e.currentTarget.value)}
-            />
-          </Grid.Col>
 
-          {/* --- row: tally number + warehouse keeper --- */}
+          {/* --- row: tally number --- */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="شماره تالی"
@@ -1102,11 +1072,23 @@ export function TallyHeaderForm() {
               styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
             />
           </Grid.Col>
+
+          {/* --- row: warehouse keeper + manually entered owner national ID --- */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="نام انبار دار"
               value={form.name_anbardar}
               onChange={(e) => set('name_anbardar', e.currentTarget.value)}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="شناسه ملی صاحب کالا"
+              inputMode="numeric"
+              maxLength={20}
+              value={form.owner_national_code}
+              onChange={(e) => set('owner_national_code', e.currentTarget.value)}
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
           </Grid.Col>
 

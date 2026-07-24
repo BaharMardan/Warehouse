@@ -28,6 +28,8 @@
 // // RTL "back": chevron pointing right (toward the start of the line in an RTL layout)
 // export const IconBack = mk(<path d="M9 6l6 6-6 6" />)
 // export const IconUpload = mk(<><path d="M12 15V4" /><path d="M8 8l4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>)
+// export const IconSun = mk(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>)
+// export const IconMoon = mk(<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />)
 
 /**
  * Small inline-SVG icon set. This project has no icon library, so these keep the
@@ -59,5 +61,6 @@ export const IconAlert = mk(<><path d="M12 3l9 16H3z" /><path d="M12 10v4M12 17h
 // RTL "back": chevron pointing right (toward the start of the line in an RTL layout)
 export const IconBack = mk(<path d="M9 6l6 6-6 6" />)
 export const IconUpload = mk(<><path d="M12 15V4" /><path d="M8 8l4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>)
+export const IconPrint = mk(<><path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /><path d="M18 12h.01" /></>)
 export const IconSun = mk(<><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>)
 export const IconMoon = mk(<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />)

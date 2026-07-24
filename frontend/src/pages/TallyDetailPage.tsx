@@ -1163,7 +1163,7 @@ import {
   Title, Button, Group, Table, Paper, Loader, Center, Text, Stack, Divider,
   Modal, TextInput, Select, Grid, ActionIcon, Tooltip,
 } from '@mantine/core'
-import { IconEdit, IconTrash } from '../components/icons'
+import { IconEdit, IconPrint, IconTrash } from '../components/icons'
 import { apiGet, apiSend } from '../api/client'
 import { RefSelect } from '../components/RefSelect'
 import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
@@ -1379,7 +1379,18 @@ export function TallyDetailPage() {
           <TallyNumber value={header?.tali_number ?? tallyNumber} />
         </Title>
         <Group>
-          
+          <Button
+            variant="filled"
+            leftSection={<IconPrint size={18} />}
+            onClick={() => window.open(
+              `/tally/${encodeURIComponent(String(header?.tali_number ?? tallyNumber))}/print`,
+              '_blank',
+              'noopener,noreferrer',
+            )}
+            disabled={headerId == null}
+          >
+            چاپ تالی
+          </Button>
           <Button variant="light" onClick={() => navigate(`/tally/${encodeURIComponent(tallyNumber)}/edit`)}>ویرایش سربرگ</Button>
           <Button variant="light" color="teal" onClick={async () => {
             if (headerId == null) return
