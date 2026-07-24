@@ -855,8 +855,11 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
   }
 }
 
-// build "name family (national_code)" — matches how the APEX app shows companies/reps
 const companyLabel = (r: Record<string, any>) =>
+  String(r.company ?? '').trim()
+
+// build "name family (national_code)" for the transport-company representative
+const representativeLabel = (r: Record<string, any>) =>
   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 
 const ownerLabel = (r: Record<string, any>) =>
@@ -930,10 +933,7 @@ export function TallyHeaderForm() {
   }
   return (
     <div dir="rtl" style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <Group justify="space-between" mb="md">
-        <Title order={2} fw={700}>{isEdit ? 'ویرایش تالی' : 'ایجاد تالی جدید'}</Title>
-        <Button onClick={handleSave} loading={saving}>{isEdit ? 'ذخیره تغییرات' : 'ایجاد تالی'}</Button>
-      </Group>
+      <Title order={2} fw={700} mb="md">{isEdit ? 'ویرایش تالی' : 'ایجاد تالی جدید'}</Title>
 
       <Paper shadow="xs" p="lg" pos="relative">
         <LoadingOverlay visible={saving} />
@@ -1012,7 +1012,7 @@ export function TallyHeaderForm() {
               label="نام نماینده شرکت حمل"
               path="/companies"
               valueKey="id_repre_company"
-              labelKey={companyLabel}
+              labelKey={representativeLabel}
               value={form.id_respons_company}
               onChange={(v) => set('id_respons_company', v)}
             />
@@ -1124,7 +1124,9 @@ export function TallyHeaderForm() {
         )}
 
         <Group justify="flex-start" mt="xl">
-          <Button onClick={handleSave} loading={saving}>ایجاد تالی</Button>
+          <Button onClick={handleSave} loading={saving}>
+            {isEdit ? 'ذخیره تغییرات' : 'ایجاد تالی'}
+          </Button>
           <BackButton to="/tally" />
         </Group>
       </Paper>
