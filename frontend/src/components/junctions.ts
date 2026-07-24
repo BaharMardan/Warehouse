@@ -40,12 +40,6 @@
 //     catalogPath: '/kala-dangerous', catalogValueKey: 'id_kala_dangerous',
 //     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
 //   },
-//   {
-//     key: 'price', title: 'نرخ انبارداری',
-//     apiPath: '/tali-kala-price', readPath: 'price', linkKey: 'kala_price_id',
-//     catalogPath: '/kala-price', catalogValueKey: 'id_kala_price',
-//     catalogLabel: (r) => `${r.code ?? ''} ${r.description ? `(${r.description})` : ''}`.trim(),
-//   },
 // ]
 
 import type { JunctionConfig } from './TallyJunctionSection'
@@ -97,11 +91,5 @@ export const tallyJunctions: JunctionConfig[] = [
     apiPath: '/tali-kala-dangerous', readPath: 'dangerous', linkKey: 'kala_dangerous_id',
     catalogPath: '/kala-dangerous', catalogValueKey: 'id_kala_dangerous',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
-  },
-  {
-    key: 'price', title: 'نرخ انبارداری',
-    apiPath: '/tali-kala-price', readPath: 'price', linkKey: 'kala_price_id',
-    catalogPath: '/kala-price', catalogValueKey: 'id_kala_price',
-    catalogLabel: (r) => `${r.code ?? ''} ${r.description ? `(${r.description})` : ''}`.trim(),
   },
 ]
