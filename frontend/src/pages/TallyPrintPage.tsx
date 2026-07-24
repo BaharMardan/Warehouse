@@ -333,7 +333,7 @@ function TallySheet({
           <div className="tally-print-law">
             {insured
               ? 'طبق ماده ۲۵ قانون امور گمرکی و بر اساس شماره بیمه‌نامه فوق، کالای درج‌شده در تالی بیمه می‌باشد و نیازی به بیمه مجدد توسط گمرک شهرک صنعتی توس (شرکت آسان تجارت فلات شرق) در طول مدت انبارداری و اعتبار بیمه‌نامه مذکور ندارد.'
-              : <span className="tally-print-no-insurance">×</span>}
+              : <span className="tally-print-no-insurance"></span>}
           </div>
         </div>
 
