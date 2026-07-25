@@ -1,10 +1,14 @@
-.tally-detail-page {
+.tally-detail-page,
+.tally-detail-modal {
   --detail-blue: #1767c9;
   --detail-blue-dark: #0c4fa8;
   --detail-blue-soft: #eef6ff;
   --detail-ink: #17243a;
   --detail-muted: #6b7890;
   --detail-line: #dce5f0;
+}
+
+.tally-detail-page {
   width: 100%;
   max-width: 1540px;
   margin: 0 auto;
@@ -96,14 +100,37 @@
 .tally-detail-actions .mantine-Button-root:first-child,
 .tally-detail-add-button,
 .tally-detail-save-button {
-  background: linear-gradient(145deg, #247de3, var(--detail-blue-dark));
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(145deg, #247de3, var(--detail-blue-dark, #0c4fa8));
   box-shadow: 0 5px 12px rgba(12, 79, 168, 0.18);
 }
 
-.tally-detail-actions .mantine-Button-root:first-child:hover,
-.tally-detail-add-button:hover,
-.tally-detail-save-button:hover {
+.tally-detail-actions .mantine-Button-root:first-child:not(:disabled):hover,
+.tally-detail-add-button:not(:disabled):hover,
+.tally-detail-save-button:not(:disabled):hover {
+  color: #fff;
   background: linear-gradient(145deg, #2f88ed, #094793);
+  box-shadow: 0 7px 16px rgba(12, 79, 168, 0.26);
+}
+
+.tally-detail-save-button:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: 0 3px 8px rgba(12, 79, 168, 0.2);
+}
+
+.tally-detail-save-button:focus-visible {
+  outline: 3px solid rgba(36, 125, 227, 0.3);
+  outline-offset: 2px;
+}
+
+.tally-detail-save-button:disabled:not([data-loading]),
+.tally-detail-save-button[data-disabled]:not([data-loading]) {
+  color: #7c899a;
+  border-color: #d4deea;
+  background: #e9eef5;
+  box-shadow: none;
+  opacity: 1;
 }
 
 .tally-detail-summary-grid {
@@ -356,7 +383,8 @@
   font-weight: 800;
 }
 
-[data-mantine-color-scheme='dark'] .tally-detail-page {
+[data-mantine-color-scheme='dark'] .tally-detail-page,
+[data-mantine-color-scheme='dark'] .tally-detail-modal {
   --detail-ink: #ecf2fb;
   --detail-muted: #9eabc0;
   --detail-line: #34445c;
