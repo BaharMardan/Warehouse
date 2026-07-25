@@ -653,7 +653,7 @@
   overflow: hidden;
   color: #172b49;
   font-weight: 500;
-  text-align: left;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
