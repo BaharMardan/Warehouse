@@ -1,4 +1,4 @@
-@page {
+/* @page {
   size: A4 landscape;
   margin: 5mm;
 }
@@ -142,7 +142,6 @@
   min-width: 0;
   overflow: hidden;
   padding-bottom: 0.3mm;
-  border-bottom: 0.35px dotted #777;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -300,16 +299,16 @@
   gap: 2mm;
 }
 
-.tally-print-notes span {
-  border-bottom: 0.35px dotted #777;
-}
-
 .tally-print-law {
   min-height: 9mm;
   padding-top: 1.5mm;
   font-weight: 700;
   line-height: 1.8;
   text-align: justify;
+}
+
+.tally-print-insured-notice {
+  color: #c92a2a;
 }
 
 .tally-print-no-insurance {
@@ -377,5 +376,554 @@
 
   .tally-print-user {
     display: flex;
+  }
+} */
+
+@page {
+  size: A4 landscape;
+  margin: 5mm;
+}
+
+:root {
+  --tally-blue: #1767c9;
+  --tally-blue-dark: #0c4fa8;
+  --tally-blue-soft: #eef6ff;
+  --tally-ink: #152238;
+  --tally-muted: #66758a;
+  --tally-line: #dce4ef;
+}
+
+.tally-print-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  overflow-x: auto;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% -15%, rgba(23, 103, 201, 0.08), transparent 38%),
+    #edf1f6;
+  color: var(--tally-ink);
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+.tally-print-state {
+  min-height: 100vh;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tally-print-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: 285mm;
+  height: 198mm;
+  margin: 0 auto 24px;
+  padding: 4.5mm;
+  overflow: hidden;
+  border: 0.5px solid rgba(23, 103, 201, 0.15);
+  border-radius: 5mm;
+  background: #fff;
+  box-shadow: 0 12px 35px rgba(31, 53, 83, 0.12);
+  direction: rtl;
+  page-break-after: always;
+  break-after: page;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.tally-print-sheet:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.tally-print-form {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 3.2mm;
+}
+
+.tally-print-heading {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 25mm;
+  padding: 3.2mm 5mm;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 0.5px solid var(--tally-line);
+  border-top: 1px solid var(--tally-blue);
+  border-radius: 4mm;
+  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+  box-shadow: 0 4px 12px rgba(32, 69, 118, 0.07);
+}
+
+.tally-print-preview-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4mm;
+}
+
+.tally-print-action {
+  display: grid;
+  box-sizing: border-box;
+  width: 15mm;
+  height: 15mm;
+  flex: 0 0 15mm;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: 3.2mm;
+  background: linear-gradient(145deg, #2681e9, var(--tally-blue-dark));
+  box-shadow:
+    0 3px 8px rgba(12, 79, 168, 0.24),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.tally-print-action:hover {
+  background: linear-gradient(145deg, #2f8cf5, #0a4899);
+}
+
+.tally-print-action:focus-visible {
+  outline: 2px solid rgba(23, 103, 201, 0.4);
+  outline-offset: 2px;
+}
+
+.tally-print-preview-heading h1 {
+  display: flex;
+  margin: 0;
+  align-items: baseline;
+  gap: 2mm;
+  color: var(--tally-blue-dark);
+  font-size: 17pt;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.tally-print-preview-heading h1 bdi {
+  font-size: 16.5pt;
+  font-weight: 800;
+  unicode-bidi: isolate;
+}
+
+.tally-print-preview-heading p {
+  margin: 1.8mm 0 0;
+  color: #77869a;
+  font-size: 8pt;
+  font-weight: 600;
+}
+
+.tally-print-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  direction: ltr;
+  gap: 3.5mm;
+}
+
+.tally-print-brand-mark {
+  display: grid;
+  box-sizing: border-box;
+  width: 15mm;
+  height: 15mm;
+  flex: 0 0 15mm;
+  place-items: center;
+  border-radius: 3.2mm;
+  background: linear-gradient(145deg, #2681e9, var(--tally-blue-dark));
+  box-shadow:
+    0 3px 8px rgba(12, 79, 168, 0.24),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.tally-print-brand-mark svg {
+  width: 10.5mm;
+  height: 10.5mm;
+}
+
+.tally-print-brand-copy {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  direction: rtl;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.tally-print-brand-copy > strong {
+  overflow: hidden;
+  max-width: 100%;
+  color: #111a27;
+  font-size: 9.5pt;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tally-print-brand-copy > span {
+  margin-top: 1.2mm;
+  color: #58687b;
+  font-size: 6.5pt;
+  font-weight: 700;
+}
+
+.tally-print-brand-copy > small {
+  color: #7b8797;
+  font-size: 5.6pt;
+}
+
+.tally-print-user {
+  display: inline-flex;
+  max-width: 58mm;
+  margin-top: 1.2mm;
+  align-items: center;
+  gap: 0.8mm;
+  color: #52657e;
+  font-size: 5.8pt;
+  white-space: nowrap;
+}
+
+.tally-print-user b {
+  overflow: hidden;
+  color: var(--tally-blue-dark);
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.tally-print-header-fields {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 36mm;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.34fr) minmax(0, 1fr);
+  gap: 3.2mm;
+}
+
+.tally-print-info-card {
+  display: flex;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 2.2mm 3mm;
+  justify-content: center;
+  flex-direction: column;
+  border: 0.5px solid var(--tally-line);
+  border-radius: 3mm;
+  background: linear-gradient(145deg, #fff, #fcfdff);
+  box-shadow: 0 2px 7px rgba(35, 64, 102, 0.035);
+}
+
+.tally-print-info-line {
+  display: grid;
+  min-width: 0;
+  min-height: 5.9mm;
+  align-items: center;
+  grid-template-columns: 4mm max-content minmax(0, 1fr);
+  gap: 1mm;
+  color: #223450;
+  font-size: 6.35pt;
+}
+
+.tally-print-info-card-wide .tally-print-info-line {
+  font-size: 6.05pt;
+}
+
+.tally-print-info-icon {
+  display: inline-grid;
+  color: #315f9f;
+  place-items: center;
+}
+
+.tally-print-info-icon svg {
+  width: 3.7mm;
+  height: 3.7mm;
+  stroke-width: 1.8;
+}
+
+.tally-print-label {
+  min-width: 0;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tally-print-value {
+  min-width: 0;
+  overflow: hidden;
+  color: #172b49;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tally-print-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.tally-print-table-frame {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 0.5px solid #d7e0eb;
+  border-radius: 2.8mm;
+  background: #fff;
+}
+
+.tally-print-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: #17263b;
+  font-size: 6.1pt;
+}
+
+.tally-print-table th,
+.tally-print-table td {
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.8mm 0.55mm;
+  border-left: 0.45px solid #d8e0ea;
+  border-bottom: 0.45px solid #d8e0ea;
+  line-height: 1.35;
+  text-align: center;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+.tally-print-table th:last-child,
+.tally-print-table td:last-child {
+  border-left: 0;
+}
+
+.tally-print-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.tally-print-table th {
+  height: 9.5mm;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: linear-gradient(180deg, #216fce 0%, #155ab3 100%);
+  color: #fff;
+  font-size: 5.9pt;
+  font-weight: 800;
+}
+
+.tally-print-table td {
+  height: 9.7mm;
+  background: #fff;
+}
+
+.tally-print-table tbody tr:nth-child(even) td {
+  background: #fbfdff;
+}
+
+.tally-print-plate {
+  display: inline-grid;
+  box-sizing: border-box;
+  width: 27mm;
+  max-width: 100%;
+  height: 6.5mm;
+  overflow: hidden;
+  align-items: stretch;
+  grid-template-columns: 3mm 4.5mm 3.5mm 7mm 9mm;
+  border: 0.5px solid #7f8b99;
+  border-radius: 0.9mm;
+  background: #fff;
+  color: #111;
+  font-size: 6.3pt;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tally-print-plate > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.tally-print-plate-blue {
+  flex-direction: column;
+  background: #17479e;
+  color: #fff;
+  font-size: 3.1pt;
+  font-weight: 500;
+  gap: 0.15mm;
+}
+
+.tally-print-plate-blue > span {
+  font-size: 3.7pt;
+  line-height: 1;
+}
+
+.tally-print-plate-blue small {
+  font-size: 2.7pt;
+  line-height: 1;
+}
+
+.tally-print-plate-letter {
+  font-size: 7pt;
+}
+
+.tally-print-plate-region {
+  border-right: 0.45px solid #111;
+  flex-direction: column;
+  gap: 0.25mm;
+}
+
+.tally-print-plate-region small {
+  font-size: 3.4pt;
+  font-weight: 500;
+}
+
+.tally-print-plate-region strong {
+  font-size: 6pt;
+}
+
+.tally-print-insurance {
+  box-sizing: border-box;
+  min-height: 25mm;
+  padding: 1mm 3mm 0;
+  color: #1d2a3e;
+  font-size: 6.6pt;
+}
+
+.tally-print-insurance-choice {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6mm;
+}
+
+.tally-print-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.3mm;
+  font-weight: 800;
+}
+
+.tally-print-check-box {
+  display: inline-flex;
+  box-sizing: border-box;
+  width: 4.2mm;
+  height: 4.2mm;
+  align-items: center;
+  justify-content: center;
+  border: 0.55px solid #65758a;
+  border-radius: 0.6mm;
+  color: var(--tally-blue);
+  font-size: 8pt;
+  line-height: 1;
+}
+
+.tally-print-notes {
+  display: grid;
+  min-height: 5.5mm;
+  align-items: baseline;
+  margin-top: 1.5mm;
+  grid-template-columns: max-content 1fr;
+  gap: 2mm;
+}
+
+.tally-print-law {
+  min-height: 8mm;
+  padding-top: 1mm;
+  font-weight: 700;
+  line-height: 1.75;
+  text-align: center;
+}
+
+.tally-print-insured-notice {
+  color: #e03131;
+}
+
+.tally-print-no-insurance {
+  display: block;
+  min-height: 5mm;
+}
+
+.tally-print-signatures {
+  display: grid;
+  box-sizing: border-box;
+  height: 27mm;
+  margin-top: auto;
+  grid-template-columns: repeat(3, 1fr);
+  border: 0.5px solid #e2eaf4;
+  border-radius: 3mm;
+  background: linear-gradient(105deg, #f8fbff, var(--tally-blue-soft), #f8fbff);
+}
+
+.tally-print-signatures > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: 4mm 4mm 2.5mm;
+  flex-direction: column;
+  gap: 3.3mm;
+  color: #16345e;
+  font-size: 7pt;
+}
+
+.tally-print-signatures strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  white-space: nowrap;
+}
+
+.tally-print-signatures strong svg {
+  width: 4.2mm;
+  height: 4.2mm;
+  color: #2269c5;
+  stroke-width: 1.8;
+}
+
+.tally-print-signatures span {
+  width: min(52mm, 88%);
+  min-width: 0;
+  min-height: 6mm;
+  overflow: hidden;
+  border-bottom: 0.35px dotted #8492a5;
+  color: #263d5c;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tally-print-page-number {
+  position: absolute;
+  bottom: 1.5mm;
+  left: 5mm;
+  color: #718096;
+  font-size: 6pt;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .tally-print-page {
+    min-height: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .tally-print-sheet {
+    width: 285mm;
+    height: 198mm;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  .tally-print-action {
+    cursor: default;
   }
 }

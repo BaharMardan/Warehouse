@@ -232,7 +232,7 @@ SELECT
     h."ID_COUNTRY"                      AS id_country,
     t_country."SYS_TERM_VALUE"          AS country_name,
     h."ID_COMPANY"                      AS id_company,
-    (c_comp."NAME" || ' ' || c_comp."FAMILY")   AS company_name,
+    TRIM(c_comp."COMPANY")              AS company_name,
     h."ID_PRODUCT_OWNEAR"               AS id_product_ownear,
     (o."NAME" || ' ' || o."FAMILY")     AS owner_name
 FROM "FA_TALI_HEADER" h

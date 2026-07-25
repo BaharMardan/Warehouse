@@ -108,7 +108,7 @@ interface KalaPrice {
 }
 const kalaPrice: CrudConfig<KalaPrice> = {
   route: '/kala-price', path: '/kala-price', queryKey: 'kala_price',
-  title: 'قیمت کالا', entity: 'ردیف قیمت', pkField: 'id_kala_price',
+  title: 'کد گروه کالا', entity: 'ردیف قیمت', pkField: 'id_kala_price',
   // Table-1 tariff view: code · goods group · storage (انبارداری) · handling (تخلیه و بارگیری)
   columns: [
     { key: 'code', label: 'کد', field: 'code' },

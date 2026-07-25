@@ -742,7 +742,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
 } from '@mantine/core'
@@ -758,6 +758,10 @@ function normalizeDigits(s: string): string {
   return s
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+}
+
+function normalizeIntegerInput(s: string): string {
+  return normalizeDigits(s).replace(/\D/g, '')
 }
 
 /**
@@ -806,7 +810,10 @@ const EMPTY: TallyHeaderState = {
 // turn "" into null and numeric strings into numbers, so the payload matches the
 // backend model (which expects number|null / str|null, never empty strings)
 function toPayload(s: TallyHeaderState) {
-  const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
+  const numOrNull = (v: string) => {
+    const normalized = normalizeIntegerInput(v)
+    return normalized === '' ? null : Number(normalized)
+  }
   const strOrNull = (v: string) => (v.trim() === '' ? null : v)
   // code/number fields: convert Persian/Arabic digits to Latin before storing
   const codeOrNull = (v: string) => strOrNull(normalizeDigits(v))
@@ -867,6 +874,7 @@ const ownerLabel = (r: Record<string, any>) =>
 
 export function TallyHeaderForm() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { tallyNumber } = useParams<{ tallyNumber: string }>()
   const isEdit = tallyNumber != null
   const isLegacyId = Boolean(tallyNumber && /^\d+$/.test(tallyNumber))
@@ -918,15 +926,31 @@ export function TallyHeaderForm() {
         if (editId == null) {
           throw new Error('اطلاعات تالی هنوز بارگذاری نشده است.')
         }
-        await apiSend(`/tally-header/${editId}`, 'PUT', toPayload(form))
-        const publicNumber = String(existing?.tali_number ?? tallyNumber)
+        const payload = toPayload(form)
+        const updated = await apiSend<Record<string, any>>(
+          `/tally-header/${editId}`,
+          'PUT',
+          payload,
+        )
+        if (updated.radef_marze !== payload.radef_marze) {
+          throw new Error('مقدار ردیف مرزی در پاسخ ذخیره تأیید نشد.')
+        }
+
+        queryClient.setQueryData(['tally-header', tallyNumber], updated)
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['tally-header', tallyNumber] }),
+          queryClient.invalidateQueries({ queryKey: ['tally-summary', editId] }),
+        ])
+
+        const publicNumber = String(updated.tali_number ?? existing?.tali_number ?? tallyNumber)
         navigate(`/tally/${encodeURIComponent(publicNumber)}`)
       } else {
         const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
         navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
       }
     } catch (e) {
-      setError('ذخیره تالی ناموفق بود. لطفاً دوباره تلاش کنید.')
+      const detail = e instanceof Error ? ` ${e.message}` : ''
+      setError(`ذخیره تالی ناموفق بود.${detail}`)
     } finally {
       setSaving(false)
     }
@@ -951,8 +975,11 @@ export function TallyHeaderForm() {
             <TextInput
               label="ردیف مرزی"
               inputMode="numeric"
+              pattern="[0-9]*"
               value={form.radef_marze}
-              onChange={(e) => set('radef_marze', e.currentTarget.value)}
+              onChange={(e) => set('radef_marze', normalizeIntegerInput(e.currentTarget.value))}
+              // description="فقط عدد وارد کنید."
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
           </Grid.Col>
 

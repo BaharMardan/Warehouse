@@ -1153,7 +1153,7 @@ class TaliDetailInput(BaseModel):
     number_kala: int = Field(...)             # تعداد (NOT NULL)
     weighte: float = Field(...)               # وزن (NOT NULL)
     type_number_kantiner: str | None = None   # نوع و شماره حامل
-    number_ghabze_bskol: int | None = None    # ش قبض باسکول
+    number_ghabze_bskol: int = Field(..., ge=0)  # شماره قبض باسکول (required)
     weighte_baskol: float = Field(...)        # وزن باسکول (NOT NULL)
     number_hamel: str | None = None           # شماره حامل
     zarib_mahal: str | None   = None          # ضریب محل
