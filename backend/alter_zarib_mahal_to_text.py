@@ -2,7 +2,7 @@
 
 WHY
     «ضریب محل» used to be a numeric coefficient. The tally «افزودن ردیف کالا» form
-    now offers it as a dropdown of storage-location types (انبارداری مسقف / تانگارد /
+    now offers it as a dropdown of storage-location types (انبارداری مسقف / هانگار /
     بارانداز / محوطه), which are text. To store those labels the column must be
     VARCHAR2 instead of NUMBER.
 

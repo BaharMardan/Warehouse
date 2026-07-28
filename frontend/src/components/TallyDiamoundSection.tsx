@@ -7,9 +7,9 @@ import { apiGet, apiSend } from '../api/client'
 import { RefSelect } from './RefSelect'
 
 /**
- * TallyDiamoundSection — the demand-rate (دیماند) junction for one tally.
+ * TallyDiamoundSection — the demand (دیماند) junction for one tally.
  * A small grid of this tally's diamound entries + an "add" modal that picks a
- * rate from the fa_kala_diamound catalog and snapshots its code.
+ * item from the fa_kala_diamound catalog and snapshots its code.
  *
  * Reads:  GET /tally/:id/diamound   (entries, with catalog title/code resolved)
  * Writes: POST/PUT/DELETE /tali-kala-diamound  (the factory router)
@@ -62,7 +62,7 @@ export function TallyDiamoundSection({ tallyId }: { tallyId: number }) {
   return (
     <Paper shadow="xs" p="md" mt="md">
       <Group justify="space-between" mb="sm">
-        <Text fw={600}>دیماند در ساعات غیراداری</Text>
+        <Text fw={600}>دیماند</Text>
         <Button size="sm" onClick={() => setModalOpen(true)}>افزودن</Button>
       </Group>
       <Divider mb="sm" />
@@ -79,7 +79,7 @@ export function TallyDiamoundSection({ tallyId }: { tallyId: number }) {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>کد</Table.Th>
-              <Table.Th>عنوان نرخ</Table.Th>
+              <Table.Th>عنوان</Table.Th>
               <Table.Th>توضیحات</Table.Th>
               <Table.Th>عملیات</Table.Th>
             </Table.Tr>
@@ -107,7 +107,7 @@ export function TallyDiamoundSection({ tallyId }: { tallyId: number }) {
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title="افزودن دیماند">
         <Stack>
           <RefSelect
-            label="انتخاب نرخ دیماند"
+            label="انتخاب دیماند"
             path="/kala-diamound"
             valueKey="id_kala_diamound"
             labelKey={(r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim()}

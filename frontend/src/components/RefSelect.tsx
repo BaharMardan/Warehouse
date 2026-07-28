@@ -10,6 +10,11 @@ import { apiGet } from '../api/client'
 
 type Row = Record<string, any>
 type LabelKey = string | ((row: Row) => string)
+type VariantOption = {
+  value: string
+  label: string
+  field?: string
+}
 
 type Props = {
   path: string
@@ -20,6 +25,10 @@ type Props = {
   onChange: (value: number | null) => void
   /** optional: also receive the full picked row (for snapshotting extra fields) */
   onPick?: (row: Row | null) => void
+  /** optional: flatten each catalog row into multiple selectable variants */
+  variantOptions?: VariantOption[]
+  variantValue?: string | null
+  onVariantChange?: (value: string | null) => void
 } & Omit<SelectProps, 'data' | 'value' | 'onChange'>
 
 function withParams(path: string, params?: Record<string, string | number>) {
@@ -36,6 +45,16 @@ function toLabel(row: Row, labelKey: LabelKey): string {
   return v == null ? '' : String(v)
 }
 
+function formatAmount(value: unknown): string {
+  if (value == null || String(value).trim() === '') return '—'
+  const normalized = String(value)
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[,\u066C]/g, '')
+  const amount = Number(normalized)
+  return Number.isFinite(amount) ? amount.toLocaleString('fa-IR') : String(value)
+}
+
 export function RefSelect({
   path,
   valueKey,
@@ -44,6 +63,9 @@ export function RefSelect({
   value,
   onChange,
   onPick,
+  variantOptions,
+  variantValue,
+  onVariantChange,
   ...selectProps
 }: Props) {
   const url = withParams(path, params)
@@ -54,21 +76,41 @@ export function RefSelect({
     staleTime: 5 * 60 * 1000,
   })
 
-  const options =
-    data?.map((row) => ({
-      value: String(row[valueKey]),
-      label: toLabel(row, labelKey),
-    })) ?? []
+  const hasVariants = Boolean(variantOptions?.length)
+  const options = data?.flatMap((row) => {
+    const baseLabel = toLabel(row, labelKey)
+    if (!hasVariants) {
+      return [{ value: String(row[valueKey]), label: baseLabel }]
+    }
+    return variantOptions!.map((variant) => {
+      const amount = variant.field ? `: ${formatAmount(row[variant.field])} ریال` : ''
+      return {
+        value: `${String(row[valueKey])}::${variant.value}`,
+        label: `${baseLabel} — ${variant.label}${amount}`,
+      }
+    })
+  }) ?? []
+
+  const selectedValue =
+    value == null
+      ? null
+      : hasVariants
+        ? (variantValue == null ? null : `${String(value)}::${variantValue}`)
+        : String(value)
 
   return (
     <Select
       data={options}
-      value={value == null ? null : String(value)}
+      value={selectedValue}
       onChange={(val) => {
-        const id = val == null ? null : Number(val)
+        const [rawId, pickedVariant] =
+          val == null ? [null, null] : hasVariants ? val.split('::', 2) : [val, null]
+        const id = rawId == null ? null : Number(rawId)
         onChange(id)
+        onVariantChange?.(pickedVariant)
         if (onPick) {
-          const picked = id == null ? null : (data?.find((r) => String(r[valueKey]) === val) ?? null)
+          const picked =
+            id == null ? null : (data?.find((r) => String(r[valueKey]) === String(rawId)) ?? null)
           onPick(picked)
         }
       }}

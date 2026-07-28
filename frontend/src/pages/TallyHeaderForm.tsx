@@ -744,8 +744,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
+  ActionIcon, Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
 } from '@mantine/core'
+import { Plus, Trash2 } from 'lucide-react'
 import { RefSelect } from '../components/RefSelect'
 import { JalaliDate } from '../components/JalaliDate'
 import { apiSend, apiGet } from '../api/client'
@@ -762,6 +763,24 @@ function normalizeDigits(s: string): string {
 
 function normalizeIntegerInput(s: string): string {
   return normalizeDigits(s).replace(/\D/g, '')
+}
+
+const DEFAULT_WAREHOUSE_KEEPER = 'آقای میاندهی'
+
+function parseInsurancePolicyNumbers(value: unknown): string[] {
+  const numbers = String(value ?? '')
+    .split(/\r?\n/)
+    .map((number) => number.trim())
+    .filter(Boolean)
+  return numbers.length > 0 ? numbers : ['']
+}
+
+function serializeInsurancePolicyNumbers(numbers: string[]): string | null {
+  const value = numbers
+    .map((number) => normalizeDigits(number).trim())
+    .filter(Boolean)
+    .join('\n')
+  return value === '' ? null : value
 }
 
 /**
@@ -790,7 +809,7 @@ type TallyHeaderState = {
   id_product_ownear: number | null
   owner_national_code: string
   id_country: number | null
-  number_bimeh: string
+  number_bimeh: string[]
   name_arzyab: string
   number_barnameh: string
   is_bimeh: string // "بله" | "خیر"
@@ -802,8 +821,9 @@ type TallyHeaderState = {
 const EMPTY: TallyHeaderState = {
   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-  owner_national_code: '', id_country: null, number_bimeh: '',
-  name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
+  owner_national_code: '', id_country: null, number_bimeh: [''],
+  name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
+  name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
   accepted_gomrok: '', company_bimeh: '',
 }
 
@@ -828,7 +848,9 @@ function toPayload(s: TallyHeaderState) {
     id_product_ownear: s.id_product_ownear,
     owner_national_code: codeOrNull(s.owner_national_code),
     id_country: s.id_country,
-    number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
+    // Stored as newline-separated values in the existing database column.
+    // A legacy single policy number remains fully compatible with this format.
+    number_bimeh: serializeInsurancePolicyNumbers(s.number_bimeh),
     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
     is_bimeh: strOrNull(s.is_bimeh),
@@ -852,11 +874,11 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     id_product_ownear: r.id_product_ownear ?? null,
     owner_national_code: s(r.owner_national_code),
     id_country: r.id_country ?? null,
-    number_bimeh: s(r.number_bimeh),
+    number_bimeh: parseInsurancePolicyNumbers(r.number_bimeh),
     name_arzyab: s(r.name_arzyab),
     number_barnameh: s(r.number_barnameh),
     is_bimeh: r.is_bimeh ?? 'خیر',
-    name_anbardar: s(r.name_anbardar),
+    name_anbardar: s(r.name_anbardar).trim() || DEFAULT_WAREHOUSE_KEEPER,
     accepted_gomrok: s(r.accepted_gomrok),
     company_bimeh: s(r.company_bimeh),
   }
@@ -901,6 +923,31 @@ export function TallyHeaderForm() {
   // one helper to update any field by key
   const set = <K extends keyof TallyHeaderState>(key: K, value: TallyHeaderState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  const updateInsurancePolicyNumber = (index: number, value: string) => {
+    setForm((current) => ({
+      ...current,
+      number_bimeh: current.number_bimeh.map((number, numberIndex) =>
+        numberIndex === index ? value : number
+      ),
+    }))
+  }
+
+  const addInsurancePolicyNumber = () => {
+    setForm((current) => ({
+      ...current,
+      number_bimeh: [...current.number_bimeh, ''],
+    }))
+  }
+
+  const removeInsurancePolicyNumber = (index: number) => {
+    setForm((current) => ({
+      ...current,
+      number_bimeh: current.number_bimeh.length === 1
+        ? ['']
+        : current.number_bimeh.filter((_, numberIndex) => numberIndex !== index),
+    }))
+  }
 
   // async function handleSave() {
   //   setSaving(true)
@@ -1066,11 +1113,44 @@ export function TallyHeaderForm() {
 
           {/* --- row: insurance number + insurance company --- */}
           <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput
-              label="شماره بیمه نامه"
-              value={form.number_bimeh}
-              onChange={(e) => set('number_bimeh', e.currentTarget.value)}
-            />
+            <Stack gap="xs">
+              {form.number_bimeh.map((number, index) => (
+                <Group key={index} gap="xs" align="flex-end" wrap="nowrap">
+                  <TextInput
+                    label={index === 0 ? 'شماره بیمه نامه' : `شماره بیمه نامه ${index + 1}`}
+                    value={number}
+                    onChange={(e) => updateInsurancePolicyNumber(index, e.currentTarget.value)}
+                    style={{ flex: 1 }}
+                    styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+                  />
+                  {index === 0 ? (
+                    <ActionIcon
+                      type="button"
+                      size={36}
+                      variant="filled"
+                      color="blue"
+                      aria-label="افزودن شماره بیمه نامه"
+                      title="افزودن شماره بیمه نامه"
+                      onClick={addInsurancePolicyNumber}
+                    >
+                      <Plus size={19} strokeWidth={2.2} />
+                    </ActionIcon>
+                  ) : (
+                    <ActionIcon
+                      type="button"
+                      size={36}
+                      variant="light"
+                      color="red"
+                      aria-label={`حذف شماره بیمه نامه ${index + 1}`}
+                      title="حذف این شماره بیمه نامه"
+                      onClick={() => removeInsurancePolicyNumber(index)}
+                    >
+                      <Trash2 size={17} strokeWidth={2} />
+                    </ActionIcon>
+                  )}
+                </Group>
+              ))}
+            </Stack>
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
@@ -1086,6 +1166,7 @@ export function TallyHeaderForm() {
               label="شماره بارنامه"
               value={form.number_barnameh}
               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
           </Grid.Col>
 

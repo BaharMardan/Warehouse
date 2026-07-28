@@ -1,6 +1,6 @@
 """Add + populate FA_ANBAR.SORT_ORDER to control the warehouse dropdown order.
 
-The «انبار» dropdown must read:  6, 7, 8, 9, 10, 11, هنگار, بارانداز  — independent of
+The «انبار» dropdown must read:  6, 7, 8, 9, 10, 11, هانگار, بارانداز  — independent of
 the primary key. This adds a SORT_ORDER column (a standard lookup display-order
 column) and sets it on the 8 existing active warehouses, matched BY NAME.
 
@@ -24,7 +24,7 @@ Run (backend env, same as run_ddl.py):
 from app.core.db import get_connection
 
 # name_anbar -> display position (this list IS the ordering; edit here to reorder)
-ORDER = {"6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "هانگارد": 7, "بارانداز": 8}
+ORDER = {"6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "هانگار": 7, "بارانداز": 8}
 
 
 def main():

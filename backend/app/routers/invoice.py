@@ -231,7 +231,10 @@ JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_ti
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
 """
 DIAMOUND_SQL = """
-SELECT c."price_gher_edari" AS price
+SELECT CASE NVL(j."pricing_type", 'off_hours')
+           WHEN 'holiday' THEN c."price_holiday"
+           ELSE c."price_gher_edari"
+       END AS price
 FROM "fa_tali_kala_diamound" j
 JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)

@@ -982,6 +982,9 @@ upper-named FA_ tables). For fields, the column defaults to FIELD.upper(); list 
 column whose stored name isn't that (lowercase/mixed-case, or a rename) in
 column_overrides with its exact spelling.
 """
+from decimal import Decimal
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.crud.factory import make_crud_router, Audit
@@ -1151,6 +1154,8 @@ class TaliDetailInput(BaseModel):
     hscode: str | None = None                 # Hscode
     type_bastem: str | None = None            # نوع بسته‌بندی
     number_kala: int = Field(...)             # تعداد (NOT NULL)
+    number_pallet: int | None = Field(default=None, ge=0)  # تعداد پالت
+    value_kala: Decimal | None = Field(default=None, ge=0)  # ارزش کالا
     weighte: float = Field(...)               # وزن (NOT NULL)
     type_number_kantiner: str | None = None   # نوع و شماره حامل
     number_ghabze_bskol: int = Field(..., ge=0)  # شماره قبض باسکول (required)
@@ -1165,6 +1170,7 @@ class TaliKalaDiamoundInput(BaseModel):
     tali_id: int
     kala_diamound_id: int | None = None
     code: str | None = None
+    pricing_type: Literal["off_hours", "holiday"] | None = None
     description: str | None = None
 
 # ----- fa_tali_kala_price -----
@@ -1297,6 +1303,7 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-price", table="fa_kala_price", pk="id_kala_price",
         model=KalaPriceInput, tag="kala_price", not_found="ردیف قیمت یافت نشد",
+        order_by="CODE",
         column_overrides={
             # columns the original devs stored lowercase -> quote them exactly as-is
             "id_kala": "id_kala",
@@ -1391,6 +1398,7 @@ crud_routers = [
             "tali_id": "tali_id",
             "kala_diamound_id": "kala_diamound_id",
             "code": "code",
+            "pricing_type": "pricing_type",
         },
     ),
 

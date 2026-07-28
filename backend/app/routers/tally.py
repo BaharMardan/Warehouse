@@ -259,6 +259,8 @@ SELECT
     d."HSCODE"                          AS hscode,
     d."TYPE_BASTEM"                     AS type_bastem,
     d."NUMBER_KALA"                     AS number_kala,
+    d."NUMBER_PALLET"                   AS number_pallet,
+    d."VALUE_KALA"                      AS value_kala,
     d."WEIGHTE"                         AS weighte,
     d."TYPE_NUMBER_KANTINER"            AS type_number_kantiner,
     d."NUMBER_GHABZE_BSKOL"             AS number_ghabze_bskol,
@@ -350,13 +352,18 @@ def get_tally_print_data(
 # --- one tally's diamound-rate entries, catalog title/code resolved ---
 DIAMOUND_SQL = """
 SELECT
-    j."id_tali_kala_diamound"           AS id_tali_kala_diamound,
+    j."id_tali_kala_diamound"           AS id,
     j."tali_id"                         AS tali_id,
-    j."kala_diamound_id"                AS kala_diamound_id,
+    j."kala_diamound_id"                AS rate_id,
     j."code"                            AS code,
     j."DESCRIPTION"                     AS description,
+    NVL(j."pricing_type", 'off_hours')  AS pricing_type,
     k."title"                           AS rate_title,
-    k."code"                            AS rate_code
+    k."code"                            AS rate_code,
+    CASE NVL(j."pricing_type", 'off_hours')
+        WHEN 'holiday' THEN k."price_holiday"
+        ELSE k."price_gher_edari"
+    END                                 AS selected_price
 FROM "fa_tali_kala_diamound" j
 LEFT JOIN "fa_kala_diamound" k ON k."id_kala_diamound" = j."kala_diamound_id"
 WHERE j."tali_id" = :hid

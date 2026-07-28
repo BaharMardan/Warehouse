@@ -364,7 +364,7 @@
 //               <Select
 //                 label="ضریب محل"
 //                 placeholder="انتخاب کنید"
-//                 data={['انبارداری مسقف', 'انبارداری تانگارد', 'انبارداری بارانداز', 'انبارداری محوطه']}
+//                 data={['انبارداری مسقف', 'انبارداری هانگار', 'انبارداری بارانداز', 'انبارداری محوطه']}
 //                 value={line.zarib_mahal || null}
 //                 onChange={(v) => set('zarib_mahal', v ?? '')}
 //                 clearable
@@ -1210,6 +1210,8 @@ type DetailRow = {
   hscode: string | null
   type_bastem: string | null
   number_kala: number
+  number_pallet: number | null
+  value_kala: number | string | null
   weighte: number
   type_number_kantiner: string | null
   number_ghabze_bskol: number | null
@@ -1240,6 +1242,8 @@ type LineForm = {
   hscode: string
   type_bastem: string
   number_kala: string
+  number_pallet: string
+  value_kala: string
   weighte: string
   number_ghabze_bskol: string
   weighte_baskol: string
@@ -1252,7 +1256,7 @@ type LineForm = {
 
 const EMPTY_LINE: LineForm = {
   id_anbar: null, id_tagh_anbar: null, code_groupe_kala: '', description_kala: '',
-  hscode: '', type_bastem: '', number_kala: '', weighte: '',
+  hscode: '', type_bastem: '', number_kala: '', number_pallet: '', value_kala: '', weighte: '',
   number_ghabze_bskol: '', weighte_baskol: '',
   type_number_kantiner: '', number_hamel: '', zarib_mahal: '',
   container_type: '', container_number: '',
@@ -1267,6 +1271,22 @@ function normalizeDigits(s: string): string {
 
 function normalizeIntegerInput(s: string): string {
   return normalizeDigits(s).replace(/\D/g, '')
+}
+
+function normalizeDecimalInput(s: string): string {
+  const normalized = normalizeDigits(s)
+    .replace(/[,\u066C\s]/g, '')
+    .replace(/\u066B/g, '.')
+    .replace(/[^\d.]/g, '')
+  const [whole, ...fractionParts] = normalized.split('.')
+  return fractionParts.length === 0 ? whole : `${whole}.${fractionParts.join('')}`
+}
+
+function formatGoodsValue(value: number | string | null): string {
+  if (value == null || String(value).trim() === '') return '—'
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return String(value)
+  return amount.toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
 function firstPresent(...values: unknown[]): unknown {
@@ -1380,6 +1400,10 @@ export function TallyDetailPage() {
       const normalized = normalizeIntegerInput(v)
       return normalized === '' ? null : Number(normalized)
     }
+    const decimalOrNull = (v: string) => {
+      const normalized = normalizeDecimalInput(v)
+      return normalized === '' ? null : normalized
+    }
     const strOrNull = (v: string) => (v.trim() === '' ? null : v)
     return {
       id_headers_tali: headerId,
@@ -1390,6 +1414,8 @@ export function TallyDetailPage() {
       hscode: strOrNull(f.hscode),
       type_bastem: strOrNull(f.type_bastem),
       number_kala: Number(normalizeDigits(f.number_kala)),
+      number_pallet: numOrNull(f.number_pallet),
+      value_kala: decimalOrNull(f.value_kala),
       weighte: Number(normalizeDigits(f.weighte)),
       number_ghabze_bskol: numOrNull(f.number_ghabze_bskol),
       weighte_baskol: Number(normalizeDigits(f.weighte_baskol)),
@@ -1451,6 +1477,8 @@ export function TallyDetailPage() {
       hscode: row.hscode ?? '',
       type_bastem: row.type_bastem ?? '',
       number_kala: String(row.number_kala ?? ''),
+      number_pallet: String(row.number_pallet ?? ''),
+      value_kala: String(row.value_kala ?? ''),
       weighte: String(row.weighte ?? ''),
       number_ghabze_bskol: String(row.number_ghabze_bskol ?? ''),
       weighte_baskol: String(row.weighte_baskol ?? ''),
@@ -1643,7 +1671,7 @@ export function TallyDetailPage() {
 
         {lines && lines.length > 0 && (
           <div className="tally-detail-table-shell">
-            <Table.ScrollContainer minWidth={980}>
+            <Table.ScrollContainer minWidth={1160}>
               <Table
                 className="tally-detail-table"
                 highlightOnHover
@@ -1657,6 +1685,8 @@ export function TallyDetailPage() {
                     <Table.Th>HS Code</Table.Th>
                     <Table.Th>نوع بسته‌بندی</Table.Th>
                     <Table.Th>تعداد</Table.Th>
+                    <Table.Th>تعداد پالت</Table.Th>
+                    <Table.Th>ارزش کالا</Table.Th>
                     <Table.Th>وزن</Table.Th>
                     <Table.Th>شماره قبض باسکول</Table.Th>
                     <Table.Th>وزن باسکول</Table.Th>
@@ -1672,6 +1702,8 @@ export function TallyDetailPage() {
                       <Table.Td>{row.hscode ?? '—'}</Table.Td>
                       <Table.Td>{row.type_bastem ?? '—'}</Table.Td>
                       <Table.Td>{row.number_kala}</Table.Td>
+                      <Table.Td>{row.number_pallet ?? '—'}</Table.Td>
+                      <Table.Td>{formatGoodsValue(row.value_kala)}</Table.Td>
                       <Table.Td>{row.weighte}</Table.Td>
                       <Table.Td>{row.number_ghabze_bskol ?? '—'}</Table.Td>
                       <Table.Td>{row.weighte_baskol}</Table.Td>
@@ -1731,156 +1763,178 @@ export function TallyDetailPage() {
           content: 'tally-detail-modal',
           header: 'tally-detail-modal-header',
           title: 'tally-detail-modal-title',
+          body: 'tally-detail-modal-body',
         }}
       >
         <Stack
           component="form"
-          gap="md"
+          className="tally-detail-modal-form"
+          gap={0}
           onSubmit={(event) => {
             event.preventDefault()
             if (canSave) saveMutation.mutate(line)
           }}
         >
-          <Paper className="tally-detail-form-card" radius="lg">
-            <div className="tally-detail-form-card-heading">
-              <PackageOpen size={20} strokeWidth={1.8} aria-hidden />
-              <Text fw={700}>اطلاعات کالا</Text>
-            </div>
+          <div className="tally-detail-modal-scroll">
             <Stack gap="md">
-              <CommodityPicker
-                picked={picked}
-                onPick={onPickCommodity}
-                groupValue={line.code_groupe_kala.trim() === '' ? null : Number(line.code_groupe_kala)}
-                onGroupChange={(v) => set('code_groupe_kala', v == null ? '' : String(v))}
-              />
-              <Grid>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <TextInput
-                    label="شرح کالا"
-                    value={line.description_kala}
-                    onChange={(e) => set('description_kala', e.currentTarget.value)}
+              <Paper className="tally-detail-form-card" radius="lg">
+                <div className="tally-detail-form-card-heading">
+                  <PackageOpen size={20} strokeWidth={1.8} aria-hidden />
+                  <Text fw={700}>اطلاعات کالا</Text>
+                </div>
+                <Stack gap="md">
+                  <CommodityPicker
+                    picked={picked}
+                    onPick={onPickCommodity}
+                    groupValue={line.code_groupe_kala.trim() === '' ? null : Number(line.code_groupe_kala)}
+                    onGroupChange={(v) => set('code_groupe_kala', v == null ? '' : String(v))}
                   />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <TextInput
-                    label="Hscode"
-                    value={line.hscode}
-                    onChange={(e) => set('hscode', e.currentTarget.value)}
+                  <Grid>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <TextInput
+                        label="شرح کالا"
+                        value={line.description_kala}
+                        onChange={(e) => set('description_kala', e.currentTarget.value)}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <TextInput
+                        label="Hscode"
+                        value={line.hscode}
+                        onChange={(e) => set('hscode', e.currentTarget.value)}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <Select
+                        label="نوع بسته‌بندی"
+                        placeholder="انتخاب کنید"
+                        data={['کیسه‌ای', 'نگله', 'پالت']}
+                        value={line.type_bastem || null}
+                        onChange={(v) => set('type_bastem', v ?? '')}
+                        clearable
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <TextInput
+                        label="تعداد" required inputMode="numeric"
+                        value={line.number_kala}
+                        onChange={(e) => set('number_kala', e.currentTarget.value)}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 4 }}>
+                      <TextInput
+                        label="وزن" required inputMode="decimal"
+                        value={line.weighte}
+                        onChange={(e) => set('weighte', e.currentTarget.value)}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <TextInput
+                        label="تعداد پالت"
+                        inputMode="numeric"
+                        value={line.number_pallet}
+                        onChange={(e) => set('number_pallet', normalizeIntegerInput(e.currentTarget.value))}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <TextInput
+                        label="ارزش کالا"
+                        inputMode="decimal"
+                        value={line.value_kala}
+                        onChange={(e) => set('value_kala', normalizeDecimalInput(e.currentTarget.value))}
+                      />
+                    </Grid.Col>
+                  </Grid>
+                </Stack>
+              </Paper>
+
+              <Paper className="tally-detail-form-card" radius="lg">
+                <div className="tally-detail-form-card-heading">
+                  <Scale size={20} strokeWidth={1.8} aria-hidden />
+                  <Text fw={700}>اطلاعات باسکول و محل نگهداری</Text>
+                </div>
+                <Grid>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      label="شماره قبض باسکول"
+                      required
+                      inputMode="numeric"
+                      value={line.number_ghabze_bskol}
+                      onChange={(e) => set('number_ghabze_bskol', normalizeIntegerInput(e.currentTarget.value))}
+                      // description="این شماره همراه ردیف ذخیره و در چاپ تالی نمایش داده می‌شود."
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <TextInput
+                      label="وزن باسکول" required inputMode="decimal"
+                      value={line.weighte_baskol}
+                      onChange={(e) => set('weighte_baskol', e.currentTarget.value)}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <RefSelect
+                      label="انبار"
+                      path="/anbar"
+                      valueKey="id_anbar"
+                      labelKey="name_anbar"
+                      value={line.id_anbar}
+                      onChange={(v) => set('id_anbar', v)}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, sm: 6 }}>
+                    <RefSelect
+                      label="طاق"
+                      path="/tagh"
+                      valueKey="id_tagh"
+                      labelKey="name_tagh"
+                      value={line.id_tagh_anbar}
+                      onChange={(v) => set('id_tagh_anbar', v)}
+                    />
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              <Paper className="tally-detail-form-card" radius="lg">
+                <div className="tally-detail-form-card-heading">
+                  <Truck size={20} strokeWidth={1.8} aria-hidden />
+                  <Text fw={700}>اطلاعات حمل و کانتینر</Text>
+                </div>
+                <Grid>
+                  <Grid.Col span={12}>
+                    <PlateInput
+                      label="شماره حامل"
+                      value={line.number_hamel}
+                      onChange={(v) => set('number_hamel', v)}
+                    />
+                  </Grid.Col>
+                  <ContainerFields
+                    type={line.container_type}
+                    number={line.container_number}
+                    onTypeChange={(v) => set('container_type', v)}
+                    onNumberChange={(v) => set('container_number', v)}
                   />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <Select
-                    label="نوع بسته‌بندی"
-                    placeholder="انتخاب کنید"
-                    data={['کیسه‌ای', 'نگله', 'پالت']}
-                    value={line.type_bastem || null}
-                    onChange={(v) => set('type_bastem', v ?? '')}
-                    clearable
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput
-                    label="تعداد" required inputMode="numeric"
-                    value={line.number_kala}
-                    onChange={(e) => set('number_kala', e.currentTarget.value)}
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput
-                    label="وزن" required inputMode="decimal"
-                    value={line.weighte}
-                    onChange={(e) => set('weighte', e.currentTarget.value)}
-                  />
-                </Grid.Col>
-              </Grid>
+                  <Grid.Col span={6}>
+                    <Select
+                      label="ضریب محل"
+                      placeholder="انتخاب کنید"
+                      data={['انبارداری مسقف', 'انبارداری هانگار', 'انبارداری بارانداز', 'انبارداری محوطه']}
+                      value={line.zarib_mahal || null}
+                      onChange={(v) => set('zarib_mahal', v ?? '')}
+                      clearable
+                    />
+                  </Grid.Col>
+                </Grid>
+              </Paper>
+
+              {saveMutation.isError && (
+                <Text c="red" size="sm">
+                  ذخیره انجام نشد: {(saveMutation.error as Error).message}
+                </Text>
+              )}
             </Stack>
-          </Paper>
+          </div>
 
-          <Paper className="tally-detail-form-card" radius="lg">
-            <div className="tally-detail-form-card-heading">
-              <Scale size={20} strokeWidth={1.8} aria-hidden />
-              <Text fw={700}>اطلاعات باسکول و محل نگهداری</Text>
-            </div>
-            <Grid>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput
-                  label="شماره قبض باسکول"
-                  required
-                  inputMode="numeric"
-                  value={line.number_ghabze_bskol}
-                  onChange={(e) => set('number_ghabze_bskol', normalizeIntegerInput(e.currentTarget.value))}
-                  description="این شماره همراه ردیف ذخیره و در چاپ تالی نمایش داده می‌شود."
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput
-                  label="وزن باسکول" required inputMode="decimal"
-                  value={line.weighte_baskol}
-                  onChange={(e) => set('weighte_baskol', e.currentTarget.value)}
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <RefSelect
-                  label="انبار"
-                  path="/anbar"
-                  valueKey="id_anbar"
-                  labelKey="name_anbar"
-                  value={line.id_anbar}
-                  onChange={(v) => set('id_anbar', v)}
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
-                <RefSelect
-                  label="طاق"
-                  path="/tagh"
-                  valueKey="id_tagh"
-                  labelKey="name_tagh"
-                  value={line.id_tagh_anbar}
-                  onChange={(v) => set('id_tagh_anbar', v)}
-                />
-              </Grid.Col>
-            </Grid>
-          </Paper>
-
-          <Paper className="tally-detail-form-card" radius="lg">
-            <div className="tally-detail-form-card-heading">
-              <Truck size={20} strokeWidth={1.8} aria-hidden />
-              <Text fw={700}>اطلاعات حمل و کانتینر</Text>
-            </div>
-            <Grid>
-              <Grid.Col span={12}>
-                <PlateInput
-                  label="شماره حامل"
-                  value={line.number_hamel}
-                  onChange={(v) => set('number_hamel', v)}
-                />
-              </Grid.Col>
-              <ContainerFields
-                type={line.container_type}
-                number={line.container_number}
-                onTypeChange={(v) => set('container_type', v)}
-                onNumberChange={(v) => set('container_number', v)}
-              />
-              <Grid.Col span={6}>
-                <Select
-                  label="ضریب محل"
-                  placeholder="انتخاب کنید"
-                  data={['انبارداری مسقف', 'انبارداری تانگارد', 'انبارداری بارانداز', 'انبارداری محوطه']}
-                  value={line.zarib_mahal || null}
-                  onChange={(v) => set('zarib_mahal', v ?? '')}
-                  clearable
-                />
-              </Grid.Col>
-            </Grid>
-          </Paper>
-
-          {saveMutation.isError && (
-            <Text c="red" size="sm">
-              ذخیره انجام نشد: {(saveMutation.error as Error).message}
-            </Text>
-          )}
-
-          <Group justify="flex-start">
+          <Group className="tally-detail-modal-actions" justify="flex-start">
             <Button
               className="tally-detail-save-button"
               type="submit"

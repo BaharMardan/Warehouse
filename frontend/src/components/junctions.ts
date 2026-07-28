@@ -4,7 +4,7 @@
 // // Most catalogs have code + title; fa_kala_price has no title, uses description.
 // export const tallyJunctions: JunctionConfig[] = [
 //   {
-//     key: 'diamound', title: 'دیماند در ساعات غیراداری',
+//     key: 'diamound', title: 'دیماند',
 //     apiPath: '/tali-kala-diamound', readPath: 'diamound', linkKey: 'kala_diamound_id',
 //     catalogPath: '/kala-diamound', catalogValueKey: 'id_kala_diamound',
 //     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
@@ -34,12 +34,6 @@
 //     catalogPath: '/kala-vehicle-enter', catalogValueKey: 'id_kala_vehicle_enter_price',
 //     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
 //   },
-//   {
-//     key: 'dangerous', title: 'نرخ کالای خطرناک',
-//     apiPath: '/tali-kala-dangerous', readPath: 'dangerous', linkKey: 'kala_dangerous_id',
-//     catalogPath: '/kala-dangerous', catalogValueKey: 'id_kala_dangerous',
-//     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
-//   },
 // ]
 
 import type { JunctionConfig } from './TallyJunctionSection'
@@ -48,10 +42,26 @@ import type { JunctionConfig } from './TallyJunctionSection'
 // Most catalogs have code + title; fa_kala_price has no title, uses description.
 export const tallyJunctions: JunctionConfig[] = [
   {
-    key: 'diamound', title: 'دیماند در ساعات غیراداری',
+    key: 'diamound', title: 'دیماند',
     apiPath: '/tali-kala-diamound', readPath: 'diamound', linkKey: 'kala_diamound_id',
     catalogPath: '/kala-diamound', catalogValueKey: 'id_kala_diamound',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    selectField: {
+      key: 'pricing_type', label: 'زمان اعمال', defaultValue: 'off_hours',
+      inlineWithCatalog: true,
+      options: [
+        {
+          value: 'off_hours',
+          label: 'در ساعات غیر اداری',
+          catalogField: 'price_gher_edari',
+        },
+        {
+          value: 'holiday',
+          label: 'در روزهای تعطیل',
+          catalogField: 'price_holiday',
+        },
+      ],
+    },
   },
   {
     key: 'strip', title: 'استریپ و استافینگ',
@@ -84,12 +94,6 @@ export const tallyJunctions: JunctionConfig[] = [
     key: 'vehicle-enter', title: 'ورودی / حق محوطه',
     apiPath: '/tali-kala-vehicle-enter', readPath: 'vehicle-enter', linkKey: 'kala_vehicle_enter_price_id',
     catalogPath: '/kala-vehicle-enter', catalogValueKey: 'id_kala_vehicle_enter_price',
-    catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
-  },
-  {
-    key: 'dangerous', title: 'نرخ کالای خطرناک',
-    apiPath: '/tali-kala-dangerous', readPath: 'dangerous', linkKey: 'kala_dangerous_id',
-    catalogPath: '/kala-dangerous', catalogValueKey: 'id_kala_dangerous',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
   },
 ]

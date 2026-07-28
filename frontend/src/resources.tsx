@@ -104,11 +104,11 @@ interface KalaPrice {
   id_kala_price: number; id_kala: number | null; code: string | null
   goods_group: string | null; storage_price: number | null
   price_30_day: number | null; price_60_day: number | null; price_90_day: number | null
-  price_unloding: number | null; is_dangerous: string | null; description: string | null
+  price_unloding: number | null; description: string | null
 }
 const kalaPrice: CrudConfig<KalaPrice> = {
   route: '/kala-price', path: '/kala-price', queryKey: 'kala_price',
-  title: 'کد گروه کالا', entity: 'ردیف قیمت', pkField: 'id_kala_price',
+  title: 'کد گروه کالا', entity: 'گروه کالا', pkField: 'id_kala_price',
   // Table-1 tariff view: code · goods group · storage (انبارداری) · handling (تخلیه و بارگیری)
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
@@ -126,7 +126,6 @@ const kalaPrice: CrudConfig<KalaPrice> = {
     { key: 'price_60_day', label: 'قیمت ۶۰ روز', type: 'number' },
     { key: 'price_90_day', label: 'قیمت ۹۰ روز', type: 'number' },
     { key: 'id_kala', label: 'شناسه کالا', type: 'number' },
-    { key: 'is_dangerous', label: 'خطرناک؟' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
@@ -195,67 +194,37 @@ const terms: CrudConfig<Term> = {
   ],
 }
 
-// ---- نرخ کالای خطرناک ----
-interface KalaDangerous {
-  id_kala_dangerous: number; code: string | null; title: string | null
-  storage_price: number | null
-  price_30_day: number | null; price_60_day: number | null; price_90_day: number | null
-  price_unloding: number | null; description: string | null
-}
-const kalaDangerous: CrudConfig<KalaDangerous> = {
-  route: '/kala-dangerous', path: '/kala-dangerous', queryKey: 'kala_dangerous',
-  title: 'نرخ کالای خطرناک', entity: 'ردیف', pkField: 'id_kala_dangerous',
-  // Tariff view: code · عنوان · انبارداری (storage) · تخلیه و بارگیری (handling)
-  columns: [
-    { key: 'code', label: 'کد', field: 'code' },
-    { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'storage_price', label: 'انبارداری', field: 'storage_price' },
-    { key: 'price_unloding', label: 'تخلیه و بارگیری', field: 'price_unloding' },
-  ],
-  fields: [
-    { key: 'code', label: 'کد' },
-    { key: 'title', label: 'عنوان' },
-    { key: 'storage_price', label: 'انبارداری', type: 'number' },
-    { key: 'price_unloding', label: 'تخلیه و بارگیری', type: 'number' },
-    // kept editable; not shown in the list
-    { key: 'price_30_day', label: 'قیمت ۳۰ روز', type: 'number' },
-    { key: 'price_60_day', label: 'قیمت ۶۰ روز', type: 'number' },
-    { key: 'price_90_day', label: 'قیمت ۹۰ روز', type: 'number' },
-    { key: 'description', label: 'توضیحات' },
-  ],
-}
-
-// ---- نرخ دیماند ----
+// ---- دیماند ----
 interface KalaDiamound {
   id_kala_diamound: number; code: string | null; title: string | null
   price_gher_edari: string | null; price_holiday: string | null; description: string | null
 }
 const kalaDiamound: CrudConfig<KalaDiamound> = {
   route: '/kala-diamound', path: '/kala-diamound', queryKey: 'kala_diamound',
-  title: 'نرخ دیماند', entity: 'ردیف', pkField: 'id_kala_diamound',
+  title: 'دیماند', entity: 'ردیف', pkField: 'id_kala_diamound',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'price_gher_edari', label: 'نرخ غیر اداری', field: 'price_gher_edari' },
-    { key: 'price_holiday', label: 'نرخ تعطیلات', field: 'price_holiday' },
+    { key: 'price_gher_edari', label: 'در ساعات غیر اداری', field: 'price_gher_edari' },
+    { key: 'price_holiday', label: 'در روزهای تعطیل', field: 'price_holiday' },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'price_gher_edari', label: 'نرخ غیر اداری' },
-    { key: 'price_holiday', label: 'نرخ تعطیلات' },
+    { key: 'price_gher_edari', label: 'در ساعات غیر اداری' },
+    { key: 'price_holiday', label: 'در روزهای تعطیل' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
 
-// ---- نرخ خدمات دیگر ----
+// ---- خدمات دیگر ----
 interface KalaOtherService {
   id_kala_other_service: number; code: string | null; title: string | null
   price: string | null; description: string | null
 }
 const kalaOtherService: CrudConfig<KalaOtherService> = {
   route: '/kala-other-service', path: '/kala-other-service', queryKey: 'kala_other_service',
-  title: 'نرخ خدمات دیگر', entity: 'ردیف', pkField: 'id_kala_other_service',
+  title: 'سایر خدمات', entity: 'ردیف', pkField: 'id_kala_other_service',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
@@ -269,7 +238,7 @@ const kalaOtherService: CrudConfig<KalaOtherService> = {
   ],
 }
 
-// ---- نرخ استریپ ----
+// ---- استریپ ----
 interface KalaStrip {
   id_kala_strip: number; code: string | null; title: string | null
   normal: string | null; non_standard: string | null; dangerous: string | null
@@ -277,7 +246,7 @@ interface KalaStrip {
 }
 const kalaStrip: CrudConfig<KalaStrip> = {
   route: '/kala-strip', path: '/kala-strip', queryKey: 'kala_strip',
-  title: 'نرخ استریپ و استافینگ ', entity: 'ردیف', pkField: 'id_kala_strip',
+  title: 'استریپ و استافینگ', entity: 'ردیف', pkField: 'id_kala_strip',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
@@ -295,14 +264,14 @@ const kalaStrip: CrudConfig<KalaStrip> = {
   ],
 }
 
-// ---- نرخ توقف شبانه ----
+// ---- توقف شبانه ----
 interface KalaTimeStop {
   id_kala_time_stop_vehicle: number; code: string | null; title: string | null
   price: string | null; description: string | null
 }
 const kalaTimeStop: CrudConfig<KalaTimeStop> = {
   route: '/kala-time-stop', path: '/kala-time-stop', queryKey: 'kala_time_stop',
-  title: 'نرخ توقف شبانه', entity: 'ردیف', pkField: 'id_kala_time_stop_vehicle',
+  title: 'توقف شبانه', entity: 'ردیف', pkField: 'id_kala_time_stop_vehicle',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
@@ -316,14 +285,14 @@ const kalaTimeStop: CrudConfig<KalaTimeStop> = {
   ],
 }
 
-// ---- نرخ ورود خودرو ----
+// ---- ورود خودرو ----
 interface KalaVehicleEnter {
   id_kala_vehicle_enter_price: number; code: string | null; title: string | null
   price: string | null; description: string | null
 }
 const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
   route: '/kala-vehicle-enter', path: '/kala-vehicle-enter', queryKey: 'kala_vehicle_enter',
-  title: 'نرخ ورود خودرو', entity: 'ردیف', pkField: 'id_kala_vehicle_enter_price',
+  title: 'ورود خودرو', entity: 'ردیف', pkField: 'id_kala_vehicle_enter_price',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
@@ -339,5 +308,5 @@ const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
 export const resources: CrudConfig<any>[] = [
   kala, anbar, owners, termCategories, kalaPrice,
   companies, tagh, terms,
-  kalaDangerous, kalaDiamound, kalaOtherService, kalaStrip, kalaTimeStop, kalaVehicleEnter,
+  kalaDiamound, kalaOtherService, kalaStrip, kalaTimeStop, kalaVehicleEnter,
 ]
