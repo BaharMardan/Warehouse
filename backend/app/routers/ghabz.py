@@ -27,15 +27,18 @@ SELECT
     h."ID_COUNTRY"          AS id_country,
     t_country."SYS_TERM_VALUE" AS country_name,
     h."ID_COMPANY"          AS id_company,
-    (c."NAME" || ' ' || c."FAMILY") AS company_name,
+    TRIM(c."COMPANY_NAME") AS company_name,
     h."ID_PRODUCT_OWNEAR"   AS id_product_ownear,
-    (o."NAME" || ' ' || o."FAMILY") AS owner_name,
+    CASE
+        WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
+        ELSE TRIM(o."NAME" || ' ' || o."FAMILY")
+    END AS owner_name,
     h."ID_anbar"            AS id_anbar,
     a."NAME_ANBAR"          AS anbar_name
 FROM "fa_ghabz_anbar_header" h
 LEFT JOIN "FA_SYS_TERMS"              t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
 LEFT JOIN "FA_SYS_TERMS"              t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
-LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c         ON c."ID_REPRE_COMPANY"    = h."ID_COMPANY"
+LEFT JOIN "FA_TRANSPORT_COMPANY"      c         ON c."ID_COMPANY"          = h."ID_COMPANY"
 LEFT JOIN "FA_PRODUCT_OWNER"          o         ON o."ID_OWNER"            = h."ID_PRODUCT_OWNEAR"
 LEFT JOIN "FA_ANBAR"                  a         ON a."ID_ANBAR"            = h."ID_anbar"
 WHERE h."IS_DELETED" = 'no'

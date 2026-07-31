@@ -1182,6 +1182,7 @@ import {
 import { IconEdit, IconPrint, IconTrash } from '../components/icons'
 import { apiGet, apiSend } from '../api/client'
 import { RefSelect } from '../components/RefSelect'
+import { TermValueSelect } from '../components/TermValueSelect'
 import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 import { PlateInput } from '../components/PlateInput'
 import { ContainerFields } from '../components/ContainerFields'
@@ -1343,8 +1344,12 @@ function SummaryLine({
 }
 
 export function TallyDetailPage() {
-  const { tallyNumber = '' } = useParams<{ tallyNumber: string }>()
-  const isLegacyId = /^\d+$/.test(tallyNumber)
+  const { tallyNumber, tallyId } = useParams<{
+    tallyNumber?: string
+    tallyId?: string
+  }>()
+  const reference = tallyId ?? tallyNumber ?? ''
+  const isLegacyId = tallyId != null
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -1361,12 +1366,13 @@ export function TallyDetailPage() {
     isLoading: isHeaderLoading,
     isError: isHeaderError,
   } = useQuery({
-    queryKey: ['tally-header', tallyNumber],
+    queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
     queryFn: () => apiGet<Record<string, any>>(
       isLegacyId
-        ? `/tally-header/${tallyNumber}`
-        : `/tally-header/by-number/${encodeURIComponent(tallyNumber)}`
+        ? `/tally-header/${tallyId}`
+        : `/tally-header/by-number/${encodeURIComponent(tallyNumber ?? '')}`
     ),
+    enabled: reference !== '',
   })
   const headerId = header?.id_tali == null ? undefined : Number(header.id_tali)
 
@@ -1525,11 +1531,13 @@ export function TallyDetailPage() {
           <Button
             variant="filled"
             leftSection={<IconPrint size={18} />}
-            onClick={() => window.open(
-              `/tally/${encodeURIComponent(String(header?.tali_number ?? tallyNumber))}/print`,
-              '_blank',
-              'noopener,noreferrer',
-            )}
+            onClick={() => {
+              const publicNumber = header?.tali_number ?? tallyNumber
+              const printPath = publicNumber
+                ? `/tally/${encodeURIComponent(String(publicNumber))}/print`
+                : `/tally/id/${tallyId}/print`
+              window.open(printPath, '_blank', 'noopener,noreferrer')
+            }}
             disabled={headerId == null}
           >
             چاپ تالی
@@ -1537,7 +1545,12 @@ export function TallyDetailPage() {
           <Button
             variant="light"
             leftSection={<PencilLine size={17} />}
-            onClick={() => navigate(`/tally/${encodeURIComponent(tallyNumber)}/edit`)}
+            onClick={() => {
+              const publicNumber = header?.tali_number ?? tallyNumber
+              navigate(publicNumber
+                ? `/tally/${encodeURIComponent(String(publicNumber))}/edit`
+                : `/tally/id/${tallyId}/edit`)
+            }}
           >
             ویرایش سربرگ
           </Button>
@@ -1805,13 +1818,12 @@ export function TallyDetailPage() {
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 4 }}>
-                      <Select
+                      <TermValueSelect
                         label="نوع بسته‌بندی"
                         placeholder="انتخاب کنید"
-                        data={['کیسه‌ای', 'نگله', 'پالت']}
+                        categoryId={3}
                         value={line.type_bastem || null}
                         onChange={(v) => set('type_bastem', v ?? '')}
-                        clearable
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 4 }}>

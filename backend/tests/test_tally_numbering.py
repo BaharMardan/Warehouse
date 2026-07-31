@@ -1,16 +1,6 @@
-from datetime import date
+import pytest
 
-import oracledb
-
-from app.services.tally_numbering import (
-    allocate_next_tally_number,
-    format_tally_number,
-    jalali_year_for,
-)
-
-
-class _OracleUniqueError:
-    code = 1
+from app.services.tally_numbering import GLOBAL_COUNTER_KEY, allocate_next_tally_number
 
 
 class _FakeVar:
@@ -22,50 +12,39 @@ class _FakeVar:
 
 
 class _FakeCounterCursor:
-    def __init__(self):
-        self.counters: dict[int, int] = {}
+    def __init__(self, last_number: int | None):
+        self.last_number = last_number
         self.rowcount = 0
 
     def var(self, _type):
         return _FakeVar()
 
-    def execute(self, sql, params):
-        year = params["jalali_year"]
-        if sql.lstrip().startswith("INSERT"):
-            if year in self.counters:
-                raise oracledb.IntegrityError(_OracleUniqueError())
-            self.counters[year] = 0
-            self.rowcount = 1
+    def execute(self, _sql, params):
+        assert params["counter_key"] == GLOBAL_COUNTER_KEY
+        if self.last_number is None:
+            self.rowcount = 0
             return
 
-        self.counters[year] += 1
-        params["next_number"].value = [self.counters[year]]
+        self.last_number += 1
+        params["next_number"].value = [self.last_number]
         self.rowcount = 1
 
 
-def test_jalali_year_for_first_day_of_1405():
-    assert jalali_year_for(date(2026, 3, 21)) == 1405
+def test_allocator_continues_after_the_last_real_number():
+    cursor = _FakeCounterCursor(1073)
+
+    assert allocate_next_tally_number(cursor) == "1074"
+    assert allocate_next_tally_number(cursor) == "1075"
 
 
-def test_jalali_year_resets_at_nowruz():
-    assert jalali_year_for(date(2026, 3, 20)) == 1404
-    assert jalali_year_for(date(2026, 3, 21)) == 1405
+def test_allocator_does_not_embed_or_depend_on_a_year():
+    cursor = _FakeCounterCursor(1405)
+
+    assert allocate_next_tally_number(cursor) == "1406"
 
 
-def test_format_tally_number():
-    assert format_tally_number(1405, 1) == "1405-1"
-    assert format_tally_number(1405, 2) == "1405-2"
+def test_allocator_requires_go_live_initialization():
+    cursor = _FakeCounterCursor(None)
 
-
-def test_allocator_starts_at_one_and_increments_for_the_same_year():
-    cursor = _FakeCounterCursor()
-
-    assert allocate_next_tally_number(cursor, 1405) == "1405-1"
-    assert allocate_next_tally_number(cursor, 1405) == "1405-2"
-
-
-def test_allocator_restarts_for_a_new_year():
-    cursor = _FakeCounterCursor()
-
-    assert allocate_next_tally_number(cursor, 1405) == "1405-1"
-    assert allocate_next_tally_number(cursor, 1406) == "1406-1"
+    with pytest.raises(RuntimeError, match="not initialized"):
+        allocate_next_tally_number(cursor)

@@ -1,4 +1,6 @@
 import type { CrudConfig } from './components/CrudResource'
+import { useQuery } from '@tanstack/react-query'
+import { apiGet } from './api/client'
 
 // ---- کالا ----
 interface Kala {
@@ -51,51 +53,48 @@ const anbar: CrudConfig<Anbar> = {
     { key: 'phone', label: 'شماره همراه' },
   ],
 }
-// ---- مالکین کالا (no audit columns) ----
+// ---- صاحبین کالا (حقیقی / حقوقی) ----
 interface Owner {
   id_owner: number; name: string | null; family: string | null
-  national_code: string | null; type: string | null; address: string | null
-  mobile_force: string | null; mobile: string | null
+  national_code: string | null; type: 'حقیقی' | 'حقوقی'; company_name: string | null
+  address: string | null; phone: string | null; national_id: string | null
+  economic_code: string | null
 }
 const owners: CrudConfig<Owner> = {
   route: '/owners', path: '/owners', queryKey: 'owners',
-  title: 'مالکین کالا', entity: 'مالک', pkField: 'id_owner',
+  title: 'صاحبین کالا', entity: 'صاحب کالا', pkField: 'id_owner',
   columns: [
-    { key: 'name', label: 'نام', field: 'name' },
-    { key: 'family', label: 'نام خانوادگی', field: 'family' },
-    { key: 'national_code', label: 'کد ملی', field: 'national_code' },
-    { key: 'mobile', label: 'موبایل', field: 'mobile' },
+    { key: 'type', label: 'نوع', field: 'type' },
+    {
+      key: 'owner_name', label: 'نام صاحب کالا',
+      render: (row) => row.type === 'حقوقی'
+        ? row.company_name ?? ''
+        : `${row.name ?? ''} ${row.family ?? ''}`.trim(),
+    },
+    {
+      key: 'identifier', label: 'کد ملی / شناسه ملی',
+      render: (row) => row.type === 'حقوقی' ? row.national_id ?? '' : row.national_code ?? '',
+    },
+    { key: 'phone', label: 'تلفن', field: 'phone' },
+    { key: 'address', label: 'آدرس', field: 'address' },
   ],
   fields: [
-    { key: 'name', label: 'نام' },
-    { key: 'family', label: 'نام خانوادگی' },
-    { key: 'national_code', label: 'کد ملی' },
-    { key: 'type', label: 'نوع' },
-    { key: 'address', label: 'آدرس' },
-    { key: 'mobile_force', label: 'تلفن ثابت' },
-    { key: 'mobile', label: 'موبایل' },
-  ],
-}
-
-// ---- دسته‌بندی کدینگ (prefixed audit cols; clean field names via overrides) ----
-interface TermCategory {
-  sys_term_category_id: number; key: string | null; title: string | null
-  parent_id: number | null; status: string | null; language: string | null
-}
-const termCategories: CrudConfig<TermCategory> = {
-  route: '/term-categories', path: '/term-categories', queryKey: 'term_categories',
-  title: 'دسته‌بندی کدینگ', entity: 'دسته', pkField: 'sys_term_category_id',
-  columns: [
-    { key: 'key', label: 'کلید', field: 'key' },
-    { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'status', label: 'وضعیت', field: 'status' },
-  ],
-  fields: [
-    { key: 'key', label: 'کلید' },
-    { key: 'title', label: 'عنوان' },
-    { key: 'parent_id', label: 'شناسه والد', type: 'number' },
-    { key: 'status', label: 'وضعیت' },
-    { key: 'language', label: 'زبان' },
+    {
+      key: 'type', label: 'نوع صاحب کالا', type: 'select', required: true,
+      defaultValue: 'حقیقی',
+      options: [
+        { value: 'حقیقی', label: 'حقیقی' },
+        { value: 'حقوقی', label: 'حقوقی' },
+      ],
+    },
+    { key: 'name', label: 'نام', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
+    { key: 'family', label: 'نام خانوادگی', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
+    { key: 'national_code', label: 'کد ملی', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
+    { key: 'company_name', label: 'نام شرکت', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
+    { key: 'address', label: 'آدرس', required: true },
+    { key: 'phone', label: 'تلفن', required: true },
+    { key: 'national_id', label: 'شناسه ملی', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
+    { key: 'economic_code', label: 'کد اقتصادی', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
   ],
 }
 
@@ -129,27 +128,66 @@ const kalaPrice: CrudConfig<KalaPrice> = {
     { key: 'description', label: 'توضیحات' },
   ],
 }
-// ---- شرکت‌های نماینده ----
-interface Company {
-  id_repre_company: number; company: string | null; name: string | null
-  family: string | null; national_code: string | null; mobile: string | null; address: string | null
+// ---- شرکت حمل و نقل ----
+interface TransportCompany {
+  id_company: number; company_name: string; address: string
+  phone: string; national_id: string; economic_code: string
 }
-const companies: CrudConfig<Company> = {
-  route: '/companies', path: '/companies', queryKey: 'companies',
-  title: 'شرکت‌های نماینده', entity: 'شرکت', pkField: 'id_repre_company',
+const transportCompanies: CrudConfig<TransportCompany> = {
+  route: '/transport-companies', path: '/transport-companies', queryKey: 'transport_companies',
+  title: 'شرکت حمل و نقل', entity: 'شرکت حمل و نقل', pkField: 'id_company',
   columns: [
-    { key: 'company', label: 'شرکت', field: 'company' },
-    { key: 'name', label: 'نام', field: 'name' },
-    { key: 'family', label: 'نام خانوادگی', field: 'family' },
-    { key: 'mobile', label: 'موبایل', field: 'mobile' },
+    { key: 'company_name', label: 'اسم شرکت', field: 'company_name' },
+    { key: 'national_id', label: 'شناسه ملی', field: 'national_id' },
+    { key: 'economic_code', label: 'کد اقتصادی', field: 'economic_code' },
+    { key: 'phone', label: 'تلفن', field: 'phone' },
+    { key: 'address', label: 'آدرس', field: 'address' },
   ],
   fields: [
-    { key: 'company', label: 'نام شرکت' },
-    { key: 'name', label: 'نام نماینده' },
-    { key: 'family', label: 'نام خانوادگی' },
-    { key: 'national_code', label: 'کد ملی' },
-    { key: 'mobile', label: 'موبایل' },
-    { key: 'address', label: 'آدرس' },
+    { key: 'company_name', label: 'اسم شرکت', required: true },
+    { key: 'address', label: 'آدرس', required: true },
+    { key: 'phone', label: 'تلفن', required: true },
+    { key: 'national_id', label: 'شناسه ملی', required: true },
+    { key: 'economic_code', label: 'کد اقتصادی', required: true },
+  ],
+}
+
+interface CompanyRepresentative {
+  id_repre_company: number; id_company: number; name: string
+  family: string; national_code: string; mobile: string
+}
+
+function TransportCompanyName({ id }: { id: number }) {
+  const { data } = useQuery({
+    queryKey: ['transport-companies-for-labels'],
+    queryFn: () => apiGet<TransportCompany[]>('/transport-companies'),
+    staleTime: 5 * 60 * 1000,
+  })
+  return data?.find((row) => row.id_company === id)?.company_name ?? '—'
+}
+
+const companyRepresentatives: CrudConfig<CompanyRepresentative> = {
+  route: '/company-representatives', path: '/company-representatives',
+  queryKey: 'company_representatives', title: 'نمایندگان شرکت‌های حمل‌ونقل',
+  entity: 'نماینده شرکت حمل‌ونقل', pkField: 'id_repre_company',
+  columns: [
+    { key: 'company', label: 'شرکت', render: (row) => <TransportCompanyName id={row.id_company} /> },
+    { key: 'name', label: 'اسم', field: 'name' },
+    { key: 'family', label: 'فامیل', field: 'family' },
+    { key: 'national_code', label: 'کد ملی', field: 'national_code' },
+    { key: 'mobile', label: 'شماره همراه', field: 'mobile' },
+  ],
+  fields: [
+    {
+      key: 'id_company', label: 'اسم شرکت', type: 'reference', required: true,
+      reference: {
+        path: '/transport-companies', valueKey: 'id_company', labelKey: 'company_name',
+      },
+    },
+    { key: 'name', label: 'اسم', required: true },
+    { key: 'family', label: 'فامیل', required: true },
+    { key: 'national_code', label: 'کد ملی', required: true },
+    { key: 'mobile', label: 'شماره همراه', required: true },
   ],
 }
 
@@ -170,29 +208,60 @@ const tagh: CrudConfig<Tagh> = {
   ],
 }
 
-// ---- کدینگ ----
+// ---- فهرست‌های کدینگ اختصاصی ----
 interface Term {
   sys_term_id: number; category_id: number | null; key: string | null; value: string | null
   parent_id: number | null; status: string | null; order_no: number | null; description: string | null
 }
-const terms: CrudConfig<Term> = {
-  route: '/terms', path: '/terms', queryKey: 'terms',
-  title: 'کدینگ', entity: 'کد', pkField: 'sys_term_id',
-  columns: [
-    { key: 'key', label: 'کلید', field: 'key' },
-    { key: 'value', label: 'مقدار', field: 'value' },
-    { key: 'status', label: 'وضعیت', field: 'status' },
-  ],
-  fields: [
-    { key: 'category_id', label: 'شناسه دسته', type: 'number' },
-    { key: 'key', label: 'کلید' },
-    { key: 'value', label: 'مقدار' },
-    { key: 'parent_id', label: 'شناسه والد', type: 'number' },
-    { key: 'status', label: 'وضعیت' },
-    { key: 'order_no', label: 'ترتیب', type: 'number' },
-    { key: 'description', label: 'توضیحات' },
-  ],
+
+const TERM_CATEGORY = {
+  border: 1,
+  country: 2,
+  packagingType: 3,
+} as const
+
+function termResource(
+  route: string,
+  queryKey: string,
+  title: string,
+  entity: string,
+  valueLabel: string,
+  categoryId: number,
+): CrudConfig<Term> {
+  return {
+    route,
+    path: '/terms',
+    queryKey,
+    title,
+    entity,
+    pkField: 'sys_term_id',
+    listFilter: { category_id: categoryId },
+    fixedValues: { category_id: categoryId },
+    columns: [
+      { key: 'value', label: valueLabel, field: 'value' },
+    ],
+    fields: [
+      { key: 'value', label: valueLabel, required: true },
+    ],
+  }
 }
+
+const borders = termResource(
+  '/borders', 'borders', 'مرزها', 'مرز', 'نام مرز', TERM_CATEGORY.border,
+)
+
+const countries = termResource(
+  '/countries', 'countries', 'کشورها', 'کشور', 'نام کشور', TERM_CATEGORY.country,
+)
+
+const packagingTypes = termResource(
+  '/packaging-types',
+  'packaging_types',
+  'نوع بسته‌بندی',
+  'نوع بسته‌بندی',
+  'عنوان نوع بسته‌بندی',
+  TERM_CATEGORY.packagingType,
+)
 
 // ---- دیماند ----
 interface KalaDiamound {
@@ -217,7 +286,7 @@ const kalaDiamound: CrudConfig<KalaDiamound> = {
   ],
 }
 
-// ---- خدمات دیگر ----
+// ---- سایر خدمات ----
 interface KalaOtherService {
   id_kala_other_service: number; code: string | null; title: string | null
   price: string | null; description: string | null
@@ -306,7 +375,7 @@ const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
   ],
 }
 export const resources: CrudConfig<any>[] = [
-  kala, anbar, owners, termCategories, kalaPrice,
-  companies, tagh, terms,
+  kala, anbar, owners, kalaPrice,
+  transportCompanies, companyRepresentatives, tagh, borders, countries, packagingTypes,
   kalaDiamound, kalaOtherService, kalaStrip, kalaTimeStop, kalaVehicleEnter,
 ]

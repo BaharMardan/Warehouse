@@ -161,8 +161,8 @@
 """Dedicated CRUD endpoints for the tally header.
 
 Creation is intentionally not handled by the generic CRUD factory: ID_TALI
-comes from an Oracle sequence and TALI_NUMBER is allocated atomically per
-Jalali year inside the same transaction as the insert.
+comes from an Oracle sequence and TALI_NUMBER is allocated atomically from one
+continuous counter inside the same transaction as the insert.
 """
 
 from datetime import datetime
@@ -175,10 +175,7 @@ from app.core.db import get_connection
 from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
 from app.services.base import execute, fetch_all, fetch_one
-from app.services.tally_numbering import (
-    allocate_next_tally_number,
-    jalali_year_for,
-)
+from app.services.tally_numbering import allocate_next_tally_number
 
 
 router = APIRouter(prefix="/tally-header", tags=["tally_header"])
@@ -277,10 +274,7 @@ def create_tally_header(
                 cursor.execute("SELECT SYSDATE FROM DUAL")
                 database_now = cursor.fetchone()[0]
                 params["create_at"] = database_now
-                params["tali_number"] = allocate_next_tally_number(
-                    cursor,
-                    jalali_year_for(database_now.date()),
-                )
+                params["tali_number"] = allocate_next_tally_number(cursor)
 
                 new_id_var = cursor.var(int)
                 cursor.execute(
@@ -314,6 +308,9 @@ def update_tally_header(
 ):
     provided = item.model_dump(exclude_unset=True)
     provided.pop("tali_number", None)  # immutable even if a caller sends it manually
+    existing = fetch_one(_PLAN["one"], {"id": row_id})
+    if existing is None:
+        raise HTTPException(status_code=404, detail="تالی یافت نشد")
     params = {**_coerce_dates(provided), "id": row_id, "actor_id": current_user["id"]}
 
     if execute(_PLAN["build_update"](provided.keys()), params) == 0:

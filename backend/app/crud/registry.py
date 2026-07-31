@@ -988,6 +988,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.crud.factory import make_crud_router, Audit
+from app.services.base import fetch_one
 
 
 # ----- FA_KALA : goods (standard uppercase table) -----
@@ -1002,17 +1003,6 @@ class AnbarInput(BaseModel):
     address: str | None = None
     responsible: str | None = None
     phone: str | None = None
-
-
-# ----- FA_PRODUCT_OWNER : cargo owners (NO audit / soft-delete columns) -----
-class OwnerInput(BaseModel):
-    name: str | None = None
-    family: str | None = None
-    national_code: str | None = None
-    type: str | None = None
-    address: str | None = None
-    mobile_force: str | None = None
-    mobile: str | None = None
 
 
 # ----- FA_SYS_TERM_CATEGORIES : coding categories (prefixed audit column names) -----
@@ -1037,14 +1027,22 @@ class KalaPriceInput(BaseModel):
     code: str = Field(min_length=1)       # CODE is NOT NULL in the DB
     is_dangerous: str | None = None
 
-# ----- FA_REPRESENTATIVE_COMPANY : representative companies (standard) -----
-class CompanyInput(BaseModel):
-    company: str | None = None
-    name: str | None = None
-    family: str | None = None
-    national_code: str | None = None
-    mobile: str | None = None
-    address: str | None = None
+# ----- FA_TRANSPORT_COMPANY : transport companies -----
+class TransportCompanyInput(BaseModel):
+    company_name: str = Field(min_length=1)
+    address: str = Field(min_length=1)
+    phone: str = Field(min_length=1)
+    national_id: str = Field(min_length=1)
+    economic_code: str = Field(min_length=1)
+
+
+# ----- FA_REPRESENTATIVE_COMPANY : representatives linked to a company -----
+class CompanyRepresentativeInput(BaseModel):
+    id_company: int
+    name: str = Field(min_length=1)
+    family: str = Field(min_length=1)
+    national_code: str = Field(min_length=1)
+    mobile: str = Field(min_length=1)
 
 
 # ----- FA_TAGH_ANBAR : racks (standard + FK id_anbar) -----
@@ -1058,11 +1056,37 @@ class TaghInput(BaseModel):
 class TermInput(BaseModel):
     category_id: int | None = None
     key: str | None = None
-    value: str | None = None
+    value: str = Field(min_length=1)
     parent_id: int | None = None
     status: str | None = None
     order_no: int | None = None
     description: str | None = None
+
+
+def prepare_term_create(params: dict) -> dict:
+    """Fill technical term fields while the operator only enters the title."""
+    category_id = params.get("category_id")
+    row = fetch_one(
+        """
+        SELECT
+            (
+                SELECT NVL(MAX("SYS_TERM_ID"), 0) + 1
+                  FROM "FA_SYS_TERMS"
+            ) AS next_code,
+            (
+                SELECT NVL(MAX("SYS_TERM_ORDER"), 0) + 1
+                  FROM "FA_SYS_TERMS"
+                 WHERE "SYS_TERM_CATEGORY_ID" = :category_id
+                   AND "SYS_TERM_IS_DELETED" = 'no'
+            ) AS next_order
+          FROM dual
+        """,
+        {"category_id": category_id},
+    )
+    params["key"] = str(row["next_code"]) if row else "1"
+    params["order_no"] = int(row["next_order"]) if row else 1
+
+    return params
 
 
 # ----- fa_kala_dangerous : dangerous-goods rates (numeric prices, no id_kala) -----
@@ -1132,10 +1156,10 @@ class TaliHeaderInput(BaseModel):
     id_company: int | None = None           # نام شرکت حمل → companies
     id_respons_company: int | None = None   # نام نماینده شرکت حمل → companies
     id_product_ownear: int | None = None    # صاحب کالا → owners (note: DB spelling)
-    owner_national_code: str | None = None  # شناسه ملی صاحب کالا، ورود دستی در تالی
+    owner_national_code: str | None = None  # کد ملی/شناسه ملی صاحب کالا، snapshot روی تالی
     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
     number_bimeh: str | None = None         # شماره بیمه نامه
-    tali_number: str | None = None          # شماره تالی خودکار، مانند 1405-1
+    tali_number: str | None = None          # شماره تالی خودکار و پیوسته، مانند 1074
     name_arzyab: str | None = None          # نام ارزیاب
     number_barnameh: str | None = None      # شماره بارنامه
     is_bimeh: str | None = None             # آیا بیمه دارد؟ (بله/خیر)
@@ -1277,11 +1301,8 @@ crud_routers = [
         column_overrides={"responsible": "NAME_MASOL"},
         order_by="SORT_ORDER",            # explicit display order, not the pk
     ),
-    make_crud_router(
-        prefix="/owners", table="FA_PRODUCT_OWNER", pk="ID_OWNER",
-        model=OwnerInput, tag="owners", not_found="مالک یافت نشد",
-        audit=None,                       # this table has no audit/soft-delete columns
-    ),
+    # /owners uses the custom transactional router in app.routers.owners because
+    # legal owners and their representatives are saved together.
     make_crud_router(
         prefix="/term-categories", table="FA_SYS_TERM_CATEGORIES", pk="SYS_TERM_CATEGORY_ID",
         model=TermCategoryInput, tag="term_categories", not_found="دسته یافت نشد",
@@ -1317,8 +1338,14 @@ crud_routers = [
         },
     ),
     make_crud_router(
-        prefix="/companies", table="FA_REPRESENTATIVE_COMPANY", pk="ID_REPRE_COMPANY",
-        model=CompanyInput, tag="companies", not_found="شرکت یافت نشد",
+        prefix="/transport-companies", table="FA_TRANSPORT_COMPANY", pk="ID_COMPANY",
+        model=TransportCompanyInput, tag="transport_companies", not_found="شرکت حمل و نقل یافت نشد",
+        order_by="COMPANY_NAME",
+    ),
+    make_crud_router(
+        prefix="/company-representatives", table="FA_REPRESENTATIVE_COMPANY", pk="ID_REPRE_COMPANY",
+        model=CompanyRepresentativeInput, tag="company_representatives", not_found="نماینده شرکت حمل‌ونقل یافت نشد",
+        order_by=["ID_COMPANY", "FAMILY", "NAME"],
     ),
     make_crud_router(
         prefix="/tagh", table="FA_TAGH_ANBAR", pk="ID_TAGH",
@@ -1343,6 +1370,8 @@ crud_routers = [
             modify_at="SYS_TERM_MODIFIED_AT",
             modify_by="SYS_TERM_MODIFIED_BY",
         ),
+        order_by=["SYS_TERM_CATEGORY_ID", "SYS_TERM_ORDER"],
+        prepare_create=prepare_term_create,
     ),
     make_crud_router(
         prefix="/kala-dangerous", table="fa_kala_dangerous", pk="id_kala_dangerous",

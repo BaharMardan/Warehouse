@@ -103,6 +103,8 @@ export interface CrudConfig<T> {
   pkField: keyof T        // primary key field, e.g. 'id_kala'
   columns: Column<T>[]    // display columns (actions added automatically)
   fields: FieldDef[]      // form fields
+  listFilter?: Partial<Record<keyof T, unknown>> // fixed lookup scope, e.g. one term category
+  fixedValues?: Record<string, unknown>          // values always included in create/update payloads
 }
 
 // Persian/Arabic-Indic digits -> Latin so search matches either script.
@@ -120,18 +122,41 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
   const [search, setSearch] = useState('')
   const [debounced] = useDebouncedValue(search, 200)
 
-  const refresh = () => qc.invalidateQueries({ queryKey: [config.queryKey] })
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: [config.queryKey] })
+    if (config.path === '/terms') {
+      qc.invalidateQueries({ queryKey: ['refselect', '/terms'] })
+      qc.invalidateQueries({ queryKey: ['term-values'] })
+    }
+  }
 
   const save = useMutation({
-    mutationFn: (values: Record<string, unknown>) =>
-      editing ? api.update(Number(editing[config.pkField]), values) : api.create(values),
+    mutationFn: (values: Record<string, unknown>) => {
+      const payload = { ...values, ...(config.fixedValues ?? {}) }
+      return editing ? api.update(Number(editing[config.pkField]), payload) : api.create(payload)
+    },
     onSuccess: () => { refresh(); setOpen(false) },
   })
   const remove = useMutation({ mutationFn: (id: number) => api.remove(id), onSuccess: refresh })
 
-  const openAdd = () => { setEditing(null); setOpen(true) }
+  const openAdd = () => {
+    save.reset()
+    setEditing(null)
+    setOpen(true)
+  }
+  const closeForm = () => {
+    save.reset()
+    setOpen(false)
+  }
 
-  const records = useMemo(() => data ?? [], [data])
+  const records = useMemo(() => {
+    const rows = data ?? []
+    const filters = Object.entries(config.listFilter ?? {})
+    if (filters.length === 0) return rows
+    return rows.filter((row) =>
+      filters.every(([key, expected]) => String(row[key] ?? '') === String(expected ?? '')),
+    )
+  }, [data, config.listFilter])
   const searchable = useMemo(
     () => config.columns.filter((c) => c.field).map((c) => c.field as keyof T),
     [config.columns],
@@ -153,7 +178,7 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
         <Group gap={4} justify="center" wrap="nowrap">
           <Tooltip label="ویرایش" withArrow>
             <ActionIcon variant="subtle" color="blue" radius="md" aria-label="ویرایش"
-              onClick={() => { setEditing(row); setOpen(true) }}>
+              onClick={() => { save.reset(); setEditing(row); setOpen(true) }}>
               <IconEdit size={18} />
             </ActionIcon>
           </Tooltip>
@@ -239,11 +264,12 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
 
       <CrudFormModal
         opened={open}
-        onClose={() => setOpen(false)}
+        onClose={closeForm}
         onSubmit={(values) => save.mutate(values)}
         fields={config.fields}
         initial={editing}
         loading={save.isPending}
+        error={save.isError ? 'ذخیره انجام نشد. لطفاً دوباره تلاش کنید.' : null}
         title={editing ? `ویرایش ${config.entity}` : `افزودن ${config.entity}`}
       />
     </Box>

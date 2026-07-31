@@ -76,8 +76,16 @@ export function RefSelect({
     staleTime: 5 * 60 * 1000,
   })
 
+  // Some legacy CRUD endpoints ignore query-string filters. Apply the same fixed
+  // lookup scope on the client so border/country selectors never mix categories.
+  const scopedData = data?.filter((row) =>
+    Object.entries(params ?? {}).every(
+      ([key, expected]) => String(row[key] ?? '') === String(expected),
+    ),
+  )
+
   const hasVariants = Boolean(variantOptions?.length)
-  const options = data?.flatMap((row) => {
+  const options = scopedData?.flatMap((row) => {
     const baseLabel = toLabel(row, labelKey)
     if (!hasVariants) {
       return [{ value: String(row[valueKey]), label: baseLabel }]
@@ -110,7 +118,7 @@ export function RefSelect({
         onVariantChange?.(pickedVariant)
         if (onPick) {
           const picked =
-            id == null ? null : (data?.find((r) => String(r[valueKey]) === String(rawId)) ?? null)
+            id == null ? null : (scopedData?.find((r) => String(r[valueKey]) === String(rawId)) ?? null)
           onPick(picked)
         }
       }}

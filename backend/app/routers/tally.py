@@ -232,13 +232,31 @@ SELECT
     h."ID_COUNTRY"                      AS id_country,
     t_country."SYS_TERM_VALUE"          AS country_name,
     h."ID_COMPANY"                      AS id_company,
-    TRIM(c_comp."COMPANY")              AS company_name,
+    TRIM(c_comp."COMPANY_NAME")         AS company_name,
     h."ID_PRODUCT_OWNEAR"               AS id_product_ownear,
-    (o."NAME" || ' ' || o."FAMILY")     AS owner_name
+    CASE
+        WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
+        ELSE TRIM(o."NAME" || ' ' || o."FAMILY")
+    END                                  AS owner_name,
+    CASE
+        WHEN EXISTS (
+            SELECT 1
+            FROM "FA_SORAT_HESAB_HEADER" invoice_header
+            WHERE invoice_header."TALI_ID_HEADER" = h."ID_TALI"
+              AND invoice_header."SORAT_IS_DELETED" = 'no'
+        ) THEN 'closed'
+        WHEN EXISTS (
+            SELECT 1
+            FROM "fa_ghabz_anbar_header" receipt_header
+            WHERE receipt_header."TALI_ID" = h."ID_TALI"
+              AND receipt_header."IS_DELETED" = 'no'
+        ) THEN 'pending'
+        ELSE 'open'
+    END                                  AS workflow_status
 FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_SYS_TERMS"              t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
 LEFT JOIN "FA_SYS_TERMS"              t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
-LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_comp    ON c_comp."ID_REPRE_COMPANY" = h."ID_COMPANY"
+LEFT JOIN "FA_TRANSPORT_COMPANY"      c_comp    ON c_comp."ID_COMPANY"       = h."ID_COMPANY"
 LEFT JOIN "FA_PRODUCT_OWNER"          o         ON o."ID_OWNER"           = h."ID_PRODUCT_OWNEAR"
 WHERE h."IS_DELETED" = 'no'
 ORDER BY h."ID_TALI" DESC
@@ -299,22 +317,19 @@ SELECT
     h."OWNER_NATIONAL_CODE"             AS owner_national_code,
     t_marze."SYS_TERM_VALUE"            AS marze_name,
     t_country."SYS_TERM_VALUE"          AS country_name,
-    NVL(
-        c_comp."COMPANY",
-        TRIM(c_comp."NAME" || ' ' || c_comp."FAMILY")
-    )                                   AS company_name,
-    NVL(
-        TRIM(c_resp."NAME" || ' ' || c_resp."FAMILY"),
-        c_resp."COMPANY"
-    )                                   AS representative_name,
-    TRIM(o."NAME" || ' ' || o."FAMILY") AS owner_name
+    TRIM(c_comp."COMPANY_NAME")         AS company_name,
+    TRIM(c_resp."NAME" || ' ' || c_resp."FAMILY") AS representative_name,
+    CASE
+        WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
+        ELSE TRIM(o."NAME" || ' ' || o."FAMILY")
+    END                                  AS owner_name
 FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_SYS_TERMS" t_marze
        ON t_marze."SYS_TERM_ID" = h."ID_MARZE"
 LEFT JOIN "FA_SYS_TERMS" t_country
        ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
-LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_comp
-       ON c_comp."ID_REPRE_COMPANY" = h."ID_COMPANY"
+LEFT JOIN "FA_TRANSPORT_COMPANY" c_comp
+       ON c_comp."ID_COMPANY" = h."ID_COMPANY"
 LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_resp
        ON c_resp."ID_REPRE_COMPANY" = h."ID_RESPONS_COMPANY"
 LEFT JOIN "FA_PRODUCT_OWNER" o
