@@ -256,8 +256,10 @@ function rowToState(r: Record<string, any>): GhabzState {
 }
 
 const companyLabel = (r: Record<string, any>) =>
-  `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
-const ownerLabel = (r: Record<string, any>) => `${r.name ?? ''} ${r.family ?? ''}`.trim()
+  String(r.company_name ?? '').trim()
+const ownerLabel = (r: Record<string, any>) => String(
+  r.type === 'حقوقی' ? r.company_name ?? '' : `${r.name ?? ''} ${r.family ?? ''}`.trim(),
+).trim()
 const isolateLtr = (value: unknown) => `\u2066${String(value)}\u2069`
 const tallyLabel = (r: Record<string, any>) =>
   `تالی ${isolateLtr(r.tali_number ?? r.id_tali)}${r.number_karaneh ? ` — کارنه ${r.number_karaneh}` : ''}`.trim()
@@ -334,8 +336,8 @@ export function GhabzHeaderForm() {
           <Grid.Col span={{ base: 12, md: 6 }}><RefSelect label="کشور" path="/terms"
             params={{ category_id: 2 }} valueKey="sys_term_id" labelKey="value"
             value={form.id_country} onChange={(v) => set('id_country', v)} /></Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}><RefSelect label="شرکت حمل" path="/companies"
-            valueKey="id_repre_company" labelKey={companyLabel}
+          <Grid.Col span={{ base: 12, md: 6 }}><RefSelect label="شرکت حمل" path="/transport-companies"
+            valueKey="id_company" labelKey={companyLabel}
             value={form.id_company} onChange={(v) => set('id_company', v)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><RefSelect label="صاحب کالا" path="/owners"
             valueKey="id_owner" labelKey={ownerLabel}

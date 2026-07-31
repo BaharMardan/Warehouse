@@ -1,16 +1,23 @@
-"""Migrate tally numbers to the automatic ``<Jalali year>-<number>`` format.
+"""Prepare automatic, continuous tally numbering.
 
 Run once while the API is stopped:
 
-    python migrate_tally_numbering.py
+    python migrate_tally_numbering.py --last-issued 1073
 
-The script is safe to re-run. It preserves existing tally/receipt values,
-converts their number columns to VARCHAR2, creates the yearly counter table,
-adds the tally-number uniqueness constraint, and creates/repairs the ID_TALI
-sequence above the current maximum ID.
+Replace ``1073`` with the latest tally number issued outside the software on
+the actual go-live day. The first tally created by the API will receive the
+next number.
+
+The script is safe to re-run. It never moves the counter backwards, preserves
+existing tally/receipt values, converts their number columns to VARCHAR2,
+creates the counter table, adds the tally-number uniqueness constraint, and
+creates/repairs the ID_TALI sequence above the current maximum ID.
 """
 
+import argparse
+
 from app.core.db import get_connection
+from app.services.tally_numbering import GLOBAL_COUNTER_KEY
 
 
 TALLY_TABLE = "FA_TALI_HEADER"
@@ -259,24 +266,55 @@ def _create_unique_constraint(cursor) -> None:
     print(f"OK  : created {UNIQUE_CONSTRAINT}")
 
 
-def _backfill_counters(cursor) -> None:
+def _seed_global_counter(cursor, last_issued: int | None) -> None:
     cursor.execute(
         f"""
-        SELECT {_q(TALLY_NUMBER_COLUMN)}
+        SELECT NVL(
+            MAX(
+                CASE
+                    WHEN REGEXP_LIKE(
+                        TRIM({_q(TALLY_NUMBER_COLUMN)}),
+                        '^[0-9]+$'
+                    )
+                    THEN TO_NUMBER(TRIM({_q(TALLY_NUMBER_COLUMN)}))
+                END
+            ),
+            0
+        )
         FROM {_q(TALLY_TABLE)}
-        WHERE REGEXP_LIKE({_q(TALLY_NUMBER_COLUMN)}, '^[0-9]{{4}}-[0-9]+$')
         """
     )
-    maximum_by_year: dict[int, int] = {}
-    for (value,) in cursor.fetchall():
-        year_text, number_text = value.split("-", 1)
-        year, number = int(year_text), int(number_text)
-        maximum_by_year[year] = max(maximum_by_year.get(year, 0), number)
+    greatest_existing = int(cursor.fetchone()[0])
 
+    cursor.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM {_q(TALLY_TABLE)}
+        WHERE {_q(TALLY_NUMBER_COLUMN)} IS NOT NULL
+          AND NOT REGEXP_LIKE(TRIM({_q(TALLY_NUMBER_COLUMN)}), '^[0-9]+$')
+        """
+    )
+    legacy_count = int(cursor.fetchone()[0])
+    if legacy_count:
+        print(
+            f"INFO: preserved {legacy_count} non-numeric/legacy tally number(s); "
+            "they do not affect the continuous counter"
+        )
+
+    if last_issued is None and greatest_existing == 0:
+        raise RuntimeError(
+            "No numeric tally number exists to initialize the counter. "
+            "Run again with --last-issued and the latest real-world tally number."
+        )
+    if last_issued is not None and last_issued < 0:
+        raise ValueError("--last-issued cannot be negative")
+
+    requested_last = last_issued if last_issued is not None else 0
+    safe_last = max(greatest_existing, requested_last)
     merge_sql = f"""
     MERGE INTO {_q(COUNTER_TABLE)} counter
     USING (
-        SELECT :jalali_year AS "JALALI_YEAR", :last_number AS "LAST_NUMBER"
+        SELECT :counter_key AS "JALALI_YEAR", :last_number AS "LAST_NUMBER"
         FROM DUAL
     ) source
     ON (counter."JALALI_YEAR" = source."JALALI_YEAR")
@@ -286,15 +324,26 @@ def _backfill_counters(cursor) -> None:
     WHEN NOT MATCHED THEN INSERT ("JALALI_YEAR", "LAST_NUMBER")
         VALUES (source."JALALI_YEAR", source."LAST_NUMBER")
     """
-    for year, last_number in sorted(maximum_by_year.items()):
-        cursor.execute(
-            merge_sql,
-            {"jalali_year": year, "last_number": last_number},
-        )
-        print(f"OK  : counter {year} starts after {last_number}")
-
-    if not maximum_by_year:
-        print("INFO: no formatted existing tally numbers needed counter backfill")
+    cursor.execute(
+        merge_sql,
+        {
+            "counter_key": GLOBAL_COUNTER_KEY,
+            "last_number": safe_last,
+        },
+    )
+    cursor.execute(
+        f"""
+        SELECT "LAST_NUMBER"
+        FROM {_q(COUNTER_TABLE)}
+        WHERE "JALALI_YEAR" = :counter_key
+        """,
+        {"counter_key": GLOBAL_COUNTER_KEY},
+    )
+    effective_last = int(cursor.fetchone()[0])
+    print(
+        f"OK  : continuous tally counter will issue {effective_last + 1} next "
+        f"(database max={greatest_existing}, supplied last={last_issued})"
+    )
 
 
 def _ensure_sequence(cursor) -> None:
@@ -339,7 +388,7 @@ def _ensure_sequence(cursor) -> None:
     print(f"OK  : advanced {SEQUENCE_NAME} to {next_required}")
 
 
-def main() -> None:
+def main(last_issued: int | None = None) -> None:
     with get_connection() as connection:
         cursor = connection.cursor()
         try:
@@ -357,7 +406,7 @@ def main() -> None:
             )
             _create_counter_table(cursor)
             _create_unique_constraint(cursor)
-            _backfill_counters(cursor)
+            _seed_global_counter(cursor, last_issued)
             _ensure_sequence(cursor)
             connection.commit()
         except Exception:
@@ -383,4 +432,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Initialize the continuous tally counter safely."
+    )
+    parser.add_argument(
+        "--last-issued",
+        type=int,
+        help=(
+            "Latest tally number issued outside the software. "
+            "At go-live, pass that day's actual latest number."
+        ),
+    )
+    args = parser.parse_args()
+    main(args.last_issued)

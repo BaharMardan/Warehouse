@@ -7,6 +7,7 @@ from app.routers.tally_header import router as tally_header_router
 from app.routers.ghabz import router as ghabz_router
 from app.routers.invoice import router as invoice_router
 from app.routers.commodity import router as commodity_router
+from app.routers.owners import router as owners_router
 
 from app.crud.registry import crud_routers
 
@@ -30,6 +31,7 @@ app.include_router(tally_header_router)
 app.include_router(ghabz_router)
 app.include_router(invoice_router)
 app.include_router(commodity_router)
+app.include_router(owners_router)
 
 # app.include_router(items.router)
 # app.include_router(anbar.router)

@@ -60,6 +60,7 @@ import { GhabzListPage } from './pages/GhabzListPage'
 import { GhabzDetailPage } from './pages/GhabzDetailPage'
 import { GhabzHeaderForm } from './pages/GhabzHeaderForm'
 import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
+import { OwnersPage } from './pages/OwnersPage'
 
 // import ScratchTest from './pages/ScratchTest'
 
@@ -70,20 +71,24 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/tally/id/:tallyId/print" element={<TallyPrintPage />} />
         <Route path="/tally/:tallyNumber/print" element={<TallyPrintPage />} />
         <Route element={<AppLayout />}>
           {/* /kala is now the commodity catalog (FA_COMMODITY_CATALOG), not the old
               FA_KALA CRUD grid — render the custom page instead of the generic CrudResource. */}
-          {resources.filter((r) => r.route !== '/kala').map((r) => (
+          {resources.filter((r) => !['/kala', '/owners'].includes(r.route)).map((r) => (
             <Route key={r.route} path={r.route} element={<CrudResource config={r} />} />
           ))}
           <Route path="/kala" element={<CommodityCatalogPage />} />
+          <Route path="/owners" element={<OwnersPage />} />
           {
           /* complex pages get added here later, e.g. <Route path="/tally" element={<TallyPage />} /> */}
           {/* <Route path="/scratch-test" element={<ScratchTest />} /> */}
           <Route path="*" element={<Navigate to={resources[0].route} replace />} />
           <Route path="/tally/new" element={<TallyHeaderForm />} />
           <Route path="/tally" element={<TallyListPage />} />
+          <Route path="/tally/id/:tallyId" element={<TallyDetailPage />} />
+          <Route path="/tally/id/:tallyId/edit" element={<TallyHeaderForm />} />
           <Route path="/tally/:tallyNumber" element={<TallyDetailPage />} />
           <Route path="/tally/:tallyNumber/edit" element={<TallyHeaderForm />} />
           <Route path="/ghabz" element={<GhabzListPage />} />

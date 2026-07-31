@@ -118,7 +118,7 @@
 
 #     return router
 
-from typing import Type
+from typing import Any, Callable, Type
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -143,6 +143,7 @@ def make_crud_router(
     column_overrides: dict[str, str] | None = None,
     audit: Audit | None = Audit(),
     order_by: str | list[str] | None = None,
+    prepare_create: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> APIRouter:
     """A full soft-delete CRUD router for one table, generated from a Pydantic model.
 
@@ -167,6 +168,10 @@ def make_crud_router(
     ordering; each is quoted and the pk is appended as a stable tiebreaker. Defaults to
     None -> ORDER BY pk, so tables that don't pass it are completely unaffected. This is
     generic framework config (like column_overrides/audit) - no per-table logic lives here.
+
+    prepare_create: optional server-side payload preparation used immediately before
+    INSERT. It is useful for technical values that should never be entered by an
+    operator, such as generated lookup codes and display order.
     """
     p = plan(
         table=table,
@@ -192,6 +197,8 @@ def make_crud_router(
     @router.post("", status_code=201)
     def create_row(item: model, current_user: dict = Depends(get_current_user)):  # type: ignore[valid-type]
         params = {**item.model_dump()}
+        if prepare_create:
+            params = prepare_create(params)
         for key, value in params.items():
             if (
                 isinstance(value, str)

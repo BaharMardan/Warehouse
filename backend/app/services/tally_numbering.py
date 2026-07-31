@@ -1,66 +1,44 @@
-"""Helpers for allocating immutable, yearly Jalali tally numbers."""
-
-from datetime import date
-
-import jdatetime
-import oracledb
+"""Helpers for allocating immutable, continuous tally numbers."""
 
 
-INSERT_COUNTER_SQL = """
-INSERT INTO "FA_TALI_NUMBER_COUNTER" ("JALALI_YEAR", "LAST_NUMBER")
-VALUES (:jalali_year, 0)
-"""
+# The counter table originally used the Jalali year as its key. Key zero is
+# reserved for the global counter so installations that already ran the
+# previous migration do not need a destructive table replacement.
+GLOBAL_COUNTER_KEY = 0
 
 INCREMENT_COUNTER_SQL = """
 UPDATE "FA_TALI_NUMBER_COUNTER"
 SET "LAST_NUMBER" = "LAST_NUMBER" + 1
-WHERE "JALALI_YEAR" = :jalali_year
+WHERE "JALALI_YEAR" = :counter_key
 RETURNING "LAST_NUMBER" INTO :next_number
 """
 
 
-def jalali_year_for(gregorian_date: date) -> int:
-    """Return the Jalali year for an authoritative Gregorian creation date."""
-    return jdatetime.date.fromgregorian(date=gregorian_date).year
+def allocate_next_tally_number(cursor) -> str:
+    """Allocate one global number using the caller's Oracle transaction.
 
+    Updating the single counter row locks it until the surrounding tally
+    creation transaction commits or rolls back. This prevents duplicates when
+    several operators save a tally at the same time.
 
-def format_tally_number(jalali_year: int, sequence_number: int) -> str:
-    return f"{jalali_year}-{sequence_number}"
-
-
-def _oracle_error_code(exc: BaseException) -> int | None:
-    if not exc.args:
-        return None
-    error = exc.args[0]
-    return getattr(error, "code", None)
-
-
-def allocate_next_tally_number(cursor, jalali_year: int) -> str:
-    """Allocate one yearly number using the caller's open Oracle transaction.
-
-    The first transaction for a year inserts its counter row. Concurrent
-    transactions block on that primary key; the loser receives ORA-00001 and
-    then increments the committed row. The update itself takes a row lock, so
-    two successful transactions cannot receive the same sequence number.
+    The row must first be initialized by ``migrate_tally_numbering.py`` with
+    the latest real-world tally number at go-live.
     """
-    try:
-        cursor.execute(INSERT_COUNTER_SQL, {"jalali_year": jalali_year})
-    except oracledb.IntegrityError as exc:
-        if _oracle_error_code(exc) != 1:  # ORA-00001 is the expected race
-            raise
-
     next_number_var = cursor.var(int)
     cursor.execute(
         INCREMENT_COUNTER_SQL,
         {
-            "jalali_year": jalali_year,
+            "counter_key": GLOBAL_COUNTER_KEY,
             "next_number": next_number_var,
         },
     )
     if cursor.rowcount != 1:
-        raise RuntimeError(f"Counter row for Jalali year {jalali_year} was not found")
+        raise RuntimeError(
+            "The continuous tally counter is not initialized. "
+            "Run migrate_tally_numbering.py with --last-issued first."
+        )
 
     value = next_number_var.getvalue()
     if isinstance(value, (list, tuple)):
         value = value[0]
-    return format_tally_number(jalali_year, int(value))
+    return str(int(value))

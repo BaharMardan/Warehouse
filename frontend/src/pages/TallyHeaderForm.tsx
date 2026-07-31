@@ -885,29 +885,37 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
 }
 
 const companyLabel = (r: Record<string, any>) =>
-  String(r.company ?? '').trim()
+  String(r.company_name ?? '').trim()
 
 // build "name family (national_code)" for the transport-company representative
 const representativeLabel = (r: Record<string, any>) =>
   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 
 const ownerLabel = (r: Record<string, any>) =>
-  `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
+  String(
+    r.type === 'حقوقی'
+      ? `${r.company_name ?? ''} ${r.national_id ? `(${r.national_id})` : ''}`
+      : `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`,
+  ).trim()
 
 export function TallyHeaderForm() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { tallyNumber } = useParams<{ tallyNumber: string }>()
-  const isEdit = tallyNumber != null
-  const isLegacyId = Boolean(tallyNumber && /^\d+$/.test(tallyNumber))
+  const { tallyNumber, tallyId } = useParams<{
+    tallyNumber?: string
+    tallyId?: string
+  }>()
+  const reference = tallyId ?? tallyNumber
+  const isEdit = reference != null
+  const isLegacyId = tallyId != null
 
   // when editing, load the existing header once and populate the form
   const { data: existing } = useQuery({
-    queryKey: ['tally-header', tallyNumber],
+    queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
     queryFn: () => apiGet<Record<string, any>>(
       isLegacyId
-        ? `/tally-header/${tallyNumber}`
-        : `/tally-header/by-number/${encodeURIComponent(tallyNumber!)}`
+        ? `/tally-header/${tallyId}`
+        : `/tally-header/by-number/${encodeURIComponent(tallyNumber ?? '')}`
     ),
     enabled: isEdit, // only fetch in edit mode
   })
@@ -983,14 +991,21 @@ export function TallyHeaderForm() {
           throw new Error('مقدار ردیف مرزی در پاسخ ذخیره تأیید نشد.')
         }
 
-        queryClient.setQueryData(['tally-header', tallyNumber], updated)
+        queryClient.setQueryData(
+          ['tally-header', isLegacyId ? 'id' : 'number', reference],
+          updated,
+        )
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['tally-header', tallyNumber] }),
+          queryClient.invalidateQueries({
+            queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
+          }),
           queryClient.invalidateQueries({ queryKey: ['tally-summary', editId] }),
         ])
 
-        const publicNumber = String(updated.tali_number ?? existing?.tali_number ?? tallyNumber)
-        navigate(`/tally/${encodeURIComponent(publicNumber)}`)
+        const publicNumber = updated.tali_number ?? existing?.tali_number ?? tallyNumber
+        navigate(publicNumber
+          ? `/tally/${encodeURIComponent(String(publicNumber))}`
+          : `/tally/id/${editId}`)
       } else {
         const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
         navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
@@ -1070,12 +1085,12 @@ export function TallyHeaderForm() {
             />
           </Grid.Col>
 
-          {/* --- row: transport company + its representative (both from companies) --- */}
+          {/* --- row: transport company + representative (selected independently) --- */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <RefSelect
               label="نام شرکت حمل"
-              path="/companies"
-              valueKey="id_repre_company"
+              path="/transport-companies"
+              valueKey="id_company"
               labelKey={companyLabel}
               value={form.id_company}
               onChange={(v) => set('id_company', v)}
@@ -1084,7 +1099,7 @@ export function TallyHeaderForm() {
           <Grid.Col span={{ base: 12, md: 6 }}>
             <RefSelect
               label="نام نماینده شرکت حمل"
-              path="/companies"
+              path="/company-representatives"
               valueKey="id_repre_company"
               labelKey={representativeLabel}
               value={form.id_respons_company}
@@ -1101,6 +1116,10 @@ export function TallyHeaderForm() {
               labelKey={ownerLabel}
               value={form.id_product_ownear}
               onChange={(v) => set('id_product_ownear', v)}
+              onPick={(owner) => set(
+                'owner_national_code',
+                String(owner?.type === 'حقوقی' ? owner?.national_id ?? '' : owner?.national_code ?? ''),
+              )}
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
@@ -1191,7 +1210,7 @@ export function TallyHeaderForm() {
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
-              label="شناسه ملی صاحب کالا"
+              label="کد ملی / شناسه ملی صاحب کالا"
               inputMode="numeric"
               maxLength={20}
               value={form.owner_national_code}

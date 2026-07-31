@@ -207,6 +207,7 @@ import {
 } from '@mantine/core'
 import { apiGet, apiSend } from '../api/client'
 import { RefSelect } from '../components/RefSelect'
+import { TermValueSelect } from '../components/TermValueSelect'
 import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 
 type DetailRow = {
@@ -374,8 +375,8 @@ export function GhabzDetailPage() {
           <Grid>
             <Grid.Col span={6}><TextInput label="شرح کالا"
               value={line.description_kala} onChange={(e) => set('description_kala', e.currentTarget.value)} /></Grid.Col>
-            <Grid.Col span={6}><TextInput label="نوع بسته‌بندی"
-              value={line.type_basteh} onChange={(e) => set('type_basteh', e.currentTarget.value)} /></Grid.Col>
+            <Grid.Col span={6}><TermValueSelect label="نوع بسته‌بندی" categoryId={3}
+              value={line.type_basteh || null} onChange={(value) => set('type_basteh', value ?? '')} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="تعداد" required inputMode="numeric"
               value={line.number_kala} onChange={(e) => set('number_kala', e.currentTarget.value)} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="وزن اسناد" required inputMode="numeric"

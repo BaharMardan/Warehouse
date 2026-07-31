@@ -930,11 +930,20 @@ type TallyRow = {
   country_name: string | null
   company_name: string | null
   owner_name: string | null
+  workflow_status: 'open' | 'pending' | 'closed'
 }
 
+const STATUS_BADGE = {
+  open: { label: 'Open', color: 'red', description: 'تالی' },
+  pending: { label: 'Pending', color: 'yellow', description: 'قبض انبار' },
+  closed: { label: 'Closed', color: 'green', description: 'صورتحساب' },
+} as const
+
 function tallyPath(row: TallyRow): string {
-  const publicReference = row.tali_number ?? String(row.id_tali)
-  return `/tally/${encodeURIComponent(publicReference)}`
+  if (row.tali_number) {
+    return `/tally/${encodeURIComponent(row.tali_number)}`
+  }
+  return `/tally/id/${row.id_tali}`
 }
 
 // ISO "2026-06-26" -> Jalali display "1405/04/05". Blank if empty.
@@ -1043,7 +1052,7 @@ export function TallyListPage() {
       total: rows.length,
       today: rows.filter((r) => (r.date_enter_marze ?? '').slice(0, 10) === today).length,
       dangerous: rows.filter(rowIsDangerous).length,
-      pending: rows.filter((r) => !r.date_unloading).length,
+      pending: rows.filter((r) => r.workflow_status !== 'closed').length,
     }
   }, [rows])
 
@@ -1121,7 +1130,7 @@ export function TallyListPage() {
         ) : (
           <>
             <div className="tlp-card"><StatCard icon={<IconBox />} value={stats.total} label="کل تالی‌ها" color="blue" /></div>
-            <div className="tlp-card"><StatCard icon={<IconClock />} value={stats.pending} label="عملیات در انتظار" color="orange" /></div>
+            <div className="tlp-card"><StatCard icon={<IconClock />} value={stats.pending} label="پرونده‌های در جریان" color="orange" /></div>
           </>
         )}
       </SimpleGrid>
@@ -1223,8 +1232,8 @@ export function TallyListPage() {
               </Table.Thead>
               <Table.Tbody>
                 {filtered.map((row) => {
-                  const unloaded = Boolean(row.date_unloading)
                   const insured = (row.is_bimeh ?? '').trim() === 'yes'
+                  const status = STATUS_BADGE[row.workflow_status] ?? STATUS_BADGE.open
                   return (
                     <Table.Tr
                       key={row.id_tali} className="tlp-row"
@@ -1240,9 +1249,11 @@ export function TallyListPage() {
                       <Table.Td>{isoToJalali(row.date_unloading)}</Table.Td>
                       <Table.Td>
                         <Group gap={6} wrap="nowrap">
-                          <Badge color={unloaded ? 'teal' : 'orange'} variant="light" radius="sm">
-                            {unloaded ? 'تخلیه شده' : 'در انتظار تخلیه'}
-                          </Badge>
+                          <Tooltip label={status.description} withArrow>
+                            <Badge color={status.color} variant="light" radius="sm">
+                              {status.label}
+                            </Badge>
+                          </Tooltip>
                           {insured && <Badge color="blue" variant="light" radius="sm">بیمه</Badge>}
                         </Group>
                       </Table.Td>

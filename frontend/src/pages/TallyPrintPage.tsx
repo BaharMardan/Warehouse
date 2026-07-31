@@ -314,7 +314,7 @@ function TallySheet({
           </div>
           <div className="tally-print-info-card">
             <InfoLine icon={<IdCard />} label="شماره تالی" value={data.tali_number} ltr />
-            <InfoLine icon={<UserRound />} label="شناسه ملی صاحب کالا" value={data.owner_national_code} ltr />
+            <InfoLine icon={<UserRound />} label="کد ملی / شناسه ملی صاحب کالا" value={data.owner_national_code} ltr />
             <InfoLine icon={<FileText />} label="شماره بارنامه" value={data.number_barnameh} ltr />
             <InfoLine icon={<CircleHelp />} label="نام ارزیاب" value={data.name_arzyab} />
           </div>
@@ -422,20 +422,25 @@ function TallySheet({
 }
 
 export function TallyPrintPage() {
-  const { tallyNumber = '' } = useParams<{ tallyNumber: string }>()
-  const isLegacyId = /^\d+$/.test(tallyNumber)
+  const { tallyNumber, tallyId } = useParams<{
+    tallyNumber?: string
+    tallyId?: string
+  }>()
+  const reference = tallyId ?? tallyNumber ?? ''
+  const isLegacyId = tallyId != null
 
   const {
     data: header,
     isLoading: isHeaderLoading,
     isError: isHeaderError,
   } = useQuery({
-    queryKey: ['tally-print-header', tallyNumber],
+    queryKey: ['tally-print-header', isLegacyId ? 'id' : 'number', reference],
     queryFn: () => apiGet<TallyHeaderLookup>(
       isLegacyId
-        ? `/tally-header/${tallyNumber}`
-        : `/tally-header/by-number/${encodeURIComponent(tallyNumber)}`
+        ? `/tally-header/${tallyId}`
+        : `/tally-header/by-number/${encodeURIComponent(tallyNumber ?? '')}`
     ),
+    enabled: reference !== '',
   })
 
   const headerId = header?.id_tali == null ? undefined : Number(header.id_tali)

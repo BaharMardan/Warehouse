@@ -7,4 +7,3 @@ python-dotenv
 pyjwt
 argon2-cffi
 python-multipart
-jdatetime==6.0.1
