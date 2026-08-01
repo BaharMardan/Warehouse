@@ -1,0 +1,279 @@
+/* TallyGoodsGrid — deliberately self-contained.
+   It does NOT reuse .tally-detail-table: that rule set paints every `thead th` with
+   `background: … !important; color: #fff !important`, which flattened the grouped
+   header into one solid blue band. Everything the grid needs is defined here. */
+
+.tgg-shell {
+  margin: 16px 20px 20px;
+  border: 1px solid #dbe6f3;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* One scroll box owning BOTH axes. The header and the # / عملیات columns stick to
+   this box, not to the page — sticking to the page viewport is what pinned the header
+   halfway down the screen and hid the first rows underneath it. */
+.tgg-scroll {
+  overflow: auto;
+  max-height: 62vh;
+  overscroll-behavior: contain;
+}
+
+.tgg-table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+
+.tgg-table th,
+.tgg-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  border-bottom: 1px solid #e7edf5;
+  padding: 0 8px;
+}
+
+.tgg-table tbody td {
+  height: 40px;
+  color: #243650;
+}
+
+.tgg-primary-cell {
+  color: #172944;
+  font-weight: 700;
+}
+
+.tgg-table tbody tr:nth-child(even) td {
+  background: #f9fbfe;
+}
+
+.tgg-table tbody tr:hover td {
+  background: #eef5fd;
+}
+
+/* ── header: group row on top, column names below ────────────────────── */
+
+.tgg-table thead th {
+  position: sticky;
+  z-index: 3;
+  text-align: right;
+  font-weight: 700;
+}
+
+.tgg-group-row th {
+  top: 0;
+  height: 26px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.tgg-group-kala { background: #eeedfe; color: #3c3489; }
+.tgg-group-baskol { background: #e1f5ee; color: #0f6e56; }
+.tgg-group-mahal { background: #e6f1fb; color: #0c447c; }
+.tgg-group-haml { background: #faece7; color: #993c1d; }
+
+.tgg-table thead tr:nth-child(2) th {
+  top: 26px;
+  height: 40px;
+  font-size: 12px;
+  background: linear-gradient(180deg, #2675d1 0%, #155fb8 100%);
+  color: #fff;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 0;
+}
+
+.tgg-req {
+  color: #ffd7d7;
+  font-weight: 700;
+}
+
+/* ── sticky first / last columns ─────────────────────────────────────
+   dir=rtl on the page, so inset-inline-start pins to the RIGHT edge. */
+
+.tgg-sticky-num,
+.tgg-sticky-actions {
+  position: sticky;
+  z-index: 2;
+  background: #fff;
+}
+
+.tgg-sticky-num {
+  inset-inline-start: 0;
+  text-align: center;
+  color: #7c8ca3;
+  box-shadow: 1px 0 0 #e7edf5;
+}
+
+.tgg-sticky-actions {
+  inset-inline-end: 0;
+  text-align: center;
+  box-shadow: -1px 0 0 #e7edf5;
+}
+
+/* header corners sit above both the header row and the sticky columns */
+.tgg-table thead .tgg-sticky-num,
+.tgg-table thead .tgg-sticky-actions {
+  z-index: 5;
+}
+
+.tgg-group-row .tgg-sticky-num,
+.tgg-group-row .tgg-sticky-actions {
+  background: #f4f7fb;
+}
+
+/* sticky cells must stay opaque over the striped / hovered rows */
+.tgg-table tbody tr:nth-child(even) .tgg-sticky-num,
+.tgg-table tbody tr:nth-child(even) .tgg-sticky-actions {
+  background: #f9fbfe;
+}
+
+.tgg-table tbody tr:hover .tgg-sticky-num,
+.tgg-table tbody tr:hover .tgg-sticky-actions {
+  background: #eef5fd;
+}
+
+/* ── the draft row ──────────────────────────────────────────────────── */
+
+.tgg-table tbody tr.tgg-draft-row td,
+.tgg-table tbody tr.tgg-draft-row:hover td,
+.tgg-table tbody tr.tgg-draft-row td.tgg-sticky-num,
+.tgg-table tbody tr.tgg-draft-row td.tgg-sticky-actions,
+.tgg-table tbody tr.tgg-draft-row:hover td.tgg-sticky-num,
+.tgg-table tbody tr.tgg-draft-row:hover td.tgg-sticky-actions {
+  background: #fffdf7;
+}
+
+.tgg-table tbody tr.tgg-draft-row td {
+  height: 46px;
+  padding: 0 5px;
+  box-shadow: inset 0 2px 0 #2675d1;
+}
+
+.tgg-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tgg-cell-control {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding-inline: 6px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #cfd9e6;
+}
+
+.tgg-cell-control:focus-within {
+  box-shadow: inset 0 0 0 2px #2675d1;
+}
+
+/* the copy arrow only appears on hover/focus so the grid stays quiet */
+.tgg-copy-icon {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.tgg-draft-cell:hover .tgg-copy-icon,
+.tgg-draft-cell:focus-within .tgg-copy-icon {
+  opacity: 1;
+}
+
+/* popover-backed cells (commodity picker, plate) look like the other inputs */
+.tgg-cell-button {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  padding: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tgg-cell-button:focus-visible {
+  outline: 2px solid #2675d1;
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ── cell states ────────────────────────────────────────────────────── */
+
+/* copied from the row above and NOT yet reviewed — the point of the whole feature */
+.tgg-cell-copied .tgg-cell-control {
+  background: #faeeda;
+  box-shadow: inset 0 0 0 1px #ef9f27;
+  color: #633806;
+}
+
+/* required and still empty */
+.tgg-cell-missing .tgg-cell-control {
+  box-shadow: inset 0 0 0 1px #e24b4a;
+  background: #fff;
+}
+
+/* never copied — has to be typed for every row */
+.tgg-cell-manual .tgg-cell-control {
+  border-style: dashed;
+  border-color: #cfd9e6;
+}
+
+/* value already used by another row of this tally */
+.tgg-cell-duplicate .tgg-cell-control {
+  box-shadow: inset 0 0 0 2px #e24b4a;
+}
+
+/* ── action bar + banners ───────────────────────────────────────────── */
+
+.tgg-actionbar {
+  padding: 10px 12px;
+  background: #f4f7fb;
+  border-top: 1px solid #e7edf5;
+}
+
+.tgg-shortcuts {
+  margin-inline-start: auto;
+}
+
+.tgg-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  border-top: 1px solid #e7edf5;
+}
+
+.tgg-banner-warn {
+  background: #faeeda;
+  color: #633806;
+}
+
+.tgg-banner-dup,
+.tgg-banner-error {
+  background: #fcebeb;
+  color: #791f1f;
+}
+
+.tgg-banner-missing {
+  background: #f4f7fb;
+  color: #5b6b82;
+}
+
+.tgg-confirm-label {
+  width: 45%;
+  color: #5b6b82;
+}
