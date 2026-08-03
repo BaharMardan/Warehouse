@@ -13,6 +13,11 @@ import { CommodityPicker, type Commodity } from './CommodityPicker'
 import { PlateInput } from './PlateInput'
 import { CONTAINER_TYPES, TYPES_WITH_NUMBER } from './ContainerFields'
 import type { StorageGroup } from './StorageGroupSelect'
+import {
+  isoToJalaliInput,
+  normalizeFlexibleJalaliInput,
+  parseFlexibleJalaliDate,
+} from '../utils/flexibleJalaliDate'
 import './TallyGoodsGrid.css'
 
 /**
@@ -31,11 +36,10 @@ import './TallyGoodsGrid.css'
  *     or per row (Alt+C), and only the fields in COPYABLE_FIELDS;
  *   - anything filled by copy is tinted amber and STAYS amber until reviewed, and save
  *     asks for confirmation while any amber cell is left;
- *   - the fields that must differ (NEVER_COPY_FIELDS) are never touched by copy and are
- *     outlined until filled, plus warned about if they duplicate another row.
+ *   - fields that usually differ (NEVER_COPY_FIELDS) are never touched by copy and are
+ *     warned about if they duplicate another row. They remain optional.
  *
- * Save uses the existing generic CRUD endpoints (POST/PUT/DELETE /tally-details) — no
- * backend change.
+ * Save uses the generic CRUD endpoints (POST/PUT/DELETE /tally-details).
  */
 
 export type DetailRow = {
@@ -46,17 +50,20 @@ export type DetailRow = {
   id_tagh_anbar: number | null
   tagh_name: string | null
   number_ghabze_anbar: number | null
-  code_groupe_kala: number
+  code_groupe_kala: number | null
   description_kala: string | null
   hscode: string | null
   type_bastem: string | null
-  number_kala: number
+  number_kala: number | null
   number_pallet: number | null
   value_kala: number | string | null
-  weighte: number
+  customs_value: number | string | null
+  insured_value: number | string | null
+  insurance_expiry_date: string | null
+  weighte: number | null
   type_number_kantiner: string | null
   number_ghabze_bskol: number | null
-  weighte_baskol: number
+  weighte_baskol: number | null
   number_hamel: string | null
   zarib_mahal: string | null
   container_type: string | null
@@ -73,6 +80,9 @@ export type LineForm = {
   number_kala: string
   number_pallet: string
   value_kala: string
+  customs_value: string
+  insured_value: string
+  insurance_expiry_date: string
   weighte: string
   number_ghabze_bskol: string
   weighte_baskol: string
@@ -87,7 +97,8 @@ type FieldKey = keyof LineForm
 
 const EMPTY_LINE: LineForm = {
   id_anbar: null, id_tagh_anbar: null, code_groupe_kala: '', description_kala: '',
-  hscode: '', type_bastem: '', number_kala: '', number_pallet: '', value_kala: '', weighte: '',
+  hscode: '', type_bastem: '', number_kala: '', number_pallet: '', value_kala: '',
+  customs_value: '', insured_value: '', insurance_expiry_date: '', weighte: '',
   number_ghabze_bskol: '', weighte_baskol: '',
   type_number_kantiner: '', number_hamel: '', zarib_mahal: '',
   container_type: '', container_number: '',
@@ -103,7 +114,8 @@ const EMPTY_LINE: LineForm = {
  */
 const COPYABLE_FIELDS: FieldKey[] = [
   'code_groupe_kala', 'description_kala', 'hscode', 'type_bastem',
-  'number_kala', 'number_pallet', 'value_kala',
+  'number_kala', 'number_pallet', 'value_kala', 'customs_value', 'insured_value',
+  'insurance_expiry_date',
   'id_anbar', 'id_tagh_anbar', 'zarib_mahal', 'container_type',
 ]
 
@@ -113,11 +125,6 @@ const NEVER_COPY_FIELDS: FieldKey[] = [
 
 /** Repeating one of these inside a single tally is nearly always a copy-paste slip. */
 const UNIQUE_FIELDS: FieldKey[] = ['number_ghabze_bskol', 'number_hamel', 'container_number']
-
-/** NOT NULL in FA_TALI_DETAILES — save stays disabled until all five are filled. */
-const REQUIRED_FIELDS: FieldKey[] = [
-  'code_groupe_kala', 'number_kala', 'weighte', 'number_ghabze_bskol', 'weighte_baskol',
-]
 
 const ZARIB_OPTIONS = [
   'انبارداری مسقف', 'انبارداری هانگار', 'انبارداری بارانداز', 'انبارداری محوطه',
@@ -179,7 +186,7 @@ const GROUPS: { key: GroupKey; label: string }[] = [
 ]
 
 type CellKind =
-  | 'commodity' | 'text' | 'term' | 'int' | 'decimal'
+  | 'commodity' | 'text' | 'term' | 'int' | 'decimal' | 'date'
   | 'anbar' | 'tagh' | 'zarib' | 'plate' | 'containerType' | 'containerNumber'
 
 type ColumnDef = {
@@ -198,7 +205,10 @@ const COLUMNS: ColumnDef[] = [
   { key: 'number_kala', label: 'تعداد', group: 'kala', kind: 'int', width: 80 },
   { key: 'number_pallet', label: 'تعداد پالت', group: 'kala', kind: 'int', width: 90 },
   { key: 'value_kala', label: 'ارزش کالا', group: 'kala', kind: 'decimal', width: 110 },
-  { key: 'weighte', label: 'وزن', group: 'baskol', kind: 'decimal', width: 100 },
+  { key: 'customs_value', label: 'ارزش کالای گمرکی', group: 'kala', kind: 'decimal', width: 140 },
+  { key: 'insured_value', label: 'ارزش کالای بیمه‌شده', group: 'kala', kind: 'decimal', width: 150 },
+  { key: 'insurance_expiry_date', label: 'تاریخ اتمام بیمه', group: 'kala', kind: 'date', width: 145 },
+  { key: 'weighte', label: 'وزن اظهار', group: 'baskol', kind: 'decimal', width: 100 },
   { key: 'number_ghabze_bskol', label: 'شماره قبض باسکول', group: 'baskol', kind: 'int', width: 130 },
   { key: 'weighte_baskol', label: 'وزن باسکول', group: 'baskol', kind: 'decimal', width: 110 },
   { key: 'id_anbar', label: 'انبار', group: 'mahal', kind: 'anbar', width: 130 },
@@ -212,7 +222,6 @@ const COLUMNS: ColumnDef[] = [
 const LABELS = Object.fromEntries(COLUMNS.map((c) => [c.key, c.label])) as Record<FieldKey, string>
 const isCopyable = (k: FieldKey) => COPYABLE_FIELDS.includes(k)
 const isNeverCopy = (k: FieldKey) => NEVER_COPY_FIELDS.includes(k)
-const isRequired = (k: FieldKey) => REQUIRED_FIELDS.includes(k)
 
 /** DetailRow (server shape) -> LineForm (all-strings edit shape). */
 function toForm(row: DetailRow): LineForm {
@@ -226,6 +235,9 @@ function toForm(row: DetailRow): LineForm {
     number_kala: String(row.number_kala ?? ''),
     number_pallet: row.number_pallet == null ? '' : String(row.number_pallet),
     value_kala: row.value_kala == null ? '' : String(row.value_kala),
+    customs_value: row.customs_value == null ? '' : String(row.customs_value),
+    insured_value: row.insured_value == null ? '' : String(row.insured_value),
+    insurance_expiry_date: isoToJalaliInput(row.insurance_expiry_date),
     weighte: String(row.weighte ?? ''),
     number_ghabze_bskol: row.number_ghabze_bskol == null ? '' : String(row.number_ghabze_bskol),
     weighte_baskol: String(row.weighte_baskol ?? ''),
@@ -386,14 +398,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
     markReviewed('hscode')
   }
 
-  // ── validation ────────────────────────────────────────────────────────────────────
-
-  const missingRequired = useMemo(
-    () => (draft == null ? [] : REQUIRED_FIELDS.filter((k) => isBlank(draft[k] as string))),
-    [draft],
-  )
-  const canSave = draft != null && missingRequired.length === 0
-
   /** non-blocking: the same truck can legitimately carry two commodities */
   const duplicates = useMemo(() => {
     if (draft == null) return [] as { key: FieldKey; rowNumber: number }[]
@@ -410,6 +414,9 @@ export function TallyGoodsGrid({ tallyId }: Props) {
     }
     return found
   }, [draft, rows, editingId])
+
+  const insuranceDateInvalid = draft != null
+    && parseFlexibleJalaliDate(draft.insurance_expiry_date).status === 'invalid'
 
   // ── persistence ───────────────────────────────────────────────────────────────────
 
@@ -428,16 +435,19 @@ export function TallyGoodsGrid({ tallyId }: Props) {
       id_headers_tali: tallyId,
       id_anbar: f.id_anbar,
       id_tagh_anbar: f.id_tagh_anbar,
-      code_groupe_kala: Number(normalizeDigits(f.code_groupe_kala)),
+      code_groupe_kala: intOrNull(f.code_groupe_kala),
       description_kala: strOrNull(f.description_kala),
       hscode: strOrNull(f.hscode),
       type_bastem: strOrNull(f.type_bastem),
-      number_kala: Number(normalizeDigits(f.number_kala)),
+      number_kala: intOrNull(f.number_kala),
       number_pallet: intOrNull(f.number_pallet),
       value_kala: decimalOrNull(f.value_kala),
-      weighte: Number(normalizeDigits(f.weighte)),
+      customs_value: decimalOrNull(f.customs_value),
+      insured_value: decimalOrNull(f.insured_value),
+      insurance_expiry_date: parseFlexibleJalaliDate(f.insurance_expiry_date).iso,
+      weighte: decimalOrNull(f.weighte),
       number_ghabze_bskol: intOrNull(f.number_ghabze_bskol),
-      weighte_baskol: Number(normalizeDigits(f.weighte_baskol)),
+      weighte_baskol: decimalOrNull(f.weighte_baskol),
       type_number_kantiner: strOrNull(f.type_number_kantiner),
       number_hamel: strOrNull(f.number_hamel),
       zarib_mahal: strOrNull(f.zarib_mahal),
@@ -451,9 +461,14 @@ export function TallyGoodsGrid({ tallyId }: Props) {
       editingId == null
         ? apiSend('/tally-details', 'POST', toPayload(f))
         : apiSend(`/tally-details/${editingId}`, 'PUT', toPayload(f)),
+    // The confirmation dialog is only a review step. Close it as soon as the request
+    // starts; if saving fails, the draft and amber copied-cell markers stay in place so
+    // the operator can correct/retry without losing anything.
+    onMutate: () => {
+      setConfirmOpen(false)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
-      setConfirmOpen(false)
       // chained entry: after saving a NEW row, drop straight into the next empty one
       if (editingId == null && keepGoing) {
         setPicked(null)
@@ -479,7 +494,11 @@ export function TallyGoodsGrid({ tallyId }: Props) {
    * unreviewed copied value without the operator seeing that value one more time.
    */
   function requestSave(next: boolean) {
-    if (!canSave || draft == null) return
+    if (draft == null) return
+    if (parseFlexibleJalaliDate(draft.insurance_expiry_date).status === 'invalid') {
+      setFocusedKey('insurance_expiry_date')
+      return
+    }
     setKeepGoing(next)
     if (copied.size > 0) {
       setConfirmOpen(true)
@@ -519,6 +538,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
       case 'tagh': return dash(row.tagh_name)
       case 'plate': return formatPlate(row.number_hamel)
       case 'decimal': return formatAmount(row[col.key as 'weighte'] as number | string | null)
+      case 'date': return isoToJalaliInput(row.insurance_expiry_date) || '—'
       default: return dash((row as unknown as Record<string, unknown>)[col.key])
     }
   }
@@ -553,7 +573,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                 <Group gap="xs" justify="flex-start">
                   <Button size="xs" onClick={() => setOpenCell(null)}>تأیید</Button>
                   {isBlank(f.code_groupe_kala) && (
-                    <Text size="xs" c="red">گروه قیمت انبار هنوز انتخاب نشده است.</Text>
+                    <Text size="xs" c="dimmed">گروه قیمت انتخاب نشده؛ در صورت نیاز انتخاب کنید.</Text>
                   )}
                 </Group>
               </Stack>
@@ -669,6 +689,23 @@ export function TallyGoodsGrid({ tallyId }: Props) {
             onChange={(e) => setField(col.key, normalizeDecimalInput(e.currentTarget.value))}
           />
         )
+      case 'date': {
+        return (
+          <TextInput
+            {...common}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder="۱۴۰۵/۰۶/۱۲ یا ۱۲/۰۶/۱۴۰۵"
+            value={f.insurance_expiry_date}
+            error={insuranceDateInvalid}
+            aria-label="تاریخ اتمام بیمه"
+            onChange={(e) => setField(
+              'insurance_expiry_date',
+              normalizeFlexibleJalaliInput(e.currentTarget.value),
+            )}
+          />
+        )
+      }
       default:
         return (
           <TextInput
@@ -688,7 +725,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
    */
   function renderDraftCell(col: ColumnDef, f: LineForm): React.ReactNode {
     const amber = copied.has(col.key)
-    const missing = isRequired(col.key) && isBlank(f[col.key] as string)
     const duplicate = duplicates.some((d) => d.key === col.key)
     const canCopy = sourceForm != null && isCopyable(col.key) && !isBlank(sourceForm[col.key] as string | number | null)
     return (
@@ -697,7 +733,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
         className={[
           'tgg-draft-cell',
           amber ? 'tgg-cell-copied' : '',
-          missing ? 'tgg-cell-missing' : '',
           duplicate ? 'tgg-cell-duplicate' : '',
           isNeverCopy(col.key) ? 'tgg-cell-manual' : '',
         ].filter(Boolean).join(' ')}
@@ -807,7 +842,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                   {COLUMNS.map((c) => (
                     <Table.Th key={c.key} title={c.label}>
                       {c.label}
-                      {isRequired(c.key) && <span className="tgg-req" aria-hidden> *</span>}
                     </Table.Th>
                   ))}
                   <Table.Th className="tgg-sticky-actions">عملیات</Table.Th>
@@ -900,7 +934,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                   size="xs"
                   className="tally-detail-save-button"
                   loading={saveMutation.isPending}
-                  disabled={!canSave}
                   onClick={() => requestSave(true)}
                 >
                   {editingId == null ? 'ذخیره و ردیف بعدی' : 'ذخیره تغییرات'}
@@ -908,7 +941,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                 {editingId == null && (
                   <Button
                     size="xs" variant="default"
-                    disabled={!canSave} loading={saveMutation.isPending}
+                    loading={saveMutation.isPending}
                     onClick={() => requestSave(false)}
                   >
                     ذخیره و بستن
@@ -946,9 +979,13 @@ export function TallyGoodsGrid({ tallyId }: Props) {
             </div>
           )}
 
-          {draft != null && missingRequired.length > 0 && (
-            <div className="tgg-banner tgg-banner-missing">
-              <span>فیلدهای اجباری خالی: {missingRequired.map((k) => LABELS[k]).join('، ')}</span>
+          {insuranceDateInvalid && (
+            <div className="tgg-banner tgg-banner-error">
+              <AlertTriangle size={16} aria-hidden />
+              <span>
+                تاریخ اتمام بیمه نامعتبر است؛ تاریخ شمسی را به‌شکل «۱۴۰۵/۰۶/۱۲» یا
+                «۱۲/۰۶/۱۴۰۵» وارد کنید.
+              </span>
             </div>
           )}
 

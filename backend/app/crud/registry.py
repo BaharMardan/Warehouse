@@ -993,13 +993,13 @@ from app.services.base import fetch_one
 
 # ----- FA_KALA : goods (standard uppercase table) -----
 class KalaInput(BaseModel):
-    name_kala: str = Field(min_length=1)
+    name_kala: str | None = None
     unite: str | None = None
 
 
 # ----- FA_ANBAR : warehouses (rename responsible -> NAME_MASOL) -----
 class AnbarInput(BaseModel):
-    name_anbar: str = Field(min_length=1)
+    name_anbar: str | None = None
     address: str | None = None
     responsible: str | None = None
     phone: str | None = None
@@ -1019,35 +1019,32 @@ class KalaPriceInput(BaseModel):
     id_kala: int | None = None            # FK -> FA_KALA (plain number for now)
     goods_group: str | None = None        # گروه کالا (Table 1 row label, unit embedded)
     storage_price: float | None = None    # انبارداری (Table 1 storage rate)
-    price_30_day: float | None = None
-    price_60_day: float | None = None
-    price_90_day: float | None = None
     price_unloding: float | None = None   # تخلیه و بارگیری (Table 1 handling rate)
     description: str | None = None
-    code: str = Field(min_length=1)       # CODE is NOT NULL in the DB
+    code: str | None = None
     is_dangerous: str | None = None
 
 # ----- FA_TRANSPORT_COMPANY : transport companies -----
 class TransportCompanyInput(BaseModel):
-    company_name: str = Field(min_length=1)
-    address: str = Field(min_length=1)
-    phone: str = Field(min_length=1)
-    national_id: str = Field(min_length=1)
-    economic_code: str = Field(min_length=1)
+    company_name: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    national_id: str | None = None
+    economic_code: str | None = None
 
 
 # ----- FA_REPRESENTATIVE_COMPANY : representatives linked to a company -----
 class CompanyRepresentativeInput(BaseModel):
-    id_company: int
-    name: str = Field(min_length=1)
-    family: str = Field(min_length=1)
-    national_code: str = Field(min_length=1)
-    mobile: str = Field(min_length=1)
+    id_company: int | None = None
+    name: str | None = None
+    family: str | None = None
+    national_code: str | None = None
+    mobile: str | None = None
 
 
 # ----- FA_TAGH_ANBAR : racks (standard + FK id_anbar) -----
 class TaghInput(BaseModel):
-    name_tagh: str = Field(min_length=1)
+    name_tagh: str | None = None
     id_anbar: int | None = None
     description: str | None = None
 
@@ -1056,7 +1053,7 @@ class TaghInput(BaseModel):
 class TermInput(BaseModel):
     category_id: int | None = None
     key: str | None = None
-    value: str = Field(min_length=1)
+    value: str | None = None
     parent_id: int | None = None
     status: str | None = None
     order_no: int | None = None
@@ -1145,8 +1142,8 @@ class KalaVehicleEnterInput(BaseModel):
 
 
 # ----- FA_TALI_HEADER : tally shipment header -----
-# BLOB (UPLOAD_DOCUMENT) and CLOB (DESCRIPTION) are deferred to a later pass —
-# they don't serialize to JSON via SELECT *, so they're excluded from this model.
+# UPLOAD_DOCUMENT remains deferred. DESCRIPTION is exposed as plain text because
+# the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
     number_karaneh: str | None = None       # شماره کارنه / ترانزیت
     radef_marze: int | None = None          # ردیف مرزی
@@ -1166,24 +1163,28 @@ class TaliHeaderInput(BaseModel):
     name_anbardar: str | None = None        # نام انبار دار
     accepted_gomrok: str | None = None      # تایید گمرک
     company_bimeh: str | None = None        # شرکت بیمه گر
+    description: str | None = None          # توضیحات چاپ تالی
 
 # ----- FA_TALI_DETAILES : tally goods-lines (master-detail under a header) -----
 class TaliDetailInput(BaseModel):
-    id_headers_tali: int                      # link to FA_TALI_HEADER.ID_TALI (required)
+    id_headers_tali: int                      # hidden parent link supplied by the page
     id_anbar: int | None = None               # انبار → FA_ANBAR
     id_tagh_anbar: int | None = None          # طاق → FA_TAGH_ANBAR
     number_ghabze_anbar: int | None = None    # قبض انبار
-    code_groupe_kala: int = Field(...)        # کد گروه کالا (NOT NULL)
+    code_groupe_kala: int | None = None        # کد گروه کالا
     description_kala: str | None = None       # شرح کالا
     hscode: str | None = None                 # Hscode
     type_bastem: str | None = None            # نوع بسته‌بندی
-    number_kala: int = Field(...)             # تعداد (NOT NULL)
+    number_kala: int | None = None             # تعداد
     number_pallet: int | None = Field(default=None, ge=0)  # تعداد پالت
     value_kala: Decimal | None = Field(default=None, ge=0)  # ارزش کالا
-    weighte: float = Field(...)               # وزن (NOT NULL)
+    customs_value: Decimal | None = Field(default=None, ge=0)  # ارزش کالای گمرکی
+    insured_value: Decimal | None = Field(default=None, ge=0)  # ارزش کالای بیمه‌شده
+    insurance_expiry_date: str | None = None   # تاریخ اتمام بیمه (ISO)
+    weighte: float | None = None               # وزن اظهار
     type_number_kantiner: str | None = None   # نوع و شماره حامل
-    number_ghabze_bskol: int = Field(..., ge=0)  # شماره قبض باسکول (required)
-    weighte_baskol: float = Field(...)        # وزن باسکول (NOT NULL)
+    number_ghabze_bskol: int | None = Field(default=None, ge=0)  # شماره قبض باسکول
+    weighte_baskol: float | None = None        # وزن باسکول
     number_hamel: str | None = None           # شماره حامل
     zarib_mahal: str | None   = None          # ضریب محل
     container_type: str | None = None         # نوع کانتینر
@@ -1194,6 +1195,7 @@ class TaliKalaDiamoundInput(BaseModel):
     tali_id: int
     kala_diamound_id: int | None = None
     code: str | None = None
+    number_service: int | None = None
     pricing_type: Literal["off_hours", "holiday"] | None = None
     description: str | None = None
 
@@ -1224,6 +1226,7 @@ class TaliKalaStripInput(BaseModel):
     tali_id: int
     kala_strip_id: int | None = None
     code: str | None = None
+    number_service: int | None = None
     pricing_type: str | None = None   # normal | non_standard | dangerous (which rate column to bill)
     description: str | None = None
 
@@ -1232,6 +1235,7 @@ class TaliKalaTimeStopInput(BaseModel):
     tali_id: int
     kala_time_stop_vehicle_id: int | None = None
     code: str | None = None
+    number_service: int | None = None
     description: str | None = None
 
 # ----- fa_tali_kala_vehicle_enter_price -----
@@ -1239,6 +1243,7 @@ class TaliKalaVehicleEnterInput(BaseModel):
     tali_id: int
     kala_vehicle_enter_price_id: int | None = None
     code: str | None = None
+    number_service: int | None = None
     description: str | None = None
 
 
@@ -1279,14 +1284,14 @@ class GhabzHeaderInput(BaseModel):
 # ----- FA_ghabz_anbar_DETAILES : receipt line items -----
 class GhabzDetailInput(BaseModel):
     id_ghabz_anbar_headar: int
-    code_kala: int = Field(...)
+    code_kala: int | None = None
     code_kala_kantiner: int | None = None
     description_kala: str | None = None
     type_basteh: str | None = None
-    number_kala: int = Field(...)
+    number_kala: int | None = None
     number_kantiner: int | None = None
-    weighte_asnad: float = Field(...)
-    weighte_baskol: float = Field(...)
+    weighte_asnad: float | None = None
+    weighte_baskol: float | None = None
     number_hamel: str | None = None
     id_tagh_anbar: int | None = None
     
@@ -1330,9 +1335,6 @@ crud_routers = [
             "id_kala": "id_kala",
             "goods_group": "goods_group",
             "storage_price": "storage_price",
-            "price_30_day": "price_30_day",
-            "price_60_day": "price_60_day",
-            "price_90_day": "price_90_day",
             "price_unloding": "price_unloding",
             # code/description/is_dangerous are UPPERCASE in the DB -> default handles them
         },
@@ -1427,6 +1429,7 @@ crud_routers = [
             "tali_id": "tali_id",
             "kala_diamound_id": "kala_diamound_id",
             "code": "code",
+            "number_service": "NUMBER_SERVICE",
             "pricing_type": "pricing_type",
         },
     ),
@@ -1454,18 +1457,24 @@ crud_routers = [
         model=TaliKalaStripInput, tag="tali_kala_strip", not_found="ردیف استریپ یافت نشد",
         column_overrides={
             "tali_id": "tali_id", "kala_strip_id": "kala_strip_id",
-            "code": "code", "pricing_type": "pricing_type",
+            "code": "code", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type",
         },
     ),
     make_crud_router(
         prefix="/tali-kala-time-stop", table="fa_tali_kala_time_stop_vehicle", pk="id_tali_kala_time_stop_vehicle",
         model=TaliKalaTimeStopInput, tag="tali_kala_time_stop", not_found="ردیف توقف شبانه یافت نشد",
-        column_overrides={"tali_id": "tali_id", "kala_time_stop_vehicle_id": "kala_time_stop_vehicle_id", "code": "code"},
+        column_overrides={
+            "tali_id": "tali_id", "kala_time_stop_vehicle_id": "kala_time_stop_vehicle_id",
+            "code": "code", "number_service": "NUMBER_SERVICE",
+        },
     ),
     make_crud_router(
         prefix="/tali-kala-vehicle-enter", table="fa_tali_kala_vehicle_enter_price", pk="id_tali_kala_vehicle_enter_price",
         model=TaliKalaVehicleEnterInput, tag="tali_kala_vehicle_enter", not_found="ردیف ورود خودرو یافت نشد",
-        column_overrides={"tali_id": "tali_id", "kala_vehicle_enter_price_id": "kala_vehicle_enter_price_id", "code": "code"},
+        column_overrides={
+            "tali_id": "tali_id", "kala_vehicle_enter_price_id": "kala_vehicle_enter_price_id",
+            "code": "code", "number_service": "NUMBER_SERVICE",
+        },
     ),
     make_crud_router(
         prefix="/ghabz-header", table="fa_ghabz_anbar_header", pk="ID_ghabz",

@@ -139,8 +139,7 @@ export function CommodityPicker({ picked, onPick, groupValue, onGroupChange, lab
       ) : (
         <StorageGroupSelect
           label="گروه قیمت انبار"
-          required
-          description={picked ? 'این کالا در کاتالوگ به گروه قیمت وصل نشده؛ گروه را انتخاب کنید.' : undefined}
+          description={picked ? 'این کالا در کاتالوگ به گروه قیمت وصل نشده؛ در صورت نیاز گروه را انتخاب کنید.' : undefined}
           value={groupValue}
           onChange={onGroupChange}
           comboboxProps={comboboxProps}

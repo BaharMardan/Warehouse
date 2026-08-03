@@ -347,7 +347,6 @@ type Props = {
   value: string
   onChange: (value: string) => void
   label?: string
-  required?: boolean
   /**
    * Forwarded to the letter dropdown. Inside a Popover pass { withinPortal: false },
    * otherwise the dropdown is portaled to document.body and picking a letter reads as
@@ -356,7 +355,7 @@ type Props = {
   comboboxProps?: SelectProps['comboboxProps']
 }
 
-export function PlateInput({ value, onChange, label, required, comboboxProps }: Props) {
+export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
   const [parts, setParts] = useState<Parts>(() => parse(value))
   const [showForeign, setShowForeign] = useState(() => !!parse(value).foreign)
 
@@ -380,7 +379,7 @@ export function PlateInput({ value, onChange, label, required, comboboxProps }: 
   }
 
   return (
-    <Input.Wrapper label={label} required={required}>
+    <Input.Wrapper label={label}>
       {/* dir=ltr: the plate reads left-to-right, region box last (like the physical plate) */}
       <Group gap={6} wrap="nowrap" mt={4} align="center" dir="ltr">
         <TextInput

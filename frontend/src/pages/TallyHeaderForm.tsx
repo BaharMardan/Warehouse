@@ -744,7 +744,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ActionIcon, Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
+  ActionIcon, Title, Paper, Grid, TextInput, Textarea, Radio, Group, Button, Stack, LoadingOverlay,
 } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
 import { RefSelect } from '../components/RefSelect'
@@ -816,6 +816,7 @@ type TallyHeaderState = {
   name_anbardar: string
   accepted_gomrok: string
   company_bimeh: string
+  description: string
 }
 
 const EMPTY: TallyHeaderState = {
@@ -824,7 +825,7 @@ const EMPTY: TallyHeaderState = {
   owner_national_code: '', id_country: null, number_bimeh: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
   name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
-  accepted_gomrok: '', company_bimeh: '',
+  accepted_gomrok: '', company_bimeh: '', description: '',
 }
 
 // turn "" into null and numeric strings into numbers, so the payload matches the
@@ -857,6 +858,7 @@ function toPayload(s: TallyHeaderState) {
     name_anbardar: strOrNull(s.name_anbardar),       // name — left as typed
     accepted_gomrok: strOrNull(s.accepted_gomrok),
     company_bimeh: strOrNull(s.company_bimeh),
+    description: strOrNull(s.description),
   }
 }
 // A loaded tally row (from GET /tally-header/{id}) -> the form's state shape.
@@ -881,6 +883,7 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     name_anbardar: s(r.name_anbardar).trim() || DEFAULT_WAREHOUSE_KEEPER,
     accepted_gomrok: s(r.accepted_gomrok),
     company_bimeh: s(r.company_bimeh),
+    description: s(r.description),
   }
 }
 
@@ -1243,6 +1246,15 @@ export function TallyHeaderForm() {
                 <Radio value="خیر" label="خیر" />
               </Group>
             </Radio.Group>
+          </Grid.Col>
+          <Grid.Col span={12}>
+            <Textarea
+              label="توضیحات"
+              value={form.description}
+              onChange={(e) => set('description', e.currentTarget.value)}
+              minRows={3}
+              autosize
+            />
           </Grid.Col>
         </Grid>
 

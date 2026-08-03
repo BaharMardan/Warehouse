@@ -149,8 +149,6 @@ type Props = {
   onChange: (isoDate: string | null) => void
   /** field label shown above the boxes */
   label?: string
-  /** mark the label with a required asterisk */
-  required?: boolean
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -219,7 +217,7 @@ function buildYearOptions(selectedYear: string) {
   return [...years].sort((a, b) => a - b).map((y) => ({ value: String(y), label: faDigits(y) }))
 }
 
-export function JalaliDate({ value, onChange, label, required }: Props) {
+export function JalaliDate({ value, onChange, label }: Props) {
   // Local part strings ("8", "2", "1405"). Kept as state so partial picks are allowed.
   const [parts, setParts] = useState(() => isoToParts(value))
 
@@ -243,7 +241,7 @@ export function JalaliDate({ value, onChange, label, required }: Props) {
   const yearOptions = useMemo(() => buildYearOptions(parts.y), [parts.y])
 
   return (
-    <Input.Wrapper label={label} required={required} error={isInvalid ? 'تاریخ نامعتبر است' : undefined}>
+    <Input.Wrapper label={label} error={isInvalid ? 'تاریخ نامعتبر است' : undefined}>
       {/* dir=rtl so the dropdowns read روز-ماه-سال right-to-left like Persian dates */}
       <Group gap="xs" dir="rtl" wrap="nowrap" mt={4}>
         <Select

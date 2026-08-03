@@ -124,7 +124,6 @@ export function TallyDiamoundSection({ tallyId }: { tallyId: number }) {
             <Button
               onClick={() => createMutation.mutate()}
               loading={createMutation.isPending}
-              disabled={rateId == null}
             >
               ذخیره
             </Button>

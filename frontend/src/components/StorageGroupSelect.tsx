@@ -16,9 +16,6 @@ export type StorageGroup = {
   id: number
   code: string | null
   name: string | null
-  price_30_day: number | string | null
-  price_60_day: number | string | null
-  price_90_day: number | string | null
 }
 
 type Props = {

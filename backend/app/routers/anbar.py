@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.services.base import fetch_all, fetch_one, execute, insert_returning_id
 from app.auth.deps import get_current_user
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/anbar", tags=["anbar"])
 
 
 class AnbarInput(BaseModel):
-    name_anbar: str = Field(min_length=1)
+    name_anbar: str | None = None
     address: str | None = None
     responsible: str | None = None
     phone: str | None = None

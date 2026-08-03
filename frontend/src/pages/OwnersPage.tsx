@@ -74,9 +74,7 @@ const ownerToForm = (owner: Owner): OwnerFormState => ({
   national_id: owner.national_id ?? '',
   economic_code: owner.economic_code ?? '',
   representatives: owner.type === 'حقوقی'
-    ? (owner.representatives.length > 0
-      ? owner.representatives.map((representative) => ({ ...representative }))
-      : [emptyRepresentative()])
+    ? owner.representatives.map((representative) => ({ ...representative }))
     : [],
 })
 
@@ -149,11 +147,7 @@ export function OwnersPage() {
     setForm((current) => ({
       ...current,
       type,
-      representatives: type === 'حقوقی'
-        ? (current.representatives.length > 0
-          ? current.representatives
-          : [emptyRepresentative()])
-        : [],
+      representatives: type === 'حقوقی' ? current.representatives : [],
     }))
   }
 
@@ -185,21 +179,10 @@ export function OwnersPage() {
   }
 
   const formError = useMemo(() => {
-    const requiredValues = form.type === 'حقیقی'
-      ? [form.name, form.family, form.national_code, form.address, form.phone]
-      : [form.company_name, form.address, form.phone, form.national_id, form.economic_code]
-    if (requiredValues.some((value) => !value.trim())) return 'فیلدهای الزامی را کامل کنید.'
-
     if (form.type === 'حقوقی') {
-      if (form.representatives.length === 0) return 'برای صاحب حقوقی حداقل یک نماینده ثبت کنید.'
-      if (form.representatives.some((representative) =>
-        !representative.name.trim()
-        || !representative.family.trim()
-        || !representative.national_code.trim()
-        || !representative.mobile.trim())) {
-        return 'اطلاعات همهٔ نمایندگان را کامل کنید.'
-      }
-      const nationalCodes = form.representatives.map((row) => row.national_code.trim())
+      const nationalCodes = form.representatives
+        .map((row) => row.national_code.trim())
+        .filter(Boolean)
       if (new Set(nationalCodes).size !== nationalCodes.length) {
         return 'کد ملی نمایندگان یک صاحب کالا نباید تکراری باشد.'
       }
@@ -221,13 +204,22 @@ export function OwnersPage() {
       address: clean(form.address),
       phone: clean(form.phone),
       representatives: form.type === 'حقوقی'
-        ? form.representatives.map((representative) => ({
-            ...representative,
-            name: clean(representative.name),
-            family: clean(representative.family),
-            national_code: clean(representative.national_code),
-            mobile: clean(representative.mobile),
-          }))
+        ? form.representatives
+          .map((representative) => ({
+              ...representative,
+              name: clean(representative.name),
+              family: clean(representative.family),
+              national_code: clean(representative.national_code),
+              mobile: clean(representative.mobile),
+            }))
+          .filter((representative) =>
+            Boolean(
+              representative.name
+              || representative.family
+              || representative.national_code
+              || representative.mobile,
+            ),
+          )
         : [],
     })
   }
@@ -303,7 +295,7 @@ export function OwnersPage() {
       <Stack align="center" gap="sm" ta="center" maw={380}>
         <ThemeIcon size={64} radius="xl" variant="light" color="blue"><Inbox size={34} /></ThemeIcon>
         <Text fw={600} size="lg">هنوز صاحب کالایی ثبت نشده است</Text>
-        <Text size="sm" c="dimmed">صاحب حقیقی یا حقوقی را به همراه اطلاعات کامل ثبت کنید.</Text>
+        <Text size="sm" c="dimmed">صاحب حقیقی یا حقوقی را با هر مقدار اطلاعاتی که در دسترس است ثبت کنید.</Text>
         <Button mt="xs" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
           افزودن صاحب کالا
         </Button>
@@ -414,7 +406,7 @@ export function OwnersPage() {
               </ThemeIcon>
               <div>
                 <Text fw={700}>اطلاعات صاحب کالا</Text>
-                <Text size="xs" c="dimmed">تمام فیلدهای این بخش الزامی هستند.</Text>
+                {/* <Text size="xs" c="dimmed">تمام فیلدهای این بخش اختیاری هستند.</Text> */}
               </div>
             </Group>
 
@@ -422,40 +414,40 @@ export function OwnersPage() {
               {form.type === 'حقیقی' ? (
                 <>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput required label="نام" value={form.name}
+                    <TextInput label="نام" value={form.name}
                       onChange={(event) => setField('name', event.currentTarget.value)} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput required label="نام خانوادگی" value={form.family}
+                    <TextInput label="نام خانوادگی" value={form.family}
                       onChange={(event) => setField('family', event.currentTarget.value)} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput required label="کد ملی" value={form.national_code}
+                    <TextInput label="کد ملی" value={form.national_code}
                       onChange={(event) => setField('national_code', event.currentTarget.value)} />
                   </Grid.Col>
                 </>
               ) : (
                 <>
                   <Grid.Col span={12}>
-                    <TextInput required label="نام شرکت" value={form.company_name}
+                    <TextInput label="نام شرکت" value={form.company_name}
                       onChange={(event) => setField('company_name', event.currentTarget.value)} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput required label="شناسه ملی" value={form.national_id}
+                    <TextInput label="شناسه ملی" value={form.national_id}
                       onChange={(event) => setField('national_id', event.currentTarget.value)} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
-                    <TextInput required label="کد اقتصادی" value={form.economic_code}
+                    <TextInput label="کد اقتصادی" value={form.economic_code}
                       onChange={(event) => setField('economic_code', event.currentTarget.value)} />
                   </Grid.Col>
                 </>
               )}
               <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput required label="تلفن" value={form.phone}
+                <TextInput label="تلفن" value={form.phone}
                   onChange={(event) => setField('phone', event.currentTarget.value)} />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
-                <TextInput required label="آدرس" value={form.address}
+                <TextInput label="آدرس" value={form.address}
                   onChange={(event) => setField('address', event.currentTarget.value)} />
               </Grid.Col>
             </Grid>
@@ -486,10 +478,9 @@ export function OwnersPage() {
                   <Paper key={index} withBorder radius="md" p="md" bg="var(--mantine-color-gray-light)">
                     <Group justify="space-between" mb="sm">
                       <Text fw={600} size="sm">نماینده {Number(index + 1).toLocaleString('fa-IR')}</Text>
-                      <Tooltip label={form.representatives.length === 1 ? 'حداقل یک نماینده لازم است' : 'حذف نماینده'}>
+                      <Tooltip label="حذف نماینده">
                         <ActionIcon
                           variant="subtle" color="red" radius="md"
-                          disabled={form.representatives.length === 1}
                           onClick={() => removeRepresentative(index)}
                         >
                           <Trash2 size={17} />
@@ -499,19 +490,19 @@ export function OwnersPage() {
                     <Divider mb="md" />
                     <Grid gutter="md">
                       <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <TextInput required label="نام" value={representative.name}
+                        <TextInput label="نام" value={representative.name}
                           onChange={(event) => updateRepresentative(index, 'name', event.currentTarget.value)} />
                       </Grid.Col>
                       <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <TextInput required label="نام خانوادگی" value={representative.family}
+                        <TextInput label="نام خانوادگی" value={representative.family}
                           onChange={(event) => updateRepresentative(index, 'family', event.currentTarget.value)} />
                       </Grid.Col>
                       <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <TextInput required label="کد ملی" value={representative.national_code}
+                        <TextInput label="کد ملی" value={representative.national_code}
                           onChange={(event) => updateRepresentative(index, 'national_code', event.currentTarget.value)} />
                       </Grid.Col>
                       <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <TextInput required label="شماره همراه" value={representative.mobile}
+                        <TextInput label="شماره همراه" value={representative.mobile}
                           onChange={(event) => updateRepresentative(index, 'mobile', event.currentTarget.value)} />
                       </Grid.Col>
                     </Grid>

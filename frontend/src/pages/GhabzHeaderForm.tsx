@@ -283,10 +283,6 @@ export function GhabzHeaderForm() {
   const set = <K extends keyof GhabzState>(k: K, v: GhabzState[K]) => setForm((f) => ({ ...f, [k]: v }))
 
   async function handleSave() {
-    if (!isEdit && form.tali_id == null) {
-      setError('انتخاب تالی برای صدور قبض الزامی است.')
-      return
-    }
     setSaving(true); setError(null)
     try {
       if (isEdit) {
@@ -311,7 +307,7 @@ export function GhabzHeaderForm() {
         <LoadingOverlay visible={saving} />
         <Grid gutter="md">
           {!isEdit && (
-            <Grid.Col span={12}><RefSelect label="تالی" path="/tally/list" required
+            <Grid.Col span={12}><RefSelect label="تالی" path="/tally/list"
               valueKey="id_tali" labelKey={tallyLabel}
               value={form.tali_id}
               onChange={(v) => set('tali_id', v)}

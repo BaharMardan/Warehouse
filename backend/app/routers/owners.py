@@ -24,27 +24,14 @@ REPRESENTATIVE_SEQUENCE = '"SEQ_FA_OWNER_REP_MANAGED"'
 
 
 class OwnerRepresentativeInput(BaseModel):
-    name: str = Field(min_length=1)
-    family: str = Field(min_length=1)
-    national_code: str = Field(min_length=1)
-    mobile: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def validate_representative_fields(self):
-        values = {
-            "نام": self.name,
-            "نام خانوادگی": self.family,
-            "کد ملی": self.national_code,
-            "شماره همراه": self.mobile,
-        }
-        missing = [label for label, value in values.items() if not value.strip()]
-        if missing:
-            raise ValueError(f"تکمیل اطلاعات نماینده الزامی است: {', '.join(missing)}")
-        return self
+    name: str | None = None
+    family: str | None = None
+    national_code: str | None = None
+    mobile: str | None = None
 
 
 class OwnerInput(BaseModel):
-    type: Literal["حقیقی", "حقوقی"]
+    type: Literal["حقیقی", "حقوقی"] = "حقیقی"
     name: str | None = None
     family: str | None = None
     national_code: str | None = None
@@ -57,37 +44,10 @@ class OwnerInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_owner_fields(self):
-        common = {"آدرس": self.address, "تلفن": self.phone}
-        if self.type == "حقیقی":
-            required = {
-                **common,
-                "نام": self.name,
-                "نام خانوادگی": self.family,
-                "کد ملی": self.national_code,
-            }
-            if self.representatives:
-                raise ValueError("برای صاحب حقیقی نماینده شرکت ثبت نمی‌شود")
-        else:
-            required = {
-                **common,
-                "نام شرکت": self.company_name,
-                "شناسه ملی": self.national_id,
-                "کد اقتصادی": self.economic_code,
-            }
-            if not self.representatives:
-                raise ValueError("برای صاحب حقوقی ثبت حداقل یک نماینده الزامی است")
-
-        missing = [
-            label
-            for label, value in required.items()
-            if value is None or not str(value).strip()
-        ]
-        if missing:
-            raise ValueError(f"تکمیل این فیلدها الزامی است: {', '.join(missing)}")
-
         national_codes = [
             representative.national_code.strip()
             for representative in self.representatives
+            if representative.national_code and representative.national_code.strip()
         ]
         if len(national_codes) != len(set(national_codes)):
             raise ValueError("کد ملی نمایندگان یک صاحب کالا نباید تکراری باشد")
@@ -163,7 +123,8 @@ def _normalized_payload(item: OwnerInput) -> dict:
     payload = item.model_dump(exclude={"representatives"})
     for key, value in payload.items():
         if isinstance(value, str):
-            payload[key] = value.strip()
+            stripped = value.strip()
+            payload[key] = stripped or None
 
     # Keep the two owner types semantically clean even if a user switches type
     # while editing an existing row.
@@ -189,7 +150,10 @@ def _replace_representatives(cursor, owner_id: int, item: OwnerInput, actor_id: 
     for representative in item.representatives:
         data = representative.model_dump()
         for key, value in data.items():
-            data[key] = value.strip()
+            stripped = value.strip() if isinstance(value, str) else ""
+            data[key] = stripped or None
+        if not any(data.values()):
+            continue
         cursor.execute(
             f"""
             INSERT INTO {REPRESENTATIVE_TABLE} (
@@ -280,7 +244,7 @@ def update_owner(
 
 @router.delete("/{owner_id}", status_code=204)
 def delete_owner(owner_id: int, current_user: dict = Depends(get_current_user)):
-    del current_user  # Authentication is the required side effect of this dependency.
+    del current_user  # Authentication is the intended side effect of this dependency.
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(

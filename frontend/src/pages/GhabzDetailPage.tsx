@@ -213,14 +213,14 @@ import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 type DetailRow = {
   id_ghabz_anbar_details: number
   id_ghabz_anbar_headar: number
-  code_kala: number
+  code_kala: number | null
   code_kala_kantiner: number | null
   description_kala: string | null
   type_basteh: string | null
-  number_kala: number
+  number_kala: number | null
   number_kantiner: number | null
-  weighte_asnad: number
-  weighte_baskol: number
+  weighte_asnad: number | null
+  weighte_baskol: number | null
   number_hamel: string | null
   id_tagh_anbar: number | null
   tagh_name: string | null
@@ -267,12 +267,12 @@ export function GhabzDetailPage() {
     const strOrNull = (v: string) => (v.trim() === '' ? null : v)
     return {
       id_ghabz_anbar_headar: headerId,
-      code_kala: Number(normalizeDigits(f.code_kala)),
+      code_kala: numOrNull(f.code_kala),
       description_kala: strOrNull(f.description_kala),
       type_basteh: strOrNull(f.type_basteh),
-      number_kala: Number(normalizeDigits(f.number_kala)),
-      weighte_asnad: Number(normalizeDigits(f.weighte_asnad)),
-      weighte_baskol: Number(normalizeDigits(f.weighte_baskol)),
+      number_kala: numOrNull(f.number_kala),
+      weighte_asnad: numOrNull(f.weighte_asnad),
+      weighte_baskol: numOrNull(f.weighte_baskol),
       number_hamel: strOrNull(f.number_hamel),
       id_tagh_anbar: f.id_tagh_anbar,
     }
@@ -312,9 +312,6 @@ export function GhabzDetailPage() {
     })
     setModalOpen(true)
   }
-  const canSave = line.code_kala.trim() && line.number_kala.trim() &&
-                  line.weighte_asnad.trim() && line.weighte_baskol.trim()
-
   return (
     <div dir="rtl">
       <Group justify="space-between" mb="md">
@@ -342,12 +339,12 @@ export function GhabzDetailPage() {
             <Table.Tbody>
               {lines.map((r) => (
                 <Table.Tr key={r.id_ghabz_anbar_details}>
-                  <Table.Td>{r.code_kala}</Table.Td>
+                  <Table.Td>{r.code_kala ?? '—'}</Table.Td>
                   <Table.Td>{r.description_kala ?? '—'}</Table.Td>
                   <Table.Td>{r.type_basteh ?? '—'}</Table.Td>
-                  <Table.Td>{r.number_kala}</Table.Td>
-                  <Table.Td>{r.weighte_asnad}</Table.Td>
-                  <Table.Td>{r.weighte_baskol}</Table.Td>
+                  <Table.Td>{r.number_kala ?? '—'}</Table.Td>
+                  <Table.Td>{r.weighte_asnad ?? '—'}</Table.Td>
+                  <Table.Td>{r.weighte_baskol ?? '—'}</Table.Td>
                   <Table.Td>{r.tagh_name ?? '—'}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
@@ -377,11 +374,11 @@ export function GhabzDetailPage() {
               value={line.description_kala} onChange={(e) => set('description_kala', e.currentTarget.value)} /></Grid.Col>
             <Grid.Col span={6}><TermValueSelect label="نوع بسته‌بندی" categoryId={3}
               value={line.type_basteh || null} onChange={(value) => set('type_basteh', value ?? '')} /></Grid.Col>
-            <Grid.Col span={6}><TextInput label="تعداد" required inputMode="numeric"
+            <Grid.Col span={6}><TextInput label="تعداد" inputMode="numeric"
               value={line.number_kala} onChange={(e) => set('number_kala', e.currentTarget.value)} /></Grid.Col>
-            <Grid.Col span={6}><TextInput label="وزن اسناد" required inputMode="numeric"
+            <Grid.Col span={6}><TextInput label="وزن اسناد" inputMode="numeric"
               value={line.weighte_asnad} onChange={(e) => set('weighte_asnad', e.currentTarget.value)} /></Grid.Col>
-            <Grid.Col span={6}><TextInput label="وزن باسکول" required inputMode="numeric"
+            <Grid.Col span={6}><TextInput label="وزن باسکول" inputMode="numeric"
               value={line.weighte_baskol} onChange={(e) => set('weighte_baskol', e.currentTarget.value)} /></Grid.Col>
             <Grid.Col span={6}><RefSelect label="طاق" path="/tagh" valueKey="id_tagh" labelKey="name_tagh"
               value={line.id_tagh_anbar} onChange={(v) => set('id_tagh_anbar', v)} /></Grid.Col>
@@ -389,7 +386,7 @@ export function GhabzDetailPage() {
               value={line.number_hamel} onChange={(e) => set('number_hamel', e.currentTarget.value)} /></Grid.Col>
           </Grid>
           <Group justify="flex-start" mt="md">
-            <Button onClick={() => saveMutation.mutate(line)} loading={saveMutation.isPending} disabled={!canSave}>ذخیره</Button>
+            <Button onClick={() => saveMutation.mutate(line)} loading={saveMutation.isPending}>ذخیره</Button>
             <Button variant="subtle" onClick={() => setModalOpen(false)}>لغو</Button>
           </Group>
         </Stack>

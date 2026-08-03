@@ -88,11 +88,6 @@
   border-bottom: 0;
 }
 
-.tgg-req {
-  color: #ffd7d7;
-  font-weight: 700;
-}
-
 /* ── sticky first / last columns ─────────────────────────────────────
    dir=rtl on the page, so inset-inline-start pins to the RIGHT edge. */
 
@@ -218,13 +213,7 @@
   color: #633806;
 }
 
-/* required and still empty */
-.tgg-cell-missing .tgg-cell-control {
-  box-shadow: inset 0 0 0 1px #e24b4a;
-  background: #fff;
-}
-
-/* never copied — has to be typed for every row */
+/* never copied automatically — the operator may enter it per row when available */
 .tgg-cell-manual .tgg-cell-control {
   border-style: dashed;
   border-color: #cfd9e6;
@@ -268,12 +257,165 @@
   color: #791f1f;
 }
 
-.tgg-banner-missing {
-  background: #f4f7fb;
-  color: #5b6b82;
-}
-
 .tgg-confirm-label {
   width: 45%;
   color: #5b6b82;
+}
+
+/* ── dark color scheme ────────────────────────────────────────────────
+   The goods grid is deliberately self-contained, so it also needs its own
+   dark palette instead of inheriting the light row/sticky-cell backgrounds. */
+
+[data-mantine-color-scheme='dark'] .tgg-shell {
+  border-color: #34445c;
+  background: #18212e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-scroll {
+  scrollbar-color: #5b6b82 #18212e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-scroll::-webkit-scrollbar-track {
+  background: #18212e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid #18212e;
+  border-radius: 999px;
+  background: #5b6b82;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-table th,
+[data-mantine-color-scheme='dark'] .tgg-table td {
+  border-bottom-color: #314056;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-table tbody td {
+  color: #d5dfed;
+  background: #18212e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-primary-cell {
+  color: #eef4fc;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:nth-child(even) td,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:nth-child(even) .tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:nth-child(even) .tgg-sticky-actions {
+  background: #202b3a;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:hover td,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:hover .tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr:hover .tgg-sticky-actions {
+  background: #243753;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-group-kala {
+  color: #d9d4ff;
+  background: #302c53;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-group-baskol {
+  color: #b5eadb;
+  background: #193b34;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-group-mahal {
+  color: #b8dcff;
+  background: #18354e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-group-haml {
+  color: #f6c5b5;
+  background: #472b24;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-sticky-actions {
+  background: #18212e;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-sticky-num {
+  color: #9eabc0;
+  box-shadow: 1px 0 0 #314056;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-sticky-actions {
+  box-shadow: -1px 0 0 #314056;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-group-row .tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-group-row .tgg-sticky-actions {
+  background: #202b3a;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row td,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row:hover td,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row td.tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row td.tgg-sticky-actions,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row:hover td.tgg-sticky-num,
+[data-mantine-color-scheme='dark'] .tgg-table tbody tr.tgg-draft-row:hover td.tgg-sticky-actions {
+  background: #24251f;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-control {
+  color: #e6edf7;
+  background: #151d29;
+  box-shadow: inset 0 0 0 1px #45556d;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-control input {
+  color: inherit;
+  caret-color: #70aef3;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-control input::placeholder {
+  color: #8290a5;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-control:focus-within {
+  box-shadow: inset 0 0 0 2px #4a98ef;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-copied .tgg-cell-control {
+  color: #ffd993;
+  background: #3a2d16;
+  box-shadow: inset 0 0 0 1px #c78322;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-manual .tgg-cell-control {
+  border-color: #596981;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-cell-duplicate .tgg-cell-control {
+  box-shadow: inset 0 0 0 2px #df6262;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-actionbar {
+  border-top-color: #314056;
+  background: #202b3a;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-banner {
+  border-top-color: #314056;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-banner-warn {
+  color: #ffd993;
+  background: #3a2d16;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-banner-dup,
+[data-mantine-color-scheme='dark'] .tgg-banner-error {
+  color: #ffb4b7;
+  background: #3a2228;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-confirm-table td {
+  border-color: #34445c;
+}
+
+[data-mantine-color-scheme='dark'] .tgg-confirm-label {
+  color: #9eabc0;
 }

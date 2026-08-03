@@ -123,7 +123,7 @@ def _create_company_table(cursor) -> None:
         f"""
         CREATE TABLE {_q(COMPANY_TABLE)} (
             "ID_COMPANY"   NUMBER NOT NULL,
-            "COMPANY_NAME" VARCHAR2(300 CHAR) NOT NULL,
+            "COMPANY_NAME" VARCHAR2(300 CHAR),
             "ADDRESS"      VARCHAR2(1000 CHAR),
             "PHONE"        VARCHAR2(50 CHAR),
             "NATIONAL_ID"  VARCHAR2(30 CHAR),
@@ -184,10 +184,10 @@ def _prepare_owner_representative_table(cursor) -> None:
             CREATE TABLE {_q(OWNER_REPRESENTATIVE_TABLE)} (
                 "ID_OWNER_REPRESENTATIVE" NUMBER NOT NULL,
                 "ID_OWNER"                NUMBER NOT NULL,
-                "NAME"                    VARCHAR2(150 CHAR) NOT NULL,
-                "FAMILY"                  VARCHAR2(150 CHAR) NOT NULL,
-                "NATIONAL_CODE"           VARCHAR2(30 CHAR) NOT NULL,
-                "MOBILE"                  VARCHAR2(50 CHAR) NOT NULL,
+                "NAME"                    VARCHAR2(150 CHAR),
+                "FAMILY"                  VARCHAR2(150 CHAR),
+                "NATIONAL_CODE"           VARCHAR2(30 CHAR),
+                "MOBILE"                  VARCHAR2(50 CHAR),
                 "CREATE_AT"               DATE DEFAULT SYSDATE,
                 "CREATE_BY"               NUMBER,
                 CONSTRAINT "PK_FA_OWNER_REPRESENTATIVE"

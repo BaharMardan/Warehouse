@@ -219,13 +219,14 @@ WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (so
 """
 STRIP_SQL = """
 SELECT j."pricing_type" AS pricing_type,
+       j."NUMBER_SERVICE" AS number_service,
        c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous
 FROM "fa_tali_kala_strip" j
 JOIN "fa_kala_strip" c ON c."id_kala_strip" = j."kala_strip_id"
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
 """
 NIGHT_STOP_SQL = """
-SELECT c."price" AS price
+SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_time_stop_vehicle" j
 JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
@@ -235,12 +236,13 @@ SELECT CASE NVL(j."pricing_type", 'off_hours')
            WHEN 'holiday' THEN c."price_holiday"
            ELSE c."price_gher_edari"
        END AS price
+       , j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_diamound" j
 JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
 """
 VEHICLE_ENTER_SQL = """
-SELECT c."price" AS price
+SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_vehicle_enter_price" j
 JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
@@ -311,9 +313,13 @@ def preview_from_tally(tali_id: int):
         other_service_prices=[r["price"] for r in other],
         other_service_counts=[r["number_service"] for r in other],
         strip_values=[_strip_price(r) for r in strip],
+        strip_counts=[r["number_service"] for r in strip],
         night_stop_prices=[r["price"] for r in night],
+        night_stop_counts=[r["number_service"] for r in night],
         diamound_prices=[r["price"] for r in diamound],
+        diamound_counts=[r["number_service"] for r in diamound],
         vehicle_enter_prices=[r["price"] for r in vehicle],
+        vehicle_enter_counts=[r["number_service"] for r in vehicle],
     )
 
     all_rows = storage_rows + service_rows
@@ -328,7 +334,7 @@ def preview_from_tally(tali_id: int):
         "service_rows": [_row_json(r) for r in service_rows],
         "grand_total": str(grand_total),
         "provisional": {
-            "services": "VERIFIED byte-identical vs tally-549 golden (storage + strip + night + diamound + vehicle); other_service intentionally omitted (see invoice_calc)",
+            "services": "Each service amount is its selected rate multiplied by its optional quantity; blank quantity defaults to one",
             "strip": "column chosen per junction via pricing_type (normal|non_standard|dangerous); NULL -> normal, so prior data is unchanged",
             "tier_timing": "VERIFIED: first invoice -> l_time_rest=45 -> 60-day tier; a prior invoice forces 30-day",
         },

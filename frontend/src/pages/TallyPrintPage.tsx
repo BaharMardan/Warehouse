@@ -547,9 +547,8 @@ import './TallyPrintPage.css'
 
 type PrintDetail = {
   id_tali_details: number
+  anbar_name: string | null
   tagh_name: string | null
-  number_ghabze_anbar: number | null
-  code_groupe_kala: number | null
   description_kala: string | null
   hscode: string | null
   type_bastem: string | null
@@ -577,6 +576,7 @@ type TallyPrintData = {
   name_anbardar: string | null
   accepted_gomrok: string | null
   company_bimeh: string | null
+  description: string | null
   marze_name: string | null
   country_name: string | null
   company_name: string | null
@@ -640,7 +640,7 @@ function formatInsurancePolicyNumbers(value: string | null): string {
     .split(/\r?\n/)
     .map((number) => number.trim())
     .filter(Boolean)
-  return numbers.length > 0 ? numbers.join('، ') : EMPTY
+  return numbers.length > 0 ? numbers.join(' / ') : EMPTY
 }
 
 function splitRows(rows: PrintDetail[]): PrintDetail[][] {
@@ -850,29 +850,27 @@ function TallySheet({
             <colgroup>
               <col style={{ width: '3%' }} />
               <col style={{ width: '5%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '6%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '5%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '13%' }} />
               <col style={{ width: '8%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '4%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th>ردیف</th>
                 <th>ش. طاق</th>
-                <th>قبض انبار</th>
-                <th>علامت کالا</th>
+                <th>انبار</th>
                 <th>شرح کالا</th>
                 <th dir="ltr">HS CODE</th>
                 <th>نوع بسته‌بندی</th>
                 <th>تعداد</th>
-                <th>وزن</th>
+                <th>وزن اظهار</th>
                 <th>شماره حامل</th>
                 <th>نوع و شماره کانتینر</th>
                 <th>ش. قبض باسکول</th>
@@ -884,8 +882,7 @@ function TallySheet({
                 <tr key={row.id_tali_details}>
                   <td>{page * ROWS_PER_PAGE + index + 1}</td>
                   <td>{valueOf(row.tagh_name)}</td>
-                  <td className="tally-print-ltr">{valueOf(row.number_ghabze_anbar)}</td>
-                  <td className="tally-print-ltr">{valueOf(row.code_groupe_kala)}</td>
+                  <td>{valueOf(row.anbar_name)}</td>
                   <td>{valueOf(row.description_kala)}</td>
                   <td className="tally-print-ltr">{valueOf(row.hscode)}</td>
                   <td>{valueOf(row.type_bastem)}</td>
@@ -908,7 +905,7 @@ function TallySheet({
           </div>
           <div className="tally-print-notes">
             <strong>توضیحات:</strong>
-            <span>{EMPTY}</span>
+            <span>{valueOf(data.description)}</span>
           </div>
           <div className="tally-print-law">
             {insured

@@ -86,8 +86,6 @@ export interface FieldDef {
   key: string
   label: string
   type?: 'text' | 'number' | 'select' | 'reference'
-  required?: boolean
-  requiredWhen?: FieldCondition
   showWhen?: FieldCondition
   defaultValue?: unknown
   options?: Array<{ value: string; label: string }>
@@ -124,14 +122,9 @@ export function CrudFormModal({
   const matches = (condition?: FieldCondition) =>
     condition == null || String(values[condition.key] ?? '') === String(condition.equals ?? '')
   const visibleFields = fields.filter((f) => matches(f.showWhen))
-  const isRequired = (field: FieldDef) =>
-    Boolean(field.required || (field.requiredWhen && matches(field.requiredWhen)))
-  const missing = visibleFields.some(
-    (f) => isRequired(f) && (values[f.key] === '' || values[f.key] == null),
-  )
 
   // Empty inputs -> null, so optional number columns don't send '' (which breaks
-  // Pydantic float coercion). Required fields are guarded by `missing` above.
+  // Pydantic numeric coercion). All operator-entered fields are optional.
   const submit = () => {
     const out: Record<string, unknown> = {}
     const visibleKeys = new Set(visibleFields.map((field) => field.key))
@@ -150,7 +143,6 @@ export function CrudFormModal({
     >
       <Stack gap="sm" dir="rtl">
         {visibleFields.map((f) => {
-          const required = isRequired(f)
           if (f.type === 'number') return (
             <NumberInput
               key={f.key}
@@ -158,7 +150,6 @@ export function CrudFormModal({
               radius="md"
               value={values[f.key] as number | string}
               onChange={(val) => set(f.key, val)}
-              required={required}
               thousandSeparator=","
             />
           )
@@ -170,9 +161,8 @@ export function CrudFormModal({
               data={f.options ?? []}
               value={values[f.key] == null || values[f.key] === '' ? null : String(values[f.key])}
               onChange={(value) => set(f.key, value)}
-              required={required}
               searchable
-              clearable={!required}
+              clearable
               placeholder="انتخاب کنید"
             />
           )
@@ -185,7 +175,6 @@ export function CrudFormModal({
               labelKey={f.reference.labelKey}
               value={values[f.key] == null || values[f.key] === '' ? null : Number(values[f.key])}
               onChange={(value) => set(f.key, value)}
-              required={required}
             />
           )
           return (
@@ -195,7 +184,6 @@ export function CrudFormModal({
               radius="md"
               value={(values[f.key] as string) ?? ''}
               onChange={(e) => set(f.key, e.currentTarget.value)}
-              required={required}
             />
           )
         })}
@@ -205,7 +193,7 @@ export function CrudFormModal({
           </Text>
         )}
         <Group justify="flex-start" mt="md" gap="sm">
-          <Button onClick={submit} loading={loading} disabled={missing} radius="md">
+          <Button onClick={submit} loading={loading} radius="md">
             ذخیره
           </Button>
           <Button variant="default" onClick={onClose} radius="md">

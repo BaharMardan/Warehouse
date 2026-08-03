@@ -46,6 +46,7 @@ export const tallyJunctions: JunctionConfig[] = [
     apiPath: '/tali-kala-diamound', readPath: 'diamound', linkKey: 'kala_diamound_id',
     catalogPath: '/kala-diamound', catalogValueKey: 'id_kala_diamound',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    extraField: { key: 'number_service', label: 'تعداد' },
     selectField: {
       key: 'pricing_type', label: 'زمان اعمال', defaultValue: 'off_hours',
       inlineWithCatalog: true,
@@ -68,6 +69,7 @@ export const tallyJunctions: JunctionConfig[] = [
     apiPath: '/tali-kala-strip', readPath: 'strip', linkKey: 'kala_strip_id',
     catalogPath: '/kala-strip', catalogValueKey: 'id_kala_strip',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    extraField: { key: 'number_service', label: 'تعداد' },
     selectField: {
       key: 'pricing_type', label: 'نوع قیمت', defaultValue: 'normal',
       options: [
@@ -89,11 +91,13 @@ export const tallyJunctions: JunctionConfig[] = [
     apiPath: '/tali-kala-time-stop', readPath: 'time-stop', linkKey: 'kala_time_stop_vehicle_id',
     catalogPath: '/kala-time-stop', catalogValueKey: 'id_kala_time_stop_vehicle',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    extraField: { key: 'number_service', label: 'تعداد' },
   },
   {
     key: 'vehicle-enter', title: 'ورودی / حق محوطه',
     apiPath: '/tali-kala-vehicle-enter', readPath: 'vehicle-enter', linkKey: 'kala_vehicle_enter_price_id',
     catalogPath: '/kala-vehicle-enter', catalogValueKey: 'id_kala_vehicle_enter_price',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    extraField: { key: 'number_service', label: 'تعداد' },
   },
 ]

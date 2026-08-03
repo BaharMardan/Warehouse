@@ -102,7 +102,6 @@
 // interface KalaPrice {
 //   id_kala_price: number; id_kala: number | null; code: string | null
 //   goods_group: string | null; storage_price: number | null
-//   price_30_day: number | null; price_60_day: number | null; price_90_day: number | null
 //   price_unloding: number | null; description: string | null
 // }
 // const kalaPrice: CrudConfig<KalaPrice> = {
@@ -120,10 +119,6 @@
 //     { key: 'goods_group', label: 'گروه کالا' },
 //     { key: 'storage_price', label: 'انبارداری', type: 'number' },
 //     { key: 'price_unloding', label: 'تخلیه و بارگیری', type: 'number' },
-//     // kept editable for the (deferred) invoice tiers + existing data; not shown in the list
-//     { key: 'price_30_day', label: 'قیمت ۳۰ روز', type: 'number' },
-//     { key: 'price_60_day', label: 'قیمت ۶۰ روز', type: 'number' },
-//     { key: 'price_90_day', label: 'قیمت ۹۰ روز', type: 'number' },
 //     { key: 'id_kala', label: 'شناسه کالا', type: 'number' },
 //     { key: 'description', label: 'توضیحات' },
 //   ],
@@ -403,7 +398,7 @@ const kala: CrudConfig<Kala> = {
     { key: 'unite', label: 'واحد', field: 'unite' },
   ],
   fields: [
-    { key: 'name_kala', label: 'نام کالا', required: true },
+    { key: 'name_kala', label: 'نام کالا' },
     { key: 'unite', label: 'واحد' },
   ],
 }
@@ -430,7 +425,7 @@ const anbar: CrudConfig<Anbar> = {
     { key: 'phone', label: 'شماره همراه', field: 'phone' },
   ],
   fields: [
-    { key: 'name_anbar', label: 'نام انبار', required: true },
+    { key: 'name_anbar', label: 'نام انبار' },
     { key: 'address', label: 'آدرس' },
     { key: 'responsible', label: 'مسئول انبار' },
     { key: 'phone', label: 'شماره همراه' },
@@ -463,21 +458,21 @@ const owners: CrudConfig<Owner> = {
   ],
   fields: [
     {
-      key: 'type', label: 'نوع صاحب کالا', type: 'select', required: true,
+      key: 'type', label: 'نوع صاحب کالا', type: 'select',
       defaultValue: 'حقیقی',
       options: [
         { value: 'حقیقی', label: 'حقیقی' },
         { value: 'حقوقی', label: 'حقوقی' },
       ],
     },
-    { key: 'name', label: 'نام', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
-    { key: 'family', label: 'نام خانوادگی', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
-    { key: 'national_code', label: 'کد ملی', showWhen: { key: 'type', equals: 'حقیقی' }, required: true },
-    { key: 'company_name', label: 'نام شرکت', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
-    { key: 'address', label: 'آدرس', required: true },
-    { key: 'phone', label: 'تلفن', required: true },
-    { key: 'national_id', label: 'شناسه ملی', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
-    { key: 'economic_code', label: 'کد اقتصادی', showWhen: { key: 'type', equals: 'حقوقی' }, required: true },
+    { key: 'name', label: 'نام', showWhen: { key: 'type', equals: 'حقیقی' } },
+    { key: 'family', label: 'نام خانوادگی', showWhen: { key: 'type', equals: 'حقیقی' } },
+    { key: 'national_code', label: 'کد ملی', showWhen: { key: 'type', equals: 'حقیقی' } },
+    { key: 'company_name', label: 'نام شرکت', showWhen: { key: 'type', equals: 'حقوقی' } },
+    { key: 'address', label: 'آدرس' },
+    { key: 'phone', label: 'تلفن' },
+    { key: 'national_id', label: 'شناسه ملی', showWhen: { key: 'type', equals: 'حقوقی' } },
+    { key: 'economic_code', label: 'کد اقتصادی', showWhen: { key: 'type', equals: 'حقوقی' } },
   ],
 }
 
@@ -485,7 +480,6 @@ const owners: CrudConfig<Owner> = {
 interface KalaPrice {
   id_kala_price: number; id_kala: number | null; code: string | null
   goods_group: string | null; storage_price: number | null
-  price_30_day: number | null; price_60_day: number | null; price_90_day: number | null
   price_unloding: number | null; description: string | null
 }
 const kalaPrice: CrudConfig<KalaPrice> = {
@@ -499,14 +493,10 @@ const kalaPrice: CrudConfig<KalaPrice> = {
     { key: 'price_unloding', label: 'تخلیه و بارگیری', field: 'price_unloding' },
   ],
   fields: [
-    { key: 'code', label: 'کد', required: true },
+    { key: 'code', label: 'کد' },
     { key: 'goods_group', label: 'گروه کالا' },
     { key: 'storage_price', label: 'انبارداری', type: 'number' },
     { key: 'price_unloding', label: 'تخلیه و بارگیری', type: 'number' },
-    // kept editable for the (deferred) invoice tiers + existing data; not shown in the list
-    { key: 'price_30_day', label: 'قیمت ۳۰ روز', type: 'number' },
-    { key: 'price_60_day', label: 'قیمت ۶۰ روز', type: 'number' },
-    { key: 'price_90_day', label: 'قیمت ۹۰ روز', type: 'number' },
     { key: 'id_kala', label: 'شناسه کالا', type: 'number' },
     { key: 'description', label: 'توضیحات' },
   ],
@@ -527,20 +517,20 @@ const transportCompanies: CrudConfig<TransportCompany> = {
     { key: 'address', label: 'آدرس', field: 'address' },
   ],
   fields: [
-    { key: 'company_name', label: 'اسم شرکت', required: true },
-    { key: 'address', label: 'آدرس', required: true },
-    { key: 'phone', label: 'تلفن', required: true },
-    { key: 'national_id', label: 'شناسه ملی', required: true },
-    { key: 'economic_code', label: 'کد اقتصادی', required: true },
+    { key: 'company_name', label: 'اسم شرکت' },
+    { key: 'address', label: 'آدرس' },
+    { key: 'phone', label: 'تلفن' },
+    { key: 'national_id', label: 'شناسه ملی' },
+    { key: 'economic_code', label: 'کد اقتصادی' },
   ],
 }
 
 interface CompanyRepresentative {
-  id_repre_company: number; id_company: number; name: string
-  family: string; national_code: string; mobile: string
+  id_repre_company: number; id_company: number | null; name: string | null
+  family: string | null; national_code: string | null; mobile: string | null
 }
 
-function TransportCompanyName({ id }: { id: number }) {
+function TransportCompanyName({ id }: { id: number | null }) {
   const { data } = useQuery({
     queryKey: ['transport-companies-for-labels'],
     queryFn: () => apiGet<TransportCompany[]>('/transport-companies'),
@@ -562,15 +552,15 @@ const companyRepresentatives: CrudConfig<CompanyRepresentative> = {
   ],
   fields: [
     {
-      key: 'id_company', label: 'اسم شرکت', type: 'reference', required: true,
+      key: 'id_company', label: 'اسم شرکت', type: 'reference',
       reference: {
         path: '/transport-companies', valueKey: 'id_company', labelKey: 'company_name',
       },
     },
-    { key: 'name', label: 'اسم', required: true },
-    { key: 'family', label: 'فامیل', required: true },
-    { key: 'national_code', label: 'کد ملی', required: true },
-    { key: 'mobile', label: 'شماره همراه', required: true },
+    { key: 'name', label: 'اسم' },
+    { key: 'family', label: 'فامیل' },
+    { key: 'national_code', label: 'کد ملی' },
+    { key: 'mobile', label: 'شماره همراه' },
   ],
 }
 
@@ -585,7 +575,7 @@ const tagh: CrudConfig<Tagh> = {
     { key: 'name', label: 'نام طاق', field: 'name_tagh' },
   ],
   fields: [
-    { key: 'name_tagh', label: 'نام طاق', required: true },
+    { key: 'name_tagh', label: 'نام طاق' },
     { key: 'id_anbar', label: 'شناسه انبار', type: 'number' },
     { key: 'description', label: 'توضیحات' },
   ],
@@ -626,7 +616,7 @@ function termResource(
       { key: 'value', label: valueLabel, field: 'value' },
     ],
     fields: [
-      { key: 'value', label: valueLabel, required: true },
+      { key: 'value', label: valueLabel },
     ],
   }
 }

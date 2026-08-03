@@ -688,8 +688,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
           />
           <Group justify="flex-start" mt="sm">
             <Button className="tally-detail-save-button" onClick={() => saveMutation.mutate()}
-              loading={saveMutation.isPending}
-              disabled={rateId == null || (Boolean(config.selectField) && selectVal == null)}>
+              loading={saveMutation.isPending}>
               ذخیره
             </Button>
             <Button variant="default" onClick={() => setModalOpen(false)}>لغو</Button>

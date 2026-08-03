@@ -241,7 +241,7 @@ from app.auth.deps import get_current_user, require_admin
 from app.core.db import get_connection
 from app.services.base import fetch_all, fetch_one, execute, insert_returning_id
 from app.services.xlsx_catalog import parse_catalog, normalize
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/commodity", tags=["commodity"])
 
@@ -263,7 +263,7 @@ _SELECT = """
 class CommodityUpdate(BaseModel):
     # admin edits; every field optional so a partial PUT (e.g. only storage_group_id)
     # never nulls the others
-    hs_code: str | None = Field(default=None, min_length=1)
+    hs_code: str | None = None
     description_fa: str | None = None
     unit: str | None = None
     customs_duty: float | None = None
@@ -315,10 +315,7 @@ def storage_groups():
         """
         SELECT p."id_kala_price"  AS id,
                p.CODE             AS code,
-               COALESCE(p."goods_group", k.name_kala) AS name,
-               p."price_30_day"   AS price_30_day,
-               p."price_60_day"   AS price_60_day,
-               p."price_90_day"   AS price_90_day
+               COALESCE(p."goods_group", k.name_kala) AS name
         FROM "fa_kala_price" p
         LEFT JOIN FA_KALA k ON k.ID_KALA = p."id_kala"
         WHERE p.IS_DELETED = 'no'
@@ -337,8 +334,6 @@ def get_commodity(row_id: int):
 
 @router.post("", status_code=201)
 def create_commodity(item: CommodityUpdate, admin: dict = Depends(require_admin)):
-    if not item.hs_code:
-        raise HTTPException(status_code=422, detail="HS Code لازم است")
     new_id = insert_returning_id(
         """
         INSERT INTO FA_COMMODITY_CATALOG

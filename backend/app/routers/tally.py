@@ -279,6 +279,9 @@ SELECT
     d."NUMBER_KALA"                     AS number_kala,
     d."NUMBER_PALLET"                   AS number_pallet,
     d."VALUE_KALA"                      AS value_kala,
+    d."CUSTOMS_VALUE"                   AS customs_value,
+    d."INSURED_VALUE"                   AS insured_value,
+    d."INSURANCE_EXPIRY_DATE"           AS insurance_expiry_date,
     d."WEIGHTE"                         AS weighte,
     d."TYPE_NUMBER_KANTINER"            AS type_number_kantiner,
     d."NUMBER_GHABZE_BSKOL"             AS number_ghabze_bskol,
@@ -314,6 +317,7 @@ SELECT
     h."NAME_ANBARDAR"                   AS name_anbardar,
     h."ACCEPTED_GOMROK"                 AS accepted_gomrok,
     h."COMPANY_BIMEH"                   AS company_bimeh,
+    h."DESCRIPTION"                     AS description,
     h."OWNER_NATIONAL_CODE"             AS owner_national_code,
     t_marze."SYS_TERM_VALUE"            AS marze_name,
     t_country."SYS_TERM_VALUE"          AS country_name,
@@ -371,6 +375,7 @@ SELECT
     j."tali_id"                         AS tali_id,
     j."kala_diamound_id"                AS rate_id,
     j."code"                            AS code,
+    j."NUMBER_SERVICE"                  AS number_service,
     j."DESCRIPTION"                     AS description,
     NVL(j."pricing_type", 'off_hours')  AS pricing_type,
     k."title"                           AS rate_title,
@@ -424,7 +429,8 @@ ORDER BY j."id_tali_kala_other_service"
 
 STRIP_SQL = """
 SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
-       j."kala_strip_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+       j."kala_strip_id" AS rate_id, j."code" AS code,
+       j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
        j."pricing_type" AS pricing_type,
        k."code" AS rate_code, k."title" AS rate_title
 FROM "fa_tali_kala_strip" j
@@ -435,7 +441,8 @@ ORDER BY j."id_tali_kala_strip"
 
 TIME_STOP_SQL = """
 SELECT j."id_tali_kala_time_stop_vehicle" AS id, j."tali_id" AS tali_id,
-       j."kala_time_stop_vehicle_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+       j."kala_time_stop_vehicle_id" AS rate_id, j."code" AS code,
+       j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
        k."code" AS rate_code, k."title" AS rate_title
 FROM "fa_tali_kala_time_stop_vehicle" j
 LEFT JOIN "fa_kala_time_stop_vehicle" k ON k."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
@@ -445,7 +452,8 @@ ORDER BY j."id_tali_kala_time_stop_vehicle"
 
 VEHICLE_ENTER_SQL = """
 SELECT j."id_tali_kala_vehicle_enter_price" AS id, j."tali_id" AS tali_id,
-       j."kala_vehicle_enter_price_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+       j."kala_vehicle_enter_price_id" AS rate_id, j."code" AS code,
+       j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
        k."code" AS rate_code, k."title" AS rate_title
 FROM "fa_tali_kala_vehicle_enter_price" j
 LEFT JOIN "fa_kala_vehicle_enter_price" k ON k."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"

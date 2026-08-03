@@ -459,6 +459,11 @@
   gap: 2mm;
 }
 
+.tally-print-notes span {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .tally-print-law {
   min-height: 8mm;
   padding-top: 1mm;

@@ -159,47 +159,59 @@ def compute_service_rows(
     other_service_prices=(),
     other_service_counts=(),
     strip_values=(),
+    strip_counts=(),
     night_stop_prices=(),
+    night_stop_counts=(),
     diamound_prices=(),
+    diamound_counts=(),
     vehicle_enter_prices=(),
+    vehicle_enter_counts=(),
 ) -> list[InvoiceDetailRow]:
-    """The service detail rows, matching set_process_details verbatim (verified
-    against the tally-549 golden case).
+    """Build invoice rows for the five tally services.
 
-    Faithful-port quirks preserved:
-      * NO other_service («سایر خدمات») row. set_cal computes SUM(price) x
-        SUM(number_service) into the services grand total (P57_PRICE_ALL_SERVICESS)
-        but never assigns the per-line item P57_PRICE_OTHER_SERVICE (source
-        "Always Null"), so set_process_details' `if ... is not null` guard skips
-        the insert. The persisted invoice has no such line. Looks like a latent
-        bug — the rewrite decides whether to keep or fix it.
-      * The other four rows are emitted UNCONDITIONALLY. Each price is
-        NVL(SUM(...), 0), so an absent junction yields a 0 row (as seen on the
-        strip line of invoice 341), not a suppressed one.
-      * NUMBER_KALA is left NULL on service rows. (The source INSERT has a literal
-        1, but every persisted service row in both golden invoices 341 and 361 has
-        NULL — the data is authoritative, so we emit None.)
-      * Junction soft-deletes are ignored (the caller must NOT filter IS_DELETED
-        on the junctions — set_cal doesn't), so a soft-deleted junction still bills.
-
-    strip:         SUM of the chosen normal|dangerous column (caller pre-selects)
-    night_stop:    SUM(price)
-    diamound:      SUM(priceـgher_edari)
-    vehicle_enter: SUM(price)
+    Each junction is billed as ``price × quantity`` and the results are summed
+    within its service group.  Quantity is optional; a blank value means one so
+    existing rows keep their historical amount after the quantity columns are
+    introduced.  The four legacy rows remain unconditional; «سایر خدمات» is
+    emitted when at least one such junction exists.
     """
-    # other_service is intentionally not emitted (see docstring); referenced to
-    # keep the computable formula documented without producing a row.
-    _ = (other_service_prices, other_service_counts)
+
+    def weighted_total(prices, counts) -> tuple[Decimal, Optional[int], bool]:
+        price_values = list(prices)
+        count_values = list(counts)
+        if not price_values:
+            return Decimal(0), None, False
+
+        total = Decimal(0)
+        total_count = Decimal(0)
+        for index, raw_price in enumerate(price_values):
+            quantity = to_decimal(count_values[index]) if index < len(count_values) else None
+            if quantity is None:
+                quantity = Decimal(1)
+            total_count += quantity
+            price = to_decimal(raw_price)
+            if price is not None:
+                total += price * quantity
+
+        return total, int(total_count), True
 
     rows: list[InvoiceDetailRow] = []
-    for key, values in (
-        ("strip", strip_values),
-        ("night_stop", night_stop_prices),
-        ("diamound", diamound_prices),
-        ("vehicle_enter", vehicle_enter_prices),
+    other_total, other_count, has_other = weighted_total(
+        other_service_prices, other_service_counts,
+    )
+    if has_other:
+        rows.append(InvoiceDetailRow(
+            SERVICE_LABELS["other_service"], other_count, None, other_total,
+        ))
+
+    for key, values, counts in (
+        ("strip", strip_values, strip_counts),
+        ("night_stop", night_stop_prices, night_stop_counts),
+        ("diamound", diamound_prices, diamound_counts),
+        ("vehicle_enter", vehicle_enter_prices, vehicle_enter_counts),
     ):
-        total = _sum(values) or Decimal(0)     # NVL(SUM(...), 0)
-        rows.append(InvoiceDetailRow(SERVICE_LABELS[key], None, None, total))
+        total, count, _ = weighted_total(values, counts)
+        rows.append(InvoiceDetailRow(SERVICE_LABELS[key], count, None, total))
 
     return rows
 
@@ -224,20 +236,27 @@ if __name__ == "__main__":
     assert tier3 == 60, tier3
     assert rows3[0].price == Decimal(1) * (Decimal(10000) * Decimal(60)) * Decimal(1000)
 
-    # Services: exactly 4 rows (no other_service), unconditional, number_kala=1.
+    # Services: quantity multiplies each selected rate; blank quantity defaults to one.
     svc = compute_service_rows(
         other_service_prices=["100", "200"], other_service_counts=["2", None],
-        night_stop_prices=["910800"], diamound_prices=["2447500"],
+        night_stop_prices=["910800"], night_stop_counts=["3"],
+        diamound_prices=["2447500"], diamound_counts=[None],
     )
     assert [r.description for r in svc] == [
-        SERVICE_LABELS[k] for k in ("strip", "night_stop", "diamound", "vehicle_enter")
+        SERVICE_LABELS[k] for k in (
+            "other_service", "strip", "night_stop", "diamound", "vehicle_enter",
+        )
     ], [r.description for r in svc]
     by = {r.description: r.price for r in svc}
-    assert by[SERVICE_LABELS["night_stop"]] == Decimal("910800")
+    assert by[SERVICE_LABELS["other_service"]] == Decimal("400")
+    assert by[SERVICE_LABELS["night_stop"]] == Decimal("2732400")
     assert by[SERVICE_LABELS["diamound"]] == Decimal("2447500")
     assert by[SERVICE_LABELS["strip"]] == Decimal(0)          # absent -> NVL 0 row
     assert by[SERVICE_LABELS["vehicle_enter"]] == Decimal(0)
-    assert all(r.number_kala is None for r in svc)          # persisted data has NULL
+    counts = {r.description: r.number_kala for r in svc}
+    assert counts[SERVICE_LABELS["other_service"]] == 3
+    assert counts[SERVICE_LABELS["night_stop"]] == 3
+    assert counts[SERVICE_LABELS["diamound"]] == 1
 
     # Storage label uses fa_kala_price.CODE.
     lbl, _ = compute_storage_rows(

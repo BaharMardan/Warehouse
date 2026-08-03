@@ -1,11 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ItemCreate(BaseModel):
-    name_kala: str = Field(min_length=1)
+    name_kala: str | None = None
     unite: str | None = None
 
 
 class ItemUpdate(BaseModel):
-    name_kala: str = Field(min_length=1)
+    name_kala: str | None = None
     unite: str | None = None
