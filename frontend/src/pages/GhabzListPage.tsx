@@ -84,7 +84,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
-import { Title, Button, Group, Table, Paper, Loader, Center, Text } from '@mantine/core'
+import { PageHeader } from '../components/PageHeader'
+import { Button, Table, Paper, Loader, Center, Text } from '@mantine/core'
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
 import { TallyNumber } from '../components/TallyNumber'
@@ -120,10 +121,16 @@ export function GhabzListPage() {
 
   return (
     <div dir="rtl">
-      <Group justify="space-between" mb="md">
-        <div><Title order={2} fw={700}>لیست قبض‌های انبار</Title><Text c="dimmed" size="sm" mt={4}>مدیریت قبض‌های انبار</Text></div>
-        <Group gap="sm"><Button radius="md" onClick={() => navigate('/ghabz/new')}>ایجاد قبض جدید</Button><BackButton /></Group>
-      </Group>
+      <PageHeader
+        title="لیست قبض‌های انبار"
+        subtitle="مدیریت قبض‌های انبار"
+        actions={
+          <>
+            <Button variant="white" radius="md" onClick={() => navigate('/ghabz/new')}>ایجاد قبض جدید</Button>
+            <BackButton to="/" />
+          </>
+        }
+      />
       <Paper shadow="xs" p="md">
         {isLoading && <Center py="xl"><Loader /></Center>}
         {isError && <Center py="xl"><Text c="red">خطا در بارگذاری قبض‌ها.</Text></Center>}

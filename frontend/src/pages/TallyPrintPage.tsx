@@ -826,7 +826,7 @@ function TallySheet({
           <div className="tally-print-info-card tally-print-info-card-wide">
             <InfoLine icon={<Truck />} label="نام شرکت حمل" value={data.company_name} />
             <InfoLine icon={<UserRound />} label="نام نماینده شرکت حمل" value={data.representative_name} />
-            <InfoLine icon={<UserRound />} label="صاحب کالا (الزاماً به اظهار شرکت حمل)" value={data.owner_name} />
+            <InfoLine icon={<UserRound />} label="صاحب کالا (بنا به اظهار شرکت حمل)" value={data.owner_name} />
             <InfoLine icon={<MapPin />} label="مبدأ حمل" value={data.country_name} />
             <InfoLine
               icon={<ShieldCheck />}

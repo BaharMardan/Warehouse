@@ -2189,7 +2189,7 @@ export function TallyDetailPage() {
         <Paper className="tally-detail-summary-card" radius="lg">
           <SummaryLine
             icon={<UserRound size={20} strokeWidth={1.8} />}
-            label="صاحب کالا (الزاماً به اظهار شرکت حمل)"
+            label="صاحب کالا (بنا به اظهار شرکت حمل)"
             value={summary?.owner_name}
             tone="violet"
           />

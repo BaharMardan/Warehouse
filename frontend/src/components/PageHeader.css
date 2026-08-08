@@ -1,0 +1,58 @@
+/*
+ * PageHeader styles. Every class is prefixed `ph-` and scoped to that prefix so
+ * it cannot leak into the CRUD grids or the tally screens.
+ *
+ * Colours come from the `--app-accent-*` vars AppLayout publishes on
+ * `.app-canvas`; the fallbacks only apply on screens outside the layout.
+ *
+ * Text colours are set with Mantine's `c` prop on the components themselves,
+ * not here — that avoids fighting `.mantine-Title-root` on specificity.
+ */
+.ph-band {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 22px 26px;
+  margin-bottom: 20px;
+  background: linear-gradient(
+    135deg,
+    var(--app-accent-5, var(--mantine-color-blue-5)) 0%,
+    var(--app-accent-6, var(--mantine-color-blue-6)) 55%,
+    var(--app-accent-8, var(--mantine-color-blue-8)) 100%
+  );
+  box-shadow: 0 12px 26px -18px var(--app-accent-8, var(--mantine-color-blue-8));
+}
+
+/* diagonal stripes — a quieter echo of the launcher background */
+.ph-band::before,
+.ph-band::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  transform: rotate(22deg);
+  pointer-events: none;
+}
+
+.ph-band::before {
+  left: -4%;
+  width: 20%;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.ph-band::after {
+  left: 15%;
+  width: 9%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ph-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.ph-eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+}

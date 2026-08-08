@@ -893,17 +893,19 @@
 //   )
 // }
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
-  Title, Text, Button, Group, Table, Paper, Badge, Tooltip, ActionIcon,
+  Text, Button, Group, Table, Paper, Badge, Tooltip, ActionIcon,
   TextInput, Select, SimpleGrid, ThemeIcon, Skeleton, Box, Stack, Center,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
 import { TallyNumber } from '../components/TallyNumber'
+import { PageHeader } from '../components/PageHeader'
+import { BackButton } from '../components/BackButton'
 
 /**
  * TallyListPage — the list of tallies (لیست تالی‌ها), the entry point to the
@@ -1102,26 +1104,27 @@ export function TallyListPage() {
       `}</style>
 
       {/* ---- dashboard header ---- */}
-      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" gap="sm">
-        <div>
-          <Title order={2} fw={700}>مدیریت تالی‌ها</Title>
-          <Text c="dimmed" size="sm" mt={4}>نمای کلی و پیگیری تالی‌های انبار</Text>
-        </div>
-        <Group gap="sm">
-          <Button
-            variant="default" radius="md" leftSection={<IconRefresh size={18} />}
-            onClick={() => refetch()} loading={isFetching && !isLoading}
-          >
-            بروزرسانی
-          </Button>
-          <Button
-            radius="md" leftSection={<IconPlus size={18} />}
-            onClick={() => navigate('/tally/new')}
-          >
-            افزودن تالی
-          </Button>
-        </Group>
-      </Group>
+      <PageHeader
+        title="مدیریت تالی‌ها"
+        subtitle="نمای کلی و پیگیری تالی‌های انبار"
+        actions={
+          <>
+            <Button
+              variant="white" radius="md" leftSection={<IconPlus size={18} />}
+              onClick={() => navigate('/tally/new')}
+            >
+              افزودن تالی
+            </Button>
+            <Button
+              variant="default" radius="md" leftSection={<IconRefresh size={18} />}
+              onClick={() => refetch()} loading={isFetching && !isLoading}
+            >
+              بروزرسانی
+            </Button>
+            <BackButton to="/" />
+          </>
+        }
+      />
 
       {/* ---- summary stat cards ---- */}
       <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md" mb="lg">
@@ -1136,7 +1139,9 @@ export function TallyListPage() {
       </SimpleGrid>
 
       {/* ---- toolbar ---- */}
-      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
+      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md"
+        bg="var(--app-accent-light, var(--mantine-color-gray-0))"
+        style={{ borderColor: 'var(--app-accent-light-hover, var(--mantine-color-gray-3))' }}>
         <Group gap="sm" wrap="wrap" align="center">
           <TextInput
             radius="md" placeholder="جستجو در تالی‌ها…"
@@ -1216,8 +1221,15 @@ export function TallyListPage() {
 
         {data && data.length > 0 && filtered.length > 0 && (
           <Table.ScrollContainer minWidth={860}>
-            <Table striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders>
-              <Table.Thead style={{ background: 'var(--mantine-color-gray-light)' }}>
+            <Table
+              striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+              style={{
+                '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+                '--table-highlight-on-hover-color':
+                  'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
+              } as CSSProperties}
+            >
+              <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))', color: 'var(--mantine-color-white)' }}>
                 <Table.Tr>
                   <Table.Th>شماره تالی</Table.Th>
                   <Table.Th>نام مرز</Table.Th>

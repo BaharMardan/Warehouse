@@ -61,6 +61,8 @@ import { GhabzDetailPage } from './pages/GhabzDetailPage'
 import { GhabzHeaderForm } from './pages/GhabzHeaderForm'
 import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
 import { OwnersPage } from './pages/OwnersPage'
+import { HomePage } from './pages/HomePage'
+import { BaseDataPage } from './pages/BaseDataPage'
 
 // import ScratchTest from './pages/ScratchTest'
 
@@ -74,6 +76,9 @@ export default function App() {
         <Route path="/tally/id/:tallyId/print" element={<TallyPrintPage />} />
         <Route path="/tally/:tallyNumber/print" element={<TallyPrintPage />} />
         <Route element={<AppLayout />}>
+          {/* Landing page after login: the Odoo-style module launcher. */}
+          <Route index element={<HomePage />} />
+          <Route path="/base-data" element={<BaseDataPage />} />
           {/* /kala is now the commodity catalog (FA_COMMODITY_CATALOG), not the old
               FA_KALA CRUD grid — render the custom page instead of the generic CrudResource. */}
           {resources.filter((r) => !['/kala', '/owners'].includes(r.route)).map((r) => (
@@ -84,7 +89,7 @@ export default function App() {
           {
           /* complex pages get added here later, e.g. <Route path="/tally" element={<TallyPage />} /> */}
           {/* <Route path="/scratch-test" element={<ScratchTest />} /> */}
-          <Route path="*" element={<Navigate to={resources[0].route} replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
           <Route path="/tally/new" element={<TallyHeaderForm />} />
           <Route path="/tally" element={<TallyListPage />} />
           <Route path="/tally/id/:tallyId" element={<TallyDetailPage />} />

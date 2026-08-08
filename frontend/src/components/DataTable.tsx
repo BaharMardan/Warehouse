@@ -44,7 +44,7 @@
 //   )
 // }
 
-import type { ReactNode } from 'react'
+import type { ReactNode, CSSProperties } from 'react'
 import { Table, Text, Paper, Skeleton, Center, Stack, ThemeIcon, Box, Group } from '@mantine/core'
 import { IconInbox, IconAlert } from './icons'
 
@@ -105,7 +105,10 @@ export function DataTable<T>({
       emptyContent ?? (
         <Center py={56}>
           <Stack align="center" gap="xs">
-            <ThemeIcon size={44} radius="xl" variant="light" color="gray"><IconInbox size={24} /></ThemeIcon>
+            <ThemeIcon size={44} radius="xl" variant="light" color="gray" style={{
+              background: 'var(--app-accent-light, var(--mantine-color-gray-light))',
+              color: 'var(--app-accent-light-color, var(--mantine-color-gray-6))',
+            }}><IconInbox size={24} /></ThemeIcon>
             <Text fw={600}>موردی برای نمایش نیست</Text>
           </Stack>
         </Center>
@@ -115,11 +118,24 @@ export function DataTable<T>({
 
   return shell(
     <Table.ScrollContainer minWidth={minWidth}>
-      <Table striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders>
-        <Table.Thead style={{ background: 'var(--mantine-color-gray-light)' }}>
+      <Table
+        striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+        style={{
+          '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+          '--table-highlight-on-hover-color':
+            'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
+        } as CSSProperties}
+      >
+        <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))' }}>
           <Table.Tr>
             {columns.map((col) => (
-              <Table.Th key={col.key} style={col.key === '__actions' ? { textAlign: 'center' } : undefined}>
+              <Table.Th
+                key={col.key}
+                style={{
+                  color: 'var(--mantine-color-white)',
+                  textAlign: col.key === '__actions' ? 'center' : undefined,
+                }}
+              >
                 {col.label}
               </Table.Th>
             ))}

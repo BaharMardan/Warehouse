@@ -190,15 +190,17 @@
 //   )
 // }
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
-  Box, Title, Text, Group, Button, TextInput, Table, Paper, Center, Stack,
+  Box, Text, Group, Button, TextInput, Table, Paper, Center, Stack,
   Pagination, Badge, Modal, FileButton, ThemeIcon, Skeleton, Tooltip, ActionIcon, Alert,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { apiGet, apiSend, apiUpload } from '../api/client'
 import { StorageGroupSelect } from '../components/StorageGroupSelect'
+import { PageHeader } from '../components/PageHeader'
+import { BackButton } from '../components/BackButton'
 import type { Commodity } from '../components/CommoditySelect'
 import { IconSearch, IconUpload, IconEdit, IconInbox, IconAlert } from '../components/icons'
 
@@ -273,24 +275,27 @@ export function CommodityCatalogPage() {
   return (
     <Box dir="rtl" style={{ maxWidth: 1280, margin: '0 auto' }}>
       {/* header */}
-      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" gap="sm">
-        <div>
-          <Title order={2} fw={700}>کاتالوگ کالاها</Title>
-          <Text c="dimmed" size="sm" mt={4}>جستجو، ایمپورت و تعیین گروه قیمت کالاها</Text>
-        </div>
-        <FileButton
-          resetRef={resetRef}
-          accept=".xlsx,.xlsm"
-          onChange={(f) => { if (f) importMutation.mutate(f); resetRef.current?.() }}
-        >
-          {(props) => (
-            <Button {...props} radius="md" variant="light" leftSection={<IconUpload size={18} />}
-              loading={importMutation.isPending}>
-              ایمپورت اکسل
-            </Button>
-          )}
-        </FileButton>
-      </Group>
+      <PageHeader
+        title="کاتالوگ کالاها"
+        subtitle="جستجو، ایمپورت و تعیین گروه قیمت کالاها"
+        actions={
+          <>
+            <FileButton
+              resetRef={resetRef}
+              accept=".xlsx,.xlsm"
+              onChange={(f) => { if (f) importMutation.mutate(f); resetRef.current?.() }}
+            >
+              {(props) => (
+                <Button {...props} radius="md" variant="white" leftSection={<IconUpload size={18} />}
+                  loading={importMutation.isPending}>
+                  ایمپورت اکسل
+                </Button>
+              )}
+            </FileButton>
+            <BackButton to="/base-data" />
+          </>
+        }
+      />
 
       {importMsg && (
         <Alert
@@ -303,7 +308,9 @@ export function CommodityCatalogPage() {
       )}
 
       {/* toolbar */}
-      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
+      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md"
+        bg="var(--app-accent-light, var(--mantine-color-gray-0))"
+        style={{ borderColor: 'var(--app-accent-light-hover, var(--mantine-color-gray-3))' }}>
         <TextInput
           radius="md"
           placeholder="جستجو بر اساس HS Code یا بخشی از شرح فارسی…"
@@ -344,8 +351,15 @@ export function CommodityCatalogPage() {
           </Center>
         ) : (
           <Table.ScrollContainer minWidth={900}>
-            <Table striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders>
-              <Table.Thead style={{ background: 'var(--mantine-color-gray-light)' }}>
+            <Table
+              striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+              style={{
+                '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+                '--table-highlight-on-hover-color':
+                  'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
+              } as CSSProperties}
+            >
+              <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))', color: 'var(--mantine-color-white)' }}>
                 <Table.Tr>
                   <Table.Th>HS Code</Table.Th>
                   <Table.Th>شرح</Table.Th>

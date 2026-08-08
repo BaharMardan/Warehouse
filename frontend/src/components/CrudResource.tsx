@@ -195,12 +195,14 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Box, Title, Text, Button, Group, Paper, TextInput, Tooltip, ActionIcon,
+  Box, Text, Button, Group, Paper, TextInput, Tooltip, ActionIcon,
   ThemeIcon, Stack, Center,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { DataTable, type Column } from './DataTable'
 import { CrudFormModal, type FieldDef } from './CrudFormModal'
+import { PageHeader } from './PageHeader'
+import { BackButton } from './BackButton'
 import { makeCrudApi } from '../api/crud'
 import { IconSearch, IconRefresh, IconPlus, IconEdit, IconTrash, IconInbox } from './icons'
 
@@ -332,18 +334,26 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
   return (
     <Box dir="rtl" style={{ maxWidth: 1280, margin: '0 auto' }}>
       {/* header */}
-      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" gap="sm">
-        <div>
-          <Title order={2} fw={700}>{config.title}</Title>
-          <Text c="dimmed" size="sm" mt={4}>{`مدیریت ${config.title}`}</Text>
-        </div>
-        <Button radius="md" leftSection={<IconPlus size={18} />} onClick={openAdd}>
-          {`افزودن ${config.entity}`}
-        </Button>
-      </Group>
+      <PageHeader
+        title={config.title}
+        subtitle={`مدیریت ${config.title}`}
+        actions={
+          <>
+            <Button
+              variant="white" radius="md" leftSection={<IconPlus size={18} />}
+              onClick={openAdd}
+            >
+              {`افزودن ${config.entity}`}
+            </Button>
+            <BackButton to="/base-data" />
+          </>
+        }
+      />
 
       {/* toolbar */}
-      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
+      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md"
+        bg="var(--app-accent-light, var(--mantine-color-gray-0))"
+        style={{ borderColor: 'var(--app-accent-light-hover, var(--mantine-color-gray-3))' }}>
         <Group gap="sm" wrap="wrap" align="center">
           <TextInput
             radius="md" placeholder={`جستجو در ${config.title}…`}

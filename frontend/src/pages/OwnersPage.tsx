@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDebouncedValue } from '@mantine/hooks'
 import {
   ActionIcon, Alert, Badge, Box, Button, Center, Divider, Grid, Group, Modal,
-  Paper, SegmentedControl, Stack, Text, TextInput, ThemeIcon, Title, Tooltip,
+  Paper, SegmentedControl, Stack, Text, TextInput, ThemeIcon, Tooltip,
 } from '@mantine/core'
 import {
   Building2, CircleAlert, Inbox, Pencil, Plus, RefreshCw, Search, Trash2,
@@ -12,6 +12,8 @@ import {
 
 import { apiGet, apiSend } from '../api/client'
 import { DataTable, type Column } from '../components/DataTable'
+import { PageHeader } from '../components/PageHeader'
+import { BackButton } from '../components/BackButton'
 
 
 type OwnerType = 'حقیقی' | 'حقوقی'
@@ -313,19 +315,22 @@ export function OwnersPage() {
 
   return (
     <Box dir="rtl" style={{ maxWidth: 1280, margin: '0 auto' }}>
-      <Group justify="space-between" align="flex-end" mb="lg" wrap="wrap" gap="sm">
-        <div>
-          <Title order={2} fw={700}>صاحبین کالا</Title>
-          <Text c="dimmed" size="sm" mt={4}>
-            مدیریت اشخاص حقیقی و شرکت‌های صاحب کالا به همراه نمایندگان شرکت‌ها
-          </Text>
-        </div>
-        <Button radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
-          افزودن صاحب کالا
-        </Button>
-      </Group>
+      <PageHeader
+        title="صاحبین کالا"
+        subtitle="مدیریت اشخاص حقیقی و شرکت‌های صاحب کالا به همراه نمایندگان شرکت‌ها"
+        actions={
+          <>
+            <Button variant="white" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
+              افزودن صاحب کالا
+            </Button>
+            <BackButton to="/base-data" />
+          </>
+        }
+      />
 
-      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
+      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md"
+        bg="var(--app-accent-light, var(--mantine-color-gray-0))"
+        style={{ borderColor: 'var(--app-accent-light-hover, var(--mantine-color-gray-3))' }}>
         <Group gap="sm" wrap="wrap" align="center">
           <TextInput
             radius="md" placeholder="جستجو در صاحبین و نمایندگان…"
