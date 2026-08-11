@@ -122,6 +122,11 @@ _NOISE_RE = [
         r"\s*PCTFREE\s+\d+|\s*PCTUSED\s+\d+|\s*INITRANS\s+\d+|\s*MAXTRANS\s+\d+",
         re.IGNORECASE,
     ),
+    # A unique/primary constraint may name the index that backs it. That index
+    # is deliberately absent from 05_indexes.sql (constraint-backing indexes are
+    # excluded there), so keeping the reference fails with ORA-01418. Dropping
+    # the clause lets Oracle create the index itself.
+    re.compile(r'\s*USING\s+INDEX\s+"[^"]+"', re.IGNORECASE),
 ]
 
 
@@ -318,7 +323,12 @@ def _constraints(cursor, table: str, kinds: tuple[str, ...]) -> list[str]:
 
 
 def _plain_indexes(cursor, table: str) -> list[str]:
-    """Indexes that are not backing a primary/unique constraint."""
+    """Indexes that are not backing a primary/unique constraint.
+
+    LOB indexes (SYS_IL...) are excluded too: Oracle creates them with the LOB
+    column, and DBMS_METADATA emits them without a column list, so replaying
+    one fails with ORA-00906.
+    """
     cursor.execute(
         """
         SELECT i.INDEX_NAME
@@ -331,6 +341,8 @@ def _plain_indexes(cursor, table: str) -> list[str]:
                 AND c.CONSTRAINT_TYPE IN ('P', 'U')
                 AND c.INDEX_NAME IS NOT NULL
           )
+          AND i.INDEX_TYPE <> 'LOB'
+          AND i.INDEX_NAME NOT LIKE 'SYS_IL%'
           AND (i.DROPPED IS NULL OR i.DROPPED = 'NO')
         ORDER BY i.INDEX_NAME
         """,
