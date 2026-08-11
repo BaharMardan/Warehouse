@@ -90,6 +90,11 @@ SKIP_EXACT = {
     "REGIONS",
 }
 
+# Sequences belonging to this application. The HR schema is shared with other
+# APEX apps (UMG_*, EBA_*) and the Oracle sample schema (EMPLOYEES_SEQ etc);
+# scripting theirs into a new database would be wrong.
+SEQUENCE_PREFIXES = ("FA_", "SEQ_FA_")
+
 TRANSFORM_PARAMS = [
     ("PRETTY", True),
     ("SQLTERMINATOR", True),
@@ -280,7 +285,8 @@ def _sequences(cursor) -> list[tuple[str, int]]:
     return [
         (row[0], int(row[1]) if row[1] is not None else 0)
         for row in cursor.fetchall()
-        if not row[0].upper().startswith(SKIP_PREFIXES)
+        if row[0].upper().startswith(SEQUENCE_PREFIXES)
+        and not row[0].upper().startswith(SKIP_PREFIXES)
         and not row[0].upper().startswith("ISEQ$")
     ]
 
