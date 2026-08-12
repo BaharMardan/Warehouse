@@ -24,7 +24,8 @@ ALTER TABLE "fa_faktor_anbar_header" ADD CONSTRAINT "fa_faktor_anbar_header_pk" 
 -- FA_ghabz_anbar_DETAILES
 ALTER TABLE "FA_ghabz_anbar_DETAILES" ADD CONSTRAINT "FA_ghabz_anbar_DETAILES_PK" PRIMARY KEY ("ID_ghabz_anbar_DETAILS")
   USING INDEX  ENABLE;
-ALTER TABLE "FA_ghabz_anbar_DETAILES" ADD CONSTRAINT "FA_CON_تکرار_کدکلا" UNIQUE ("ID_GHABZ_ANBAR_HEADAR", "code_kala")  ENABLE;
+ALTER TABLE "FA_ghabz_anbar_DETAILES" ADD CONSTRAINT "FA_CON_تکرار_کدکلا" UNIQUE ("ID_GHABZ_ANBAR_HEADAR", "code_kala")
+  USING INDEX  ENABLE;
 
 -- fa_ghabz_anbar_header
 ALTER TABLE "fa_ghabz_anbar_header" ADD CONSTRAINT "fa_ghabz_anbar_header_PK" PRIMARY KEY ("ID_ghabz")
