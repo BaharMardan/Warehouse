@@ -19,8 +19,6 @@ router = APIRouter(prefix="/owners", tags=["owners"])
 
 OWNER_TABLE = '"FA_PRODUCT_OWNER"'
 REPRESENTATIVE_TABLE = '"FA_OWNER_REPRESENTATIVE"'
-OWNER_SEQUENCE = '"SEQ_FA_PRODUCT_OWNER_MANAGED"'
-REPRESENTATIVE_SEQUENCE = '"SEQ_FA_OWNER_REP_MANAGED"'
 
 
 class OwnerRepresentativeInput(BaseModel):
@@ -157,10 +155,10 @@ def _replace_representatives(cursor, owner_id: int, item: OwnerInput, actor_id: 
         cursor.execute(
             f"""
             INSERT INTO {REPRESENTATIVE_TABLE} (
-                "ID_OWNER_REPRESENTATIVE", "ID_OWNER", "NAME", "FAMILY",
+                "ID_OWNER", "NAME", "FAMILY",
                 "NATIONAL_CODE", "MOBILE", "CREATE_AT", "CREATE_BY"
             ) VALUES (
-                {REPRESENTATIVE_SEQUENCE}.NEXTVAL, :owner_id, :name, :family,
+                :owner_id, :name, :family,
                 :national_code, :mobile, SYSDATE, :actor_id
             )
             """,
@@ -194,10 +192,10 @@ def create_owner(item: OwnerInput, current_user: dict = Depends(get_current_user
             cursor.execute(
                 f"""
                 INSERT INTO {OWNER_TABLE} (
-                    "ID_OWNER", "TYPE", "NAME", "FAMILY", "NATIONAL_CODE",
+                    "TYPE", "NAME", "FAMILY", "NATIONAL_CODE",
                     "COMPANY_NAME", "ADDRESS", "PHONE", "NATIONAL_ID", "ECONOMIC_CODE"
                 ) VALUES (
-                    {OWNER_SEQUENCE}.NEXTVAL, :type, :name, :family, :national_code,
+                    :type, :name, :family, :national_code,
                     :company_name, :address, :phone, :national_id, :economic_code
                 )
                 RETURNING "ID_OWNER" INTO :new_id

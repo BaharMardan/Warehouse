@@ -197,10 +197,10 @@ _INSERT_COLUMNS = ", ".join(f'"{field.upper()}"' for field in _WRITABLE_FIELDS)
 _INSERT_VALUES = ", ".join(f":{field}" for field in _WRITABLE_FIELDS)
 INSERT_TALLY_SQL = f"""
 INSERT INTO "FA_TALI_HEADER" (
-    "ID_TALI", {_INSERT_COLUMNS}, "TALI_NUMBER",
+    {_INSERT_COLUMNS}, "TALI_NUMBER",
     "IS_DELETED", "CREATE_AT", "CREATE_BY"
 ) VALUES (
-    "SEQ_FA_TALI_HEADER".NEXTVAL, {_INSERT_VALUES}, :tali_number,
+    {_INSERT_VALUES}, :tali_number,
     'no', :create_at, :actor_id
 )
 RETURNING "ID_TALI" INTO :new_id

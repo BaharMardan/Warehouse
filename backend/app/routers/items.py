@@ -22,9 +22,8 @@ def list_items():
 def create_item(item: ItemCreate, current_user: dict = Depends(get_current_user)):
     new_id = insert_returning_id(
         """
-        INSERT INTO FA_KALA (id_kala, name_kala, unite, is_deleted, create_at, create_by)
+        INSERT INTO FA_KALA (name_kala, unite, is_deleted, create_at, create_by)
         VALUES (
-            (SELECT NVL(MAX(id_kala), 0) + 1 FROM FA_KALA),
             :name_kala, :unite, 'no', SYSDATE, :create_by
         )
         RETURNING id_kala INTO :new_id

@@ -152,8 +152,8 @@ def plan(*, table, pk, fields, overrides=None, audit=Audit(), order_by=None):
     where_active = f" WHERE {_q(a.is_deleted)} = 'no'" if a.is_deleted else ""
     and_active = f" AND {_q(a.is_deleted)} = 'no'" if a.is_deleted else ""
 
-    icols = [qpk] + [_q(column(f)) for f in fields]
-    ivals = [f"(SELECT NVL(MAX({qpk}), 0) + 1 FROM {qtable})"] + [f":{f}" for f in fields]
+    icols = [_q(column(f)) for f in fields]
+    ivals = [f":{f}" for f in fields]
     if a.is_deleted:
         icols.append(_q(a.is_deleted)); ivals.append("'no'")
     if a.create_at:

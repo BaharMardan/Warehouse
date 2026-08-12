@@ -27,9 +27,8 @@ def list_anbar():
 @router.post("", status_code=201)
 def create_anbar(item: AnbarInput, current_user: dict = Depends(get_current_user)):
     new_id = insert_returning_id("""
-        INSERT INTO FA_ANBAR (id_anbar, name_anbar, address, name_masol, phone, is_deleted, create_at, create_by)
+        INSERT INTO FA_ANBAR (name_anbar, address, name_masol, phone, is_deleted, create_at, create_by)
         VALUES (
-            (SELECT NVL(MAX(id_anbar), 0) + 1 FROM FA_ANBAR),
             :name_anbar, :address, :name_masol, :phone, 'no', SYSDATE, :create_by
         )
         RETURNING id_anbar INTO :new_id

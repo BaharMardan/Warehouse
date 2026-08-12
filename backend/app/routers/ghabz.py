@@ -78,11 +78,10 @@ FROM "FA_TALI_HEADER" WHERE "ID_TALI" = :tid AND "IS_DELETED" = 'no'
 
 INSERT_GHABZ = """
 INSERT INTO "fa_ghabz_anbar_header" (
-    "ID_ghabz", "TALI_ID", "NUMBER_tali", "NUMBER_KARANEH", "DATE_UNLOADING",
+    "TALI_ID", "NUMBER_tali", "NUMBER_KARANEH", "DATE_UNLOADING",
     "DATE_ENTER_MARZE", "ID_MARZE", "ID_COUNTRY", "ID_COMPANY", "ID_PRODUCT_OWNEAR",
     "NAME_ANBARDAR", "status_BIMEH", "NUMBER_BIMEH", "IS_DELETED", "CREATE_AT", "CREATE_BY"
 ) VALUES (
-    (SELECT NVL(MAX("ID_ghabz"), 0) + 1 FROM "fa_ghabz_anbar_header"),
     :tali_id, :number_tali, :number_karaneh, :date_unloading,
     :date_enter_marze, :id_marze, :id_country, :id_company, :id_product_ownear,
     :name_anbardar, :status_bimeh, :number_bimeh, 'no', SYSDATE, :actor_id
