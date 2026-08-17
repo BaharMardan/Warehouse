@@ -56,7 +56,8 @@ export const modules: AppModule[] = [
     description: 'محاسبه و صدور صورتحساب',
     route: '/invoice',
     icon: IconInvoice,
-    color: 'orange',
+    // color: 'orange',
+    color: 'red',
     enabled: false,
   },
 ]

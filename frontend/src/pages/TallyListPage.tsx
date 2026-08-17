@@ -1027,6 +1027,7 @@ function StatCard({ icon, value, label, color }: {
   )
 }
 
+
 const COLS = 9 // for skeleton width
 
 export function TallyListPage() {
@@ -1220,16 +1221,51 @@ export function TallyListPage() {
         )}
 
         {data && data.length > 0 && filtered.length > 0 && (
+          // <Table.ScrollContainer minWidth={860}>
+          //   <Table
+          //     striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+          //     style={{
+          //       '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+          //       '--table-highlight-on-hover-color':
+          //         'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
+          //     } as CSSProperties}
+          //   >
+          //     <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))', color: 'var(--mantine-color-white)' }}>
+          //       <Table.Tr>
+          //         <Table.Th>شماره تالی</Table.Th>
+          //         <Table.Th>نام مرز</Table.Th>
+          //         <Table.Th>مبدا (کشور)</Table.Th>
+          //         <Table.Th>نام شرکت حمل</Table.Th>
+          //         <Table.Th>صاحب کالا</Table.Th>
+          //         <Table.Th>تاریخ ورود به مرز</Table.Th>
+          //         <Table.Th>تاریخ تخلیه</Table.Th>
+          //         <Table.Th>وضعیت</Table.Th>
+          //         <Table.Th style={{ textAlign: 'center' }}>عملیات</Table.Th>
+          //       </Table.Tr>
+          //     </Table.Thead>
           <Table.ScrollContainer minWidth={860}>
             <Table
-              striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+              striped
+              highlightOnHover
+              stickyHeader
+              verticalSpacing="sm"
+              horizontalSpacing="md"
+              withRowBorders
               style={{
-                '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+                '--table-striped-color':
+                  'var(--app-accent-light, var(--mantine-color-gray-0))',
                 '--table-highlight-on-hover-color':
                   'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
               } as CSSProperties}
+              styles={{
+                th: {
+                  backgroundColor:
+                    'var(--app-accent-filled, var(--mantine-color-gray-7))',
+                  color: 'var(--mantine-color-white)',
+                },
+              }}
             >
-              <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))', color: 'var(--mantine-color-white)' }}>
+              <Table.Thead>
                 <Table.Tr>
                   <Table.Th>شماره تالی</Table.Th>
                   <Table.Th>نام مرز</Table.Th>
@@ -1239,7 +1275,9 @@ export function TallyListPage() {
                   <Table.Th>تاریخ ورود به مرز</Table.Th>
                   <Table.Th>تاریخ تخلیه</Table.Th>
                   <Table.Th>وضعیت</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>عملیات</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>
+                    عملیات
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

@@ -1,5 +1,6 @@
-// import type { ReactNode } from 'react'
-// import { Table, Loader, Text } from '@mantine/core'
+// import type { ReactNode, CSSProperties } from 'react'
+// import { Table, Text, Paper, Skeleton, Center, Stack, ThemeIcon, Box, Group } from '@mantine/core'
+// import { IconInbox, IconAlert } from './icons'
 
 // export interface Column<T> {
 //   key: string                       // unique column id (React key)
@@ -14,45 +15,126 @@
 //   isLoading?: boolean
 //   error?: unknown
 //   getRowKey: (row: T) => string | number
+//   onRowClick?: (row: T) => void
+//   emptyContent?: ReactNode          // shown when there are no rows (custom empty state)
+//   minWidth?: number
 // }
 
-// export function DataTable<T>({ columns, data, isLoading, error, getRowKey }: DataTableProps<T>) {
-//   if (isLoading) return <Loader />
-//   if (error) return <Text c="red">خطا در بارگذاری اطلاعات</Text>
+// export function DataTable<T>({
+//   columns, data, isLoading, error, getRowKey, onRowClick, emptyContent, minWidth = 720,
+// }: DataTableProps<T>) {
+//   const shell = (child: ReactNode) => (
+//     <Paper radius="md" withBorder shadow="sm" style={{ overflow: 'hidden' }}>{child}</Paper>
+//   )
 
-//   return (
-//     <Table striped withTableBorder highlightOnHover>
-//       <Table.Thead>
-//         <Table.Tr>
-//           {columns.map((col) => (
-//             <Table.Th key={col.key}>{col.label}</Table.Th>
-//           ))}
-//         </Table.Tr>
-//       </Table.Thead>
-//       <Table.Tbody>
-//         {data?.map((row) => (
-//           <Table.Tr key={getRowKey(row)}>
+//   if (isLoading) {
+//     return shell(
+//       <Box p="md">
+//         <Skeleton height={34} radius="sm" mb="sm" />
+//         {Array.from({ length: 6 }).map((_, i) => (
+//           <Group key={i} gap="md" mb="sm" wrap="nowrap">
+//             {columns.map((c, j) => (
+//               <Skeleton key={c.key} height={20} radius="sm" style={{ flex: j === 0 ? '0 0 80px' : 1 }} />
+//             ))}
+//           </Group>
+//         ))}
+//       </Box>,
+//     )
+//   }
+
+//   if (error) {
+//     return shell(
+//       <Center py={56}>
+//         <Stack align="center" gap="xs">
+//           <ThemeIcon size={44} radius="xl" variant="light" color="red"><IconAlert size={24} /></ThemeIcon>
+//           <Text fw={600}>بارگذاری اطلاعات ناموفق بود</Text>
+//           <Text size="sm" c="dimmed">اتصال را بررسی کنید و دوباره تلاش کنید.</Text>
+//         </Stack>
+//       </Center>,
+//     )
+//   }
+
+//   if (!data || data.length === 0) {
+//     return shell(
+//       emptyContent ?? (
+//         <Center py={56}>
+//           <Stack align="center" gap="xs">
+//             <ThemeIcon size={44} radius="xl" variant="light" color="gray" style={{
+//               background: 'var(--app-accent-light, var(--mantine-color-gray-light))',
+//               color: 'var(--app-accent-light-color, var(--mantine-color-gray-6))',
+//             }}><IconInbox size={24} /></ThemeIcon>
+//             <Text fw={600}>موردی برای نمایش نیست</Text>
+//           </Stack>
+//         </Center>
+//       ),
+//     )
+//   }
+
+//   return shell(
+//     <Table.ScrollContainer minWidth={minWidth}>
+//       <Table
+//         striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+//         style={{
+//           '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+//           '--table-highlight-on-hover-color':
+//             'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
+//         } as CSSProperties}
+//       >
+//         <Table.Thead>
+//           <Table.Tr>
 //             {columns.map((col) => (
-//               <Table.Td key={col.key}>
-//                 {col.render ? col.render(row) : String(col.field ? row[col.field] ?? '' : '')}
-//               </Table.Td>
+//               <Table.Th
+//                 key={col.key}
+//                 style={{
+//                   backgroundColor: 'var(--app-accent-filled, var(--mantine-color-gray-7))',
+//                   color: 'var(--mantine-color-white)',
+//                   textAlign: col.key === '__actions' ? 'center' : undefined,
+//                 }}
+//               >
+//                 {col.label}
+//               </Table.Th>
 //             ))}
 //           </Table.Tr>
-//         ))}
-//       </Table.Tbody>
-//     </Table>
+//         </Table.Thead>
+//         <Table.Tbody>
+//           {data.map((row) => (
+//             <Table.Tr
+//               key={getRowKey(row)}
+//               onClick={onRowClick ? () => onRowClick(row) : undefined}
+//               style={onRowClick ? { cursor: 'pointer' } : undefined}
+//             >
+//               {columns.map((col) => (
+//                 <Table.Td key={col.key} style={col.key === '__actions' ? { textAlign: 'center' } : undefined}>
+//                   {col.render ? col.render(row) : String(col.field ? row[col.field] ?? '' : '')}
+//                 </Table.Td>
+//               ))}
+//             </Table.Tr>
+//           ))}
+//         </Table.Tbody>
+//       </Table>
+//     </Table.ScrollContainer>,
 //   )
 // }
 
 import type { ReactNode, CSSProperties } from 'react'
-import { Table, Text, Paper, Skeleton, Center, Stack, ThemeIcon, Box, Group } from '@mantine/core'
+import {
+  Table,
+  Text,
+  Paper,
+  Skeleton,
+  Center,
+  Stack,
+  ThemeIcon,
+  Box,
+  Group,
+} from '@mantine/core'
 import { IconInbox, IconAlert } from './icons'
 
 export interface Column<T> {
-  key: string                       // unique column id (React key)
+  key: string
   label: string
-  field?: keyof T                   // which data field to show by default
-  render?: (row: T) => ReactNode    // OR a custom cell (actions, badges, dates…)
+  field?: keyof T
+  render?: (row: T) => ReactNode
 }
 
 interface DataTableProps<T> {
@@ -62,25 +144,47 @@ interface DataTableProps<T> {
   error?: unknown
   getRowKey: (row: T) => string | number
   onRowClick?: (row: T) => void
-  emptyContent?: ReactNode          // shown when there are no rows (custom empty state)
+  emptyContent?: ReactNode
   minWidth?: number
 }
 
 export function DataTable<T>({
-  columns, data, isLoading, error, getRowKey, onRowClick, emptyContent, minWidth = 720,
+  columns,
+  data,
+  isLoading,
+  error,
+  getRowKey,
+  onRowClick,
+  emptyContent,
+  minWidth = 720,
 }: DataTableProps<T>) {
   const shell = (child: ReactNode) => (
-    <Paper radius="md" withBorder shadow="sm" style={{ overflow: 'hidden' }}>{child}</Paper>
+    <Paper
+      radius="md"
+      withBorder
+      shadow="sm"
+      style={{ overflow: 'hidden' }}
+    >
+      {child}
+    </Paper>
   )
 
   if (isLoading) {
     return shell(
       <Box p="md">
         <Skeleton height={34} radius="sm" mb="sm" />
+
         {Array.from({ length: 6 }).map((_, i) => (
           <Group key={i} gap="md" mb="sm" wrap="nowrap">
-            {columns.map((c, j) => (
-              <Skeleton key={c.key} height={20} radius="sm" style={{ flex: j === 0 ? '0 0 80px' : 1 }} />
+            {columns.map((column, index) => (
+              <Skeleton
+                key={column.key}
+                height={20}
+                radius="sm"
+                style={{
+                  flex: index === 0 ? '0 0 80px' : 1,
+                }}
+              />
             ))}
           </Group>
         ))}
@@ -92,9 +196,20 @@ export function DataTable<T>({
     return shell(
       <Center py={56}>
         <Stack align="center" gap="xs">
-          <ThemeIcon size={44} radius="xl" variant="light" color="red"><IconAlert size={24} /></ThemeIcon>
+          <ThemeIcon
+            size={44}
+            radius="xl"
+            variant="light"
+            color="red"
+          >
+            <IconAlert size={24} />
+          </ThemeIcon>
+
           <Text fw={600}>بارگذاری اطلاعات ناموفق بود</Text>
-          <Text size="sm" c="dimmed">اتصال را بررسی کنید و دوباره تلاش کنید.</Text>
+
+          <Text size="sm" c="dimmed">
+            اتصال را بررسی کنید و دوباره تلاش کنید.
+          </Text>
         </Stack>
       </Center>,
     )
@@ -105,10 +220,21 @@ export function DataTable<T>({
       emptyContent ?? (
         <Center py={56}>
           <Stack align="center" gap="xs">
-            <ThemeIcon size={44} radius="xl" variant="light" color="gray" style={{
-              background: 'var(--app-accent-light, var(--mantine-color-gray-light))',
-              color: 'var(--app-accent-light-color, var(--mantine-color-gray-6))',
-            }}><IconInbox size={24} /></ThemeIcon>
+            <ThemeIcon
+              size={44}
+              radius="xl"
+              variant="light"
+              color="gray"
+              style={{
+                background:
+                  'var(--app-accent-light, var(--mantine-color-gray-light))',
+                color:
+                  'var(--app-accent-light-color, var(--mantine-color-gray-6))',
+              }}
+            >
+              <IconInbox size={24} />
+            </ThemeIcon>
+
             <Text fw={600}>موردی برای نمایش نیست</Text>
           </Stack>
         </Center>
@@ -119,38 +245,74 @@ export function DataTable<T>({
   return shell(
     <Table.ScrollContainer minWidth={minWidth}>
       <Table
-        striped highlightOnHover stickyHeader verticalSpacing="sm" horizontalSpacing="md" withRowBorders
+        striped
+        highlightOnHover
+        stickyHeader
+        verticalSpacing="sm"
+        horizontalSpacing="md"
+        withRowBorders
         style={{
-          '--table-striped-color': 'var(--app-accent-light, var(--mantine-color-gray-0))',
+          '--table-striped-color':
+            'var(--app-accent-light, var(--mantine-color-gray-0))',
           '--table-highlight-on-hover-color':
             'var(--app-accent-light-hover, var(--mantine-color-gray-1))',
         } as CSSProperties}
+        styles={{
+          th: {
+            backgroundColor:
+              'var(--app-accent-filled, var(--mantine-color-gray-7))',
+            color: 'var(--mantine-color-white)',
+          },
+        }}
       >
-        <Table.Thead style={{ background: 'var(--app-accent-filled, var(--mantine-color-gray-light))' }}>
+        <Table.Thead>
           <Table.Tr>
-            {columns.map((col) => (
+            {columns.map((column) => (
               <Table.Th
-                key={col.key}
+                key={column.key}
                 style={{
-                  color: 'var(--mantine-color-white)',
-                  textAlign: col.key === '__actions' ? 'center' : undefined,
+                  textAlign:
+                    column.key === '__actions' ? 'center' : undefined,
                 }}
               >
-                {col.label}
+                {column.label}
               </Table.Th>
             ))}
           </Table.Tr>
         </Table.Thead>
+
         <Table.Tbody>
           {data.map((row) => (
             <Table.Tr
               key={getRowKey(row)}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              style={onRowClick ? { cursor: 'pointer' } : undefined}
+              onClick={
+                onRowClick
+                  ? () => onRowClick(row)
+                  : undefined
+              }
+              style={
+                onRowClick
+                  ? { cursor: 'pointer' }
+                  : undefined
+              }
             >
-              {columns.map((col) => (
-                <Table.Td key={col.key} style={col.key === '__actions' ? { textAlign: 'center' } : undefined}>
-                  {col.render ? col.render(row) : String(col.field ? row[col.field] ?? '' : '')}
+              {columns.map((column) => (
+                <Table.Td
+                  key={column.key}
+                  style={{
+                    textAlign:
+                      column.key === '__actions'
+                        ? 'center'
+                        : undefined,
+                  }}
+                >
+                  {column.render
+                    ? column.render(row)
+                    : String(
+                        column.field
+                          ? row[column.field] ?? ''
+                          : '',
+                      )}
                 </Table.Td>
               ))}
             </Table.Tr>
