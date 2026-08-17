@@ -1146,6 +1146,8 @@ class KalaVehicleEnterInput(BaseModel):
 # the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
     number_karaneh: str | None = None       # شماره کارنه / ترانزیت
+    tracking_number: str | None = None      # شماره پیگیری
+    customs_procedure: Literal["واردات", "صادرات", "حمل یکسره"] | None = None
     radef_marze: int | None = None          # ردیف مرزی
     date_enter_marze: str | None = None     # تاریخ ورود به مرز (ISO date string)
     date_unloading: str | None = None       # تاریخ تخلیه (ISO date string)

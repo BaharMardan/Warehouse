@@ -744,7 +744,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ActionIcon, Title, Paper, Grid, TextInput, Textarea, Radio, Group, Button, Stack, LoadingOverlay,
+  ActionIcon, Title, Paper, Grid, TextInput, Textarea, Radio, Select, Group, Button, Stack, LoadingOverlay,
 } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
 import { RefSelect } from '../components/RefSelect'
@@ -800,6 +800,8 @@ function serializeInsurancePolicyNumbers(numbers: string[]): string | null {
 // Editable form fields. The generated tally number is deliberately excluded.
 type TallyHeaderState = {
   number_karaneh: string
+  tracking_number: string
+  customs_procedure: string
   radef_marze: string // kept as string in the input, sent as number|null
   date_enter_marze: string | null // ISO date
   date_unloading: string | null // ISO date
@@ -820,7 +822,8 @@ type TallyHeaderState = {
 }
 
 const EMPTY: TallyHeaderState = {
-  number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
+  number_karaneh: '', tracking_number: '', customs_procedure: '',
+  radef_marze: '', date_enter_marze: null, date_unloading: null,
   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
   owner_national_code: '', id_country: null, number_bimeh: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
@@ -840,6 +843,8 @@ function toPayload(s: TallyHeaderState) {
   const codeOrNull = (v: string) => strOrNull(normalizeDigits(v))
   return {
     number_karaneh: codeOrNull(s.number_karaneh),   // ← normalized
+    tracking_number: codeOrNull(s.tracking_number),
+    customs_procedure: strOrNull(s.customs_procedure),
     radef_marze: numOrNull(normalizeDigits(s.radef_marze)),
     date_enter_marze: s.date_enter_marze,
     date_unloading: s.date_unloading,
@@ -867,6 +872,8 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
   const s = (v: any) => (v == null ? '' : String(v))
   return {
     number_karaneh: s(r.number_karaneh),
+    tracking_number: s(r.tracking_number),
+    customs_procedure: s(r.customs_procedure),
     radef_marze: s(r.radef_marze),
     date_enter_marze: r.date_enter_marze ?? null,
     date_unloading: r.date_unloading ?? null,
@@ -1200,6 +1207,26 @@ export function TallyHeaderForm() {
               readOnly
               disabled={!isEdit}
               styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
+            />
+          </Grid.Col>
+
+          {/* --- row: tracking number + customs procedure --- */}
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="شماره پیگیری"
+              value={form.tracking_number}
+              onChange={(e) => set('tracking_number', e.currentTarget.value)}
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Select
+              label="رویه"
+              placeholder="انتخاب کنید"
+              data={['واردات', 'صادرات', 'حمل یکسره']}
+              value={form.customs_procedure || null}
+              onChange={(value) => set('customs_procedure', value ?? '')}
+              clearable
             />
           </Grid.Col>
 
