@@ -92,6 +92,8 @@ import { TallyNumber } from '../components/TallyNumber'
 
 type GhabzRow = {
   id_ghabz: number
+  ghabz_number: string | null
+  ghabz_seq: number | null
   number_ghabz: number | null
   number_tali: string | null
   tali_id: number | null
@@ -101,6 +103,8 @@ type GhabzRow = {
   company_name: string | null
   owner_name: string | null
   anbar_name: string | null
+  created_by_username: string | null
+  created_by_full_name: string | null
 }
 
 function isoToJalali(iso: string | null): string {
@@ -141,7 +145,7 @@ export function GhabzListPage() {
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>شماره قبض</Table.Th>
+                <Table.Th>شماره قبض انبار</Table.Th>
                 <Table.Th>شماره تالی</Table.Th>
                 <Table.Th>نام مرز</Table.Th>
                 <Table.Th>کشور</Table.Th>
@@ -149,13 +153,16 @@ export function GhabzListPage() {
                 <Table.Th>صاحب کالا</Table.Th>
                 <Table.Th>انبار</Table.Th>
                 <Table.Th>تاریخ تخلیه</Table.Th>
+                <Table.Th>کاربر ثبت‌کننده</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {data.map((row) => (
                 <Table.Tr key={row.id_ghabz} style={{ cursor: 'pointer' }}
                   onClick={() => navigate(`/ghabz/${row.id_ghabz}`)}>
-                  <Table.Td>{row.number_ghabz ?? '—'}</Table.Td>
+                  <Table.Td>
+                    <bdi dir="ltr">{row.ghabz_number ?? row.number_ghabz ?? '—'}</bdi>
+                  </Table.Td>
                   <Table.Td><TallyNumber value={row.number_tali} /></Table.Td>
                   <Table.Td>{row.marze_name ?? '—'}</Table.Td>
                   <Table.Td>{row.country_name ?? '—'}</Table.Td>
@@ -163,6 +170,9 @@ export function GhabzListPage() {
                   <Table.Td>{row.owner_name?.trim() || '—'}</Table.Td>
                   <Table.Td>{row.anbar_name ?? '—'}</Table.Td>
                   <Table.Td>{isoToJalali(row.date_unloading)}</Table.Td>
+                  <Table.Td>
+                    {row.created_by_full_name?.trim() || row.created_by_username?.trim() || '—'}
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
