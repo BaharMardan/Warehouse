@@ -1,5 +1,6 @@
 // import { useState } from 'react'
 // import { useParams, useNavigate } from 'react-router-dom'
+// import { BackButton } from '../components/BackButton'
 // import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 // import {
 //   Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
@@ -7,19 +8,20 @@
 // } from '@mantine/core'
 // import { apiGet, apiSend } from '../api/client'
 // import { RefSelect } from '../components/RefSelect'
+// import { TermValueSelect } from '../components/TermValueSelect'
 // import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 
 // type DetailRow = {
 //   id_ghabz_anbar_details: number
 //   id_ghabz_anbar_headar: number
-//   code_kala: number
+//   code_kala: number | null
 //   code_kala_kantiner: number | null
 //   description_kala: string | null
 //   type_basteh: string | null
-//   number_kala: number
+//   number_kala: number | null
 //   number_kantiner: number | null
-//   weighte_asnad: number
-//   weighte_baskol: number
+//   weighte_asnad: number | null
+//   weighte_baskol: number | null
 //   number_hamel: string | null
 //   id_tagh_anbar: number | null
 //   tagh_name: string | null
@@ -66,12 +68,12 @@
 //     const strOrNull = (v: string) => (v.trim() === '' ? null : v)
 //     return {
 //       id_ghabz_anbar_headar: headerId,
-//       code_kala: Number(normalizeDigits(f.code_kala)),
+//       code_kala: numOrNull(f.code_kala),
 //       description_kala: strOrNull(f.description_kala),
 //       type_basteh: strOrNull(f.type_basteh),
-//       number_kala: Number(normalizeDigits(f.number_kala)),
-//       weighte_asnad: Number(normalizeDigits(f.weighte_asnad)),
-//       weighte_baskol: Number(normalizeDigits(f.weighte_baskol)),
+//       number_kala: numOrNull(f.number_kala),
+//       weighte_asnad: numOrNull(f.weighte_asnad),
+//       weighte_baskol: numOrNull(f.weighte_baskol),
 //       number_hamel: strOrNull(f.number_hamel),
 //       id_tagh_anbar: f.id_tagh_anbar,
 //     }
@@ -111,16 +113,13 @@
 //     })
 //     setModalOpen(true)
 //   }
-//   const canSave = line.code_kala.trim() && line.number_kala.trim() &&
-//                   line.weighte_asnad.trim() && line.weighte_baskol.trim()
-
 //   return (
 //     <div dir="rtl">
 //       <Group justify="space-between" mb="md">
 //         <Title order={2}>جزئیات قبض انبار #{headerId}</Title>
 //         <Group>
 //           <Button variant="light" onClick={() => navigate(`/ghabz/${headerId}/edit`)}>ویرایش سربرگ</Button>
-//           <Button variant="subtle" onClick={() => navigate('/ghabz')}>بازگشت</Button>
+//           <BackButton to="/ghabz" />
 //         </Group>
 //       </Group>
 //       <Paper shadow="xs" p="md">
@@ -141,12 +140,12 @@
 //             <Table.Tbody>
 //               {lines.map((r) => (
 //                 <Table.Tr key={r.id_ghabz_anbar_details}>
-//                   <Table.Td>{r.code_kala}</Table.Td>
+//                   <Table.Td>{r.code_kala ?? '—'}</Table.Td>
 //                   <Table.Td>{r.description_kala ?? '—'}</Table.Td>
 //                   <Table.Td>{r.type_basteh ?? '—'}</Table.Td>
-//                   <Table.Td>{r.number_kala}</Table.Td>
-//                   <Table.Td>{r.weighte_asnad}</Table.Td>
-//                   <Table.Td>{r.weighte_baskol}</Table.Td>
+//                   <Table.Td>{r.number_kala ?? '—'}</Table.Td>
+//                   <Table.Td>{r.weighte_asnad ?? '—'}</Table.Td>
+//                   <Table.Td>{r.weighte_baskol ?? '—'}</Table.Td>
 //                   <Table.Td>{r.tagh_name ?? '—'}</Table.Td>
 //                   <Table.Td>
 //                     <Group gap="xs">
@@ -174,13 +173,13 @@
 //           <Grid>
 //             <Grid.Col span={6}><TextInput label="شرح کالا"
 //               value={line.description_kala} onChange={(e) => set('description_kala', e.currentTarget.value)} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="نوع بسته‌بندی"
-//               value={line.type_basteh} onChange={(e) => set('type_basteh', e.currentTarget.value)} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="تعداد" required inputMode="numeric"
+//             <Grid.Col span={6}><TermValueSelect label="نوع بسته‌بندی" categoryId={3}
+//               value={line.type_basteh || null} onChange={(value) => set('type_basteh', value ?? '')} /></Grid.Col>
+//             <Grid.Col span={6}><TextInput label="تعداد" inputMode="numeric"
 //               value={line.number_kala} onChange={(e) => set('number_kala', e.currentTarget.value)} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="وزن اسناد" required inputMode="numeric"
+//             <Grid.Col span={6}><TextInput label="وزن اسناد" inputMode="numeric"
 //               value={line.weighte_asnad} onChange={(e) => set('weighte_asnad', e.currentTarget.value)} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="وزن باسکول" required inputMode="numeric"
+//             <Grid.Col span={6}><TextInput label="وزن باسکول" inputMode="numeric"
 //               value={line.weighte_baskol} onChange={(e) => set('weighte_baskol', e.currentTarget.value)} /></Grid.Col>
 //             <Grid.Col span={6}><RefSelect label="طاق" path="/tagh" valueKey="id_tagh" labelKey="name_tagh"
 //               value={line.id_tagh_anbar} onChange={(v) => set('id_tagh_anbar', v)} /></Grid.Col>
@@ -188,7 +187,7 @@
 //               value={line.number_hamel} onChange={(e) => set('number_hamel', e.currentTarget.value)} /></Grid.Col>
 //           </Grid>
 //           <Group justify="flex-start" mt="md">
-//             <Button onClick={() => saveMutation.mutate(line)} loading={saveMutation.isPending} disabled={!canSave}>ذخیره</Button>
+//             <Button onClick={() => saveMutation.mutate(line)} loading={saveMutation.isPending}>ذخیره</Button>
 //             <Button variant="subtle" onClick={() => setModalOpen(false)}>لغو</Button>
 //           </Group>
 //         </Stack>
@@ -197,7 +196,7 @@
 //   )
 // }
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -216,6 +215,7 @@ type DetailRow = {
   code_kala: number | null
   code_kala_kantiner: number | null
   description_kala: string | null
+  hscode: string | null
   type_basteh: string | null
   number_kala: number | null
   number_kantiner: number | null
@@ -226,9 +226,20 @@ type DetailRow = {
   tagh_name: string | null
 }
 
+type GhabzSummary = {
+  id_ghabz: number
+  ghabz_number: string | null
+  number_ghabz: number | null
+  number_tali: string | null
+  tali_id: number | null
+  created_by_username: string | null
+  created_by_full_name: string | null
+}
+
 type LineForm = {
   code_kala: string
   description_kala: string
+  hscode: string
   type_basteh: string
   number_kala: string
   weighte_asnad: string
@@ -238,7 +249,7 @@ type LineForm = {
 }
 
 const EMPTY: LineForm = {
-  code_kala: '', description_kala: '', type_basteh: '', number_kala: '',
+  code_kala: '', description_kala: '', hscode: '', type_basteh: '', number_kala: '',
   weighte_asnad: '', weighte_baskol: '', number_hamel: '', id_tagh_anbar: null,
 }
 
@@ -256,11 +267,44 @@ export function GhabzDetailPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [line, setLine] = useState<LineForm>(EMPTY)
   const [picked, setPicked] = useState<Commodity | null>(null)
+  // HS code of the row being edited, used to restore the catalog selection below.
+  const [hydrateHs, setHydrateHs] = useState<string | null>(null)
+
+  const { data: summary } = useQuery({
+    queryKey: ['ghabz-summary', headerId],
+    queryFn: () => apiGet<GhabzSummary>(`/ghabz/${headerId}/summary`),
+    enabled: Number.isFinite(headerId),
+  })
 
   const { data: lines, isLoading } = useQuery({
     queryKey: ['ghabz-details', headerId],
     queryFn: () => apiGet<DetailRow[]>(`/ghabz/${headerId}/details`),
   })
+
+  /**
+   * Restore the catalog selection when editing an existing line.
+   *
+   * Neither FA_ghabz_anbar_DETAILES nor FA_TALI_DETAILES stores the catalog row
+   * id — both only snapshot description / HS / storage group. So the commodity
+   * is re-resolved from the stored HS code, which is exact: FA_COMMODITY_CATALOG
+   * carries UQ_COMMODITY_HS, so one HS code means one catalog row. A line with no
+   * HS code simply leaves the picker empty, which is the honest result.
+   */
+  const { data: hsLookup } = useQuery({
+    queryKey: ['commodity-by-hs', hydrateHs],
+    queryFn: () =>
+      apiGet<{ items: Commodity[] }>(
+        `/commodity?q=${encodeURIComponent(hydrateHs ?? '')}&limit=5`,
+      ),
+    enabled: hydrateHs != null && hydrateHs.trim() !== '',
+    staleTime: 60 * 1000,
+  })
+
+  useEffect(() => {
+    if (hydrateHs == null || !hsLookup) return
+    const exact = hsLookup.items.find((c) => c.hs_code === hydrateHs.trim())
+    if (exact) setPicked(exact)
+  }, [hydrateHs, hsLookup])
 
   function toPayload(f: LineForm) {
     const numOrNull = (v: string) => (v.trim() === '' ? null : Number(normalizeDigits(v)))
@@ -269,6 +313,7 @@ export function GhabzDetailPage() {
       id_ghabz_anbar_headar: headerId,
       code_kala: numOrNull(f.code_kala),
       description_kala: strOrNull(f.description_kala),
+      hscode: strOrNull(f.hscode),
       type_basteh: strOrNull(f.type_basteh),
       number_kala: numOrNull(f.number_kala),
       weighte_asnad: numOrNull(f.weighte_asnad),
@@ -292,30 +337,52 @@ export function GhabzDetailPage() {
 
   const set = <K extends keyof LineForm>(k: K, v: LineForm[K]) => setLine((l) => ({ ...l, [k]: v }))
 
-  // snapshot the description from the picked catalog commodity (ghabz lines carry no
-  // hscode/unit/duty columns); code_kala (= storage group) is set by CommodityPicker.
+  // snapshot description + HS from the picked catalog commodity; code_kala (= storage
+  // group) is set by CommodityPicker. HS is what lets the picker rehydrate on reopen.
   function onPickCommodity(c: Commodity | null) {
     setPicked(c)
     if (!c) return
-    setLine((l) => ({ ...l, description_kala: c.description_fa ?? '' }))
+    setHydrateHs(c.hs_code ?? null)
+    setLine((l) => ({
+      ...l,
+      description_kala: c.description_fa ?? '',
+      hscode: c.hs_code ?? '',
+    }))
   }
 
-  function openAdd() { setEditingId(null); setLine(EMPTY); setPicked(null); setModalOpen(true) }
+  function openAdd() {
+    setEditingId(null); setLine(EMPTY); setPicked(null); setHydrateHs(null); setModalOpen(true)
+  }
   function openEdit(r: DetailRow) {
     setEditingId(r.id_ghabz_anbar_details)
     setPicked(null)
+    setHydrateHs(r.hscode)
     setLine({
       code_kala: String(r.code_kala ?? ''), description_kala: r.description_kala ?? '',
+      hscode: r.hscode ?? '',
       type_basteh: r.type_basteh ?? '', number_kala: String(r.number_kala ?? ''),
       weighte_asnad: String(r.weighte_asnad ?? ''), weighte_baskol: String(r.weighte_baskol ?? ''),
       number_hamel: r.number_hamel ?? '', id_tagh_anbar: r.id_tagh_anbar,
     })
     setModalOpen(true)
   }
+
+  // The printed receipt number, not the table's primary key.
+  const receiptNumber = summary?.ghabz_number ?? summary?.number_ghabz ?? null
+  const createdBy = summary?.created_by_full_name?.trim() || summary?.created_by_username?.trim()
+
   return (
     <div dir="rtl">
       <Group justify="space-between" mb="md">
-        <Title order={2}>جزئیات قبض انبار #{headerId}</Title>
+        <Group gap="sm" align="baseline">
+          <Title order={2}>
+            قبض انبار <bdi dir="ltr">{receiptNumber ?? '—'}</bdi>
+          </Title>
+          {summary?.number_tali && (
+            <Text c="dimmed" size="sm">تالی <bdi dir="ltr">{summary.number_tali}</bdi></Text>
+          )}
+          {createdBy && <Text c="dimmed" size="sm">ثبت‌کننده: {createdBy}</Text>}
+        </Group>
         <Group>
           <Button variant="light" onClick={() => navigate(`/ghabz/${headerId}/edit`)}>ویرایش سربرگ</Button>
           <BackButton to="/ghabz" />
@@ -332,14 +399,16 @@ export function GhabzDetailPage() {
         {lines && lines.length > 0 && (
           <Table striped withTableBorder>
             <Table.Thead><Table.Tr>
-              <Table.Th>کد کالا</Table.Th><Table.Th>شرح</Table.Th><Table.Th>نوع بسته</Table.Th>
+              <Table.Th>کد گروه کالا</Table.Th><Table.Th>Hscode</Table.Th>
+              <Table.Th>شرح</Table.Th><Table.Th>نوع بسته</Table.Th>
               <Table.Th>تعداد</Table.Th><Table.Th>وزن اسناد</Table.Th><Table.Th>وزن باسکول</Table.Th>
               <Table.Th>طاق</Table.Th><Table.Th>عملیات</Table.Th>
             </Table.Tr></Table.Thead>
             <Table.Tbody>
               {lines.map((r) => (
                 <Table.Tr key={r.id_ghabz_anbar_details}>
-                  <Table.Td>{r.code_kala ?? '—'}</Table.Td>
+                  <Table.Td><bdi dir="ltr">{r.code_kala ?? '—'}</bdi></Table.Td>
+                  <Table.Td><bdi dir="ltr">{r.hscode ?? '—'}</bdi></Table.Td>
                   <Table.Td>{r.description_kala ?? '—'}</Table.Td>
                   <Table.Td>{r.type_basteh ?? '—'}</Table.Td>
                   <Table.Td>{r.number_kala ?? '—'}</Table.Td>
@@ -372,6 +441,8 @@ export function GhabzDetailPage() {
           <Grid>
             <Grid.Col span={6}><TextInput label="شرح کالا"
               value={line.description_kala} onChange={(e) => set('description_kala', e.currentTarget.value)} /></Grid.Col>
+            <Grid.Col span={6}><TextInput label="Hscode" inputMode="numeric"
+              value={line.hscode} onChange={(e) => set('hscode', e.currentTarget.value)} /></Grid.Col>
             <Grid.Col span={6}><TermValueSelect label="نوع بسته‌بندی" categoryId={3}
               value={line.type_basteh || null} onChange={(value) => set('type_basteh', value ?? '')} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="تعداد" inputMode="numeric"
