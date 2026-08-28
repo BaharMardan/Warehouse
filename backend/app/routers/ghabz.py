@@ -608,6 +608,7 @@ FROM (
         NVL(SUM(t."WEIGHTE_BASKOL"), 0) AS tally_weighte_baskol
     FROM "FA_TALI_DETAILES" t
     WHERE t."ID_HEADERS_TALI" = :tid
+        AND t."IS_DELETED" = 'no'
     GROUP BY t."CODE_GROUPE_KALA"
 ) g
 LEFT JOIN "FA_ANBAR"      a  ON a."ID_ANBAR" = g.id_anbar
