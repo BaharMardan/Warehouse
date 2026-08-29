@@ -10,10 +10,13 @@ from fastapi import HTTPException
 
 from app.services.ghabz_allotment import (
     GhabzLineInput,
+    annotate,
+    available,
     drawable,
     full_draw,
     has_allotment,
     plan_lines,
+    over_issued,
     remaining,
     shared_anbar,
 )
@@ -178,3 +181,102 @@ def test_full_draw_carries_the_descriptive_columns():
 )
 def test_header_warehouse_only_when_the_lines_agree(rows, expected):
     assert shared_anbar(rows) == expected
+
+
+# --- over-issued rows -------------------------------------------------------
+# A tally row deleted after receipts were issued against it leaves the receipts
+# holding more than the tally now allots. The figures must never go negative on
+# their way to an input, but the condition must still be visible.
+
+def over_issued_row():
+    return allotment(
+        tally_weighte_baskol=1_000,
+        issued_weighte_baskol=46_203_313,
+        issued_number_kala=873,
+        issued_weighte_asnad=20_378,
+    )
+
+
+def test_raw_remaining_stays_negative_so_the_condition_is_visible():
+    assert remaining(over_issued_row(), "weighte_baskol") < 0
+
+
+def test_available_never_goes_below_zero():
+    assert available(over_issued_row(), "weighte_baskol") == 0
+
+
+def test_over_issued_is_flagged():
+    assert over_issued(over_issued_row())
+    assert not over_issued(allotment())
+
+
+def test_annotate_publishes_clamped_figures():
+    rows = annotate([over_issued_row()])
+
+    assert rows[0]["remaining_weighte_baskol"] == 0
+    assert rows[0]["over_issued"] is True
+    assert rows[0]["remaining_number_kala"] == 7
+
+
+def test_an_over_issued_code_is_still_drawable_on_its_other_measures():
+    """Code 24 in the report: baskol is overdrawn but 7 units remain."""
+    assert drawable(over_issued_row())
+
+
+def test_default_draw_on_an_over_issued_row_is_zero_not_negative():
+    row = over_issued_row()
+
+    lines = plan_lines(None, [row], {110: row})
+
+    assert lines[0]["weighte_baskol"] == 0
+    assert lines[0]["number_kala"] == 7
+
+
+def test_drawing_on_an_exhausted_measure_is_refused_with_zero_as_the_limit():
+    row = over_issued_row()
+
+    with pytest.raises(HTTPException) as caught:
+        plan_lines([GhabzLineInput(code_kala=110, weighte_baskol=5)], [row], {110: row})
+    assert "0" in caught.value.detail
+
+
+# --- app query / trigger coupling -------------------------------------------
+# ALLOTMENTS_SQL and TRG_CHK_GHABZ_TALI_LIMIT compute the same sums and must
+# agree on which rows count. When they drifted apart, deleting a receipt freed
+# nothing in the UI. The router is read as text because importing it opens the
+# Oracle connection pool.
+
+import pathlib
+import re
+
+ROUTER = pathlib.Path(__file__).resolve().parents[1] / "app" / "routers" / "ghabz.py"
+
+
+def issued_subqueries() -> list[str]:
+    sql = re.search(r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S)
+    assert sql, "ALLOTMENTS_SQL not found"
+    return re.findall(r"NVL\(\(\s*SELECT SUM\(d\.(.*?)\), 0\)", sql.group(1), re.S)
+
+
+def test_all_three_issued_sums_are_present():
+    assert len(issued_subqueries()) == 3
+
+
+@pytest.mark.parametrize("index", [0, 1, 2])
+def test_issued_sums_ignore_soft_deleted_receipt_lines(index):
+    """A deleted line must release its quantity back to the tally."""
+    assert "d.\"IS_DELETED\" = 'no'" in issued_subqueries()[index]
+
+
+@pytest.mark.parametrize("index", [0, 1, 2])
+def test_issued_sums_ignore_soft_deleted_receipt_headers(index):
+    """Deleting a whole receipt must release it too, even if its lines are live."""
+    assert "h.\"IS_DELETED\" = 'no'" in issued_subqueries()[index]
+
+
+def test_tally_allotment_ignores_soft_deleted_tally_rows():
+    sql = re.search(
+        r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S
+    ).group(1)
+    inline_view = sql.split("FROM (", 1)[1]
+    assert "t.\"IS_DELETED\" = 'no'" in inline_view
