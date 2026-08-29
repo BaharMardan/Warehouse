@@ -38,6 +38,7 @@
 //   remaining_weighte_asnad: number
 //   remaining_weighte_baskol: number
 //   has_allotment: boolean
+//   over_issued: boolean
 //   drawable: boolean
 // }
 
@@ -121,9 +122,9 @@
 //     setDraws(Object.fromEntries(available.map((row) => [
 //       row.code_kala as number,
 //       {
-//         number_kala: row.remaining_number_kala,
-//         weighte_asnad: row.remaining_weighte_asnad,
-//         weighte_baskol: row.remaining_weighte_baskol,
+//         number_kala: Math.max(row.remaining_number_kala, 0),
+//         weighte_asnad: Math.max(row.remaining_weighte_asnad, 0),
+//         weighte_baskol: Math.max(row.remaining_weighte_baskol, 0),
 //       },
 //     ])))
 //     setError(null)
@@ -296,19 +297,36 @@
 //                               {blockedReason(row)}
 //                             </Badge>
 //                           ) : (
-//                             <Text size="xs" c="dimmed">
-//                               <bdi dir="ltr">
-//                                 {num(row.remaining_number_kala)} / {num(row.remaining_weighte_asnad)} / {num(row.remaining_weighte_baskol)}
-//                               </bdi>
-//                             </Text>
+//                             <>
+//                               <Text size="xs" c="dimmed">
+//                                 <bdi dir="ltr">
+//                                   {num(row.remaining_number_kala)} / {num(row.remaining_weighte_asnad)} / {num(row.remaining_weighte_baskol)}
+//                                 </bdi>
+//                               </Text>
+//                               {row.over_issued && (
+//                                 <Tooltip
+//                                   multiline
+//                                   w={260}
+//                                   label="مقدار صادرشده در قبض‌ها از مقدار فعلی تالی بیشتر است؛ احتمالاً ردیفی از تالی پس از صدور قبض حذف شده. مقدار قابل صدور صفر در نظر گرفته شد."
+//                                 >
+//                                   <Badge color="orange" variant="light" size="xs" mt={4}>
+//                                     مغایرت با تالی
+//                                   </Badge>
+//                                 </Tooltip>
+//                               )}
+//                             </>
 //                           )}
 //                         </Table.Td>
 //                         {(['number_kala', 'weighte_asnad', 'weighte_baskol'] as const).map(
 //                           (measure) => {
-//                             const max =
+//                             // remaining_* is already clamped at zero server-side;
+//                             // guard again so max can never fall below min.
+//                             const max = Math.max(
 //                               measure === 'number_kala' ? row.remaining_number_kala
 //                               : measure === 'weighte_asnad' ? row.remaining_weighte_asnad
-//                               : row.remaining_weighte_baskol
+//                               : row.remaining_weighte_baskol,
+//                               0,
+//                             )
 //                             return (
 //                               <Table.Td key={measure}>
 //                                 <NumberInput
@@ -359,7 +377,6 @@
 //   )
 // }
 
-
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -371,10 +388,9 @@ import { apiGet, apiSend } from '../api/client'
 /**
  * صدور قبض انبار — draw quantities against the tally, per goods code.
  *
- * The database decides the shape of this screen. FA_ghabz_anbar_DETAILES carries
- * UNIQUE (ID_GHABZ_ANBAR_HEADAR, code_kala), and TRG_CHK_GHABZ_TALI_LIMIT caps
+ * Receipt rows are grouped by goods code + packaging. TRG_CHK_GHABZ_TALI_LIMIT caps
  * the sum of every receipt of a tally at the tally's own totals for each
- * CODE_GROUPE_KALA. So a receipt holds one line per code, and issuing means
+ * CODE_GROUPE_KALA. So issuing means
  * choosing how much of each code's remaining allotment to take — not which
  * tally rows to copy.
  *
@@ -383,12 +399,16 @@ import { apiGet, apiSend } from '../api/client'
  */
 
 type Allotment = {
+  allotment_key: string
   code_kala: number | null
   description_kala: string | null
   hscode: string | null
   type_bastem: string | null
   anbar_name: string | null
   tagh_name: string | null
+  number_hamel: string | null
+  source_anbar_names: string | null
+  source_tagh_names: string | null
   tally_line_count: number
   tally_number_kala: number
   tally_weighte: number
@@ -465,8 +485,8 @@ export function GhabzIssueModal({
   onIssued: (result: IssueResult) => void
 }) {
   const queryClient = useQueryClient()
-  const [selected, setSelected] = useState<number[]>([])
-  const [draws, setDraws] = useState<Record<number, Draw>>({})
+  const [selected, setSelected] = useState<string[]>([])
+  const [draws, setDraws] = useState<Record<string, Draw>>({})
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery({
@@ -480,9 +500,9 @@ export function GhabzIssueModal({
 
   useEffect(() => {
     if (!opened) return
-    setSelected(available.map((row) => row.code_kala as number))
+    setSelected(available.map((row) => row.allotment_key))
     setDraws(Object.fromEntries(available.map((row) => [
-      row.code_kala as number,
+      row.allotment_key,
       {
         number_kala: Math.max(row.remaining_number_kala, 0),
         weighte_asnad: Math.max(row.remaining_weighte_asnad, 0),
@@ -495,12 +515,16 @@ export function GhabzIssueModal({
   const issue = useMutation({
     mutationFn: () =>
       apiSend<IssueResult>(`/ghabz/from-tally/${tallyId}`, 'POST', {
-        lines: selected.map((code) => ({
-          code_kala: code,
-          number_kala: draws[code]?.number_kala === '' ? 0 : draws[code]?.number_kala,
-          weighte_asnad: draws[code]?.weighte_asnad === '' ? 0 : draws[code]?.weighte_asnad,
-          weighte_baskol: draws[code]?.weighte_baskol === '' ? 0 : draws[code]?.weighte_baskol,
-        })),
+        lines: selected.map((key) => {
+          const row = available.find((candidate) => candidate.allotment_key === key)!
+          return {
+          code_kala: row.code_kala,
+          type_basteh: row.type_bastem,
+          number_kala: draws[key]?.number_kala === '' ? 0 : draws[key]?.number_kala,
+          weighte_asnad: draws[key]?.weighte_asnad === '' ? 0 : draws[key]?.weighte_asnad,
+          weighte_baskol: draws[key]?.weighte_baskol === '' ? 0 : draws[key]?.weighte_baskol,
+          }
+        }),
       }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['ghabz-list'] })
@@ -512,16 +536,16 @@ export function GhabzIssueModal({
     },
   })
 
-  const toggle = (code: number) => {
+  const toggle = (key: string) => {
     setSelected((current) =>
-      current.includes(code) ? current.filter((value) => value !== code) : [...current, code],
+      current.includes(key) ? current.filter((value) => value !== key) : [...current, key],
     )
   }
 
-  const setDraw = (code: number, key: keyof Draw, value: number | '') => {
+  const setDraw = (allotmentKey: string, key: keyof Draw, value: number | '') => {
     setDraws((current) => ({
       ...current,
-      [code]: { ...current[code], [key]: value },
+      [allotmentKey]: { ...current[allotmentKey], [key]: value },
     }))
   }
 
@@ -582,7 +606,7 @@ export function GhabzIssueModal({
                   size="xs"
                   variant="subtle"
                   disabled={available.length === 0}
-                  onClick={() => setSelected(available.map((row) => row.code_kala as number))}
+                  onClick={() => setSelected(available.map((row) => row.allotment_key))}
                 >
                   انتخاب همه
                 </Button>
@@ -610,7 +634,7 @@ export function GhabzIssueModal({
                         onChange={(event) =>
                           setSelected(
                             event.currentTarget.checked
-                              ? available.map((row) => row.code_kala as number)
+                              ? available.map((row) => row.allotment_key)
                               : [],
                           )
                         }
@@ -627,10 +651,11 @@ export function GhabzIssueModal({
                 <Table.Tbody>
                   {rows.map((row, index) => {
                     const code = row.code_kala
+                    const allotmentKey = row.allotment_key
                     const blocked = !row.drawable
-                    const key = code ?? `blocked-${index}`
-                    const checked = code != null && selected.includes(code)
-                    const draw = code != null ? draws[code] : undefined
+                    const key = allotmentKey || `blocked-${index}`
+                    const checked = code != null && selected.includes(allotmentKey)
+                    const draw = code != null ? draws[allotmentKey] : undefined
 
                     return (
                       <Table.Tr key={key} opacity={blocked ? 0.55 : 1}>
@@ -639,12 +664,13 @@ export function GhabzIssueModal({
                             aria-label={`انتخاب کد ${show(code)}`}
                             checked={checked}
                             disabled={blocked}
-                            onChange={() => { if (code != null) toggle(code) }}
+                            onChange={() => { if (code != null) toggle(allotmentKey) }}
                           />
                         </Table.Td>
                         <Table.Td><bdi dir="ltr">{show(code)}</bdi></Table.Td>
                         <Table.Td>
                           {show(row.description_kala)}
+                          <Text size="xs" c="dimmed">بسته‌بندی: {show(row.type_bastem)}</Text>
                           {row.tally_line_count > 1 && (
                             <Tooltip label={`${row.tally_line_count} ردیف تالی با این کد`}>
                               <Badge ml="xs" size="xs" variant="light" color="blue">
@@ -702,7 +728,7 @@ export function GhabzIssueModal({
                                   onChange={(value) => {
                                     if (code == null) return
                                     setDraw(
-                                      code,
+                                      allotmentKey,
                                       measure,
                                       value === '' ? '' : Number(value),
                                     )

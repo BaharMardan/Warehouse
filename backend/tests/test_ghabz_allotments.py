@@ -145,6 +145,35 @@ def test_duplicate_code_is_rejected_before_the_unique_constraint():
     assert "بیش از یک بار" in caught.value.detail
 
 
+def test_same_code_with_different_packaging_creates_separate_lines():
+    bag = allotment(type_bastem="کیسه")
+    carton = allotment(type_bastem="کارتن")
+    rows = [bag, carton]
+    by_key = {"110::کیسه": bag, "110::کارتن": carton}
+    request = [
+        GhabzLineInput(code_kala=110, type_basteh="کیسه"),
+        GhabzLineInput(code_kala=110, type_basteh="کارتن"),
+    ]
+
+    lines = plan_lines(request, rows, by_key)
+
+    assert [line["type_basteh"] for line in lines] == ["کیسه", "کارتن"]
+
+
+def test_merged_line_keeps_all_source_location_labels():
+    row = allotment(
+        number_hamel="12 ایران 34، 67 ایران 10",
+        source_anbar_names="انبار ۶، انبار ۷",
+        source_tagh_names="طاق 2A، طاق 3A",
+    )
+
+    line = full_draw(row)
+
+    assert "67 ایران 10" in line["number_hamel"]
+    assert line["source_anbar_names"] == "انبار ۶، انبار ۷"
+    assert line["source_tagh_names"] == "طاق 2A، طاق 3A"
+
+
 def test_negative_quantity_is_rejected():
     row = allotment()
 
@@ -280,3 +309,10 @@ def test_tally_allotment_ignores_soft_deleted_tally_rows():
     ).group(1)
     inline_view = sql.split("FROM (", 1)[1]
     assert "t.\"IS_DELETED\" = 'no'" in inline_view
+
+
+def test_tally_allotment_groups_by_code_and_packaging():
+    sql = re.search(
+        r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S
+    ).group(1)
+    assert 'GROUP BY t."CODE_GROUPE_KALA", t."TYPE_BASTEM"' in sql
