@@ -7,12 +7,13 @@
 #   GET /tally/{id}/details   - one tally's goods lines, with anbar/tagh names, for
 #                               the master-detail view.
 
-# Writes for both the header and the detail lines still go through the factory
-# routers (/tally-header and /tally-details). This router is read-only enrichment.
+# Header writes go through the dedicated /tally-header router so its business
+# number can be allocated atomically. Detail-line writes still use the generic
+# /tally-details router. This router contains read-only enrichment.
 # """
-# from fastapi import APIRouter, Depends
+# from fastapi import APIRouter, Depends, HTTPException
 # from app.auth.deps import get_current_user
-# from app.services.base import fetch_all
+# from app.services.base import fetch_all, fetch_one
 
 # router = APIRouter(prefix="/tally", tags=["tally"])
 
@@ -34,13 +35,31 @@
 #     h."ID_COUNTRY"                      AS id_country,
 #     t_country."SYS_TERM_VALUE"          AS country_name,
 #     h."ID_COMPANY"                      AS id_company,
-#     (c_comp."NAME" || ' ' || c_comp."FAMILY")   AS company_name,
+#     TRIM(c_comp."COMPANY_NAME")         AS company_name,
 #     h."ID_PRODUCT_OWNEAR"               AS id_product_ownear,
-#     (o."NAME" || ' ' || o."FAMILY")     AS owner_name
+#     CASE
+#         WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
+#         ELSE TRIM(o."NAME" || ' ' || o."FAMILY")
+#     END                                  AS owner_name,
+#     CASE
+#         WHEN EXISTS (
+#             SELECT 1
+#             FROM "FA_SORAT_HESAB_HEADER" invoice_header
+#             WHERE invoice_header."TALI_ID_HEADER" = h."ID_TALI"
+#               AND invoice_header."SORAT_IS_DELETED" = 'no'
+#         ) THEN 'closed'
+#         WHEN EXISTS (
+#             SELECT 1
+#             FROM "fa_ghabz_anbar_header" receipt_header
+#             WHERE receipt_header."TALI_ID" = h."ID_TALI"
+#               AND receipt_header."IS_DELETED" = 'no'
+#         ) THEN 'pending'
+#         ELSE 'open'
+#     END                                  AS workflow_status
 # FROM "FA_TALI_HEADER" h
 # LEFT JOIN "FA_SYS_TERMS"              t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
 # LEFT JOIN "FA_SYS_TERMS"              t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
-# LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_comp    ON c_comp."ID_REPRE_COMPANY" = h."ID_COMPANY"
+# LEFT JOIN "FA_TRANSPORT_COMPANY"      c_comp    ON c_comp."ID_COMPANY"       = h."ID_COMPANY"
 # LEFT JOIN "FA_PRODUCT_OWNER"          o         ON o."ID_OWNER"           = h."ID_PRODUCT_OWNEAR"
 # WHERE h."IS_DELETED" = 'no'
 # ORDER BY h."ID_TALI" DESC
@@ -61,6 +80,11 @@
 #     d."HSCODE"                          AS hscode,
 #     d."TYPE_BASTEM"                     AS type_bastem,
 #     d."NUMBER_KALA"                     AS number_kala,
+#     d."NUMBER_PALLET"                   AS number_pallet,
+#     d."VALUE_KALA"                      AS value_kala,
+#     d."CUSTOMS_VALUE"                   AS customs_value,
+#     d."INSURED_VALUE"                   AS insured_value,
+#     d."INSURANCE_EXPIRY_DATE"           AS insurance_expiry_date,
 #     d."WEIGHTE"                         AS weighte,
 #     d."TYPE_NUMBER_KANTINER"            AS type_number_kantiner,
 #     d."NUMBER_GHABZE_BSKOL"             AS number_ghabze_bskol,
@@ -77,6 +101,50 @@
 # ORDER BY d."ID_TALI_DETAILS"
 # """
 
+# # All display values needed by the landscape A4 tally print form. The normal
+# # tally-header endpoint intentionally returns raw foreign keys; printing needs
+# # the resolved border/country/company/owner labels. The owner's national ID is
+# # an independent, user-entered value stored on the tally header itself.
+# PRINT_HEADER_SQL = """
+# SELECT
+#     h."ID_TALI"                         AS id_tali,
+#     h."TALI_NUMBER"                     AS tali_number,
+#     h."NUMBER_KARANEH"                  AS number_karaneh,
+#     h."RADEF_MARZE"                     AS radef_marze,
+#     h."DATE_ENTER_MARZE"                AS date_enter_marze,
+#     h."DATE_UNLOADING"                  AS date_unloading,
+#     h."NUMBER_BIMEH"                    AS number_bimeh,
+#     h."NUMBER_BARNAMEH"                 AS number_barnameh,
+#     h."NAME_ARZYAB"                     AS name_arzyab,
+#     h."IS_BIMEH"                        AS is_bimeh,
+#     h."NAME_ANBARDAR"                   AS name_anbardar,
+#     h."ACCEPTED_GOMROK"                 AS accepted_gomrok,
+#     h."COMPANY_BIMEH"                   AS company_bimeh,
+#     h."DESCRIPTION"                     AS description,
+#     h."OWNER_NATIONAL_CODE"             AS owner_national_code,
+#     t_marze."SYS_TERM_VALUE"            AS marze_name,
+#     t_country."SYS_TERM_VALUE"          AS country_name,
+#     TRIM(c_comp."COMPANY_NAME")         AS company_name,
+#     TRIM(c_resp."NAME" || ' ' || c_resp."FAMILY") AS representative_name,
+#     CASE
+#         WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
+#         ELSE TRIM(o."NAME" || ' ' || o."FAMILY")
+#     END                                  AS owner_name
+# FROM "FA_TALI_HEADER" h
+# LEFT JOIN "FA_SYS_TERMS" t_marze
+#        ON t_marze."SYS_TERM_ID" = h."ID_MARZE"
+# LEFT JOIN "FA_SYS_TERMS" t_country
+#        ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
+# LEFT JOIN "FA_TRANSPORT_COMPANY" c_comp
+#        ON c_comp."ID_COMPANY" = h."ID_COMPANY"
+# LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_resp
+#        ON c_resp."ID_REPRE_COMPANY" = h."ID_RESPONS_COMPANY"
+# LEFT JOIN "FA_PRODUCT_OWNER" o
+#        ON o."ID_OWNER" = h."ID_PRODUCT_OWNEAR"
+# WHERE h."ID_TALI" = :hid
+#   AND h."IS_DELETED" = 'no'
+# """
+
 
 # @router.get("/list", dependencies=[Depends(get_current_user)])
 # def list_tallies():
@@ -87,16 +155,38 @@
 # def list_tally_details(header_id: int):
 #     return fetch_all(DETAILS_SQL, {"hid": header_id})
 
+
+# @router.get("/{header_id}/print")
+# def get_tally_print_data(
+#     header_id: int,
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     """Return one print-ready tally with resolved header labels and goods rows."""
+#     header = fetch_one(PRINT_HEADER_SQL, {"hid": header_id})
+#     if header is None:
+#         raise HTTPException(status_code=404, detail="تالی یافت نشد")
+#     header["print_user_name"] = (
+#         current_user.get("full_name") or current_user.get("username") or ""
+#     )
+#     header["details"] = fetch_all(DETAILS_SQL, {"hid": header_id})
+#     return header
+
 # # --- one tally's diamound-rate entries, catalog title/code resolved ---
 # DIAMOUND_SQL = """
 # SELECT
-#     j."id_tali_kala_diamound"           AS id_tali_kala_diamound,
+#     j."id_tali_kala_diamound"           AS id,
 #     j."tali_id"                         AS tali_id,
-#     j."kala_diamound_id"                AS kala_diamound_id,
+#     j."kala_diamound_id"                AS rate_id,
 #     j."code"                            AS code,
+#     j."NUMBER_SERVICE"                  AS number_service,
 #     j."DESCRIPTION"                     AS description,
+#     NVL(j."pricing_type", 'off_hours')  AS pricing_type,
 #     k."title"                           AS rate_title,
-#     k."code"                            AS rate_code
+#     k."code"                            AS rate_code,
+#     CASE NVL(j."pricing_type", 'off_hours')
+#         WHEN 'holiday' THEN k."price_holiday"
+#         ELSE k."price_gher_edari"
+#     END                                 AS selected_price
 # FROM "fa_tali_kala_diamound" j
 # LEFT JOIN "fa_kala_diamound" k ON k."id_kala_diamound" = j."kala_diamound_id"
 # WHERE j."tali_id" = :hid
@@ -142,7 +232,9 @@
 
 # STRIP_SQL = """
 # SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
-#        j."kala_strip_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+#        j."kala_strip_id" AS rate_id, j."code" AS code,
+#        j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
+#        j."pricing_type" AS pricing_type,
 #        k."code" AS rate_code, k."title" AS rate_title
 # FROM "fa_tali_kala_strip" j
 # LEFT JOIN "fa_kala_strip" k ON k."id_kala_strip" = j."kala_strip_id"
@@ -152,7 +244,8 @@
 
 # TIME_STOP_SQL = """
 # SELECT j."id_tali_kala_time_stop_vehicle" AS id, j."tali_id" AS tali_id,
-#        j."kala_time_stop_vehicle_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+#        j."kala_time_stop_vehicle_id" AS rate_id, j."code" AS code,
+#        j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
 #        k."code" AS rate_code, k."title" AS rate_title
 # FROM "fa_tali_kala_time_stop_vehicle" j
 # LEFT JOIN "fa_kala_time_stop_vehicle" k ON k."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
@@ -162,7 +255,8 @@
 
 # VEHICLE_ENTER_SQL = """
 # SELECT j."id_tali_kala_vehicle_enter_price" AS id, j."tali_id" AS tali_id,
-#        j."kala_vehicle_enter_price_id" AS rate_id, j."code" AS code, j."DESCRIPTION" AS description,
+#        j."kala_vehicle_enter_price_id" AS rate_id, j."code" AS code,
+#        j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
 #        k."code" AS rate_code, k."title" AS rate_title
 # FROM "fa_tali_kala_vehicle_enter_price" j
 # LEFT JOIN "fa_kala_vehicle_enter_price" k ON k."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
@@ -195,6 +289,7 @@
 # def list_tally_vehicle_enter(header_id: int):
 #     return fetch_all(VEHICLE_ENTER_SQL, {"hid": header_id})
 
+
 """
 Tally-specific endpoints that go beyond the generic CRUD factory.
 
@@ -211,6 +306,7 @@ number can be allocated atomically. Detail-line writes still use the generic
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import get_current_user
 from app.services.base import fetch_all, fetch_one
+from app.services.insurance_check import check_insurance_ceilings
 
 router = APIRouter(prefix="/tally", tags=["tally"])
 
@@ -367,6 +463,50 @@ def get_tally_print_data(
     )
     header["details"] = fetch_all(DETAILS_SQL, {"hid": header_id})
     return header
+
+# --- cross-tally insurance ceiling check ---
+# The (NUMBER_BIMEH, SABT_SEFARESH_NUMBER) pairs are newline-separated and
+# aligned line-by-line, so matching happens in app.services.insurance_check
+# rather than in SQL. Both queries stay trivially small: one row per active
+# header, plus one summed row per header with active goods lines.
+INSURANCE_HEADERS_SQL = """
+SELECT
+    h."ID_TALI"               AS id_tali,
+    h."TALI_NUMBER"           AS tali_number,
+    h."NUMBER_BIMEH"          AS number_bimeh,
+    h."SABT_SEFARESH_NUMBER"  AS sabt_sefaresh_number
+FROM "FA_TALI_HEADER" h
+WHERE h."IS_DELETED" = 'no'
+"""
+
+INSURANCE_TOTALS_SQL = """
+SELECT
+    d."ID_HEADERS_TALI"            AS header_id,
+    SUM(NVL(d."CUSTOMS_VALUE", 0)) AS customs_value,
+    MAX(d."INSURED_VALUE")         AS insured_ceiling
+FROM "FA_TALI_DETAILES" d
+WHERE d."IS_DELETED" = 'no'
+GROUP BY d."ID_HEADERS_TALI"
+"""
+
+
+@router.get("/{header_id}/insurance-check", dependencies=[Depends(get_current_user)])
+def check_tally_insurance(header_id: int):
+    """Per insurance of this tally: total customs value vs the policy ceiling.
+
+    The customs sum runs across the active goods rows of EVERY active tally
+    that carries the same (بیمه نامه, ثبت سفارش) pair. INSURED_VALUE is the
+    policy's single ceiling repeated on rows, so it is taken with MAX rather
+    than summed. Entries with is_over=True carry an overage that must be
+    charged on the invoice; the detail page warns about them.
+    """
+    headers = fetch_all(INSURANCE_HEADERS_SQL)
+    if not any(int(row["id_tali"]) == header_id for row in headers):
+        raise HTTPException(status_code=404, detail="تالی یافت نشد")
+    totals_by_header = {
+        int(row["header_id"]): row for row in fetch_all(INSURANCE_TOTALS_SQL)
+    }
+    return check_insurance_ceilings(header_id, headers, totals_by_header)
 
 # --- one tally's diamound-rate entries, catalog title/code resolved ---
 DIAMOUND_SQL = """

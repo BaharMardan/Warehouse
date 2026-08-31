@@ -317,6 +317,7 @@
 #     code_kala: int | None = None
 #     code_kala_kantiner: int | None = None
 #     description_kala: str | None = None
+#     hscode: str | None = None
 #     type_basteh: str | None = None
 #     number_kala: int | None = None
 #     number_kantiner: int | None = None
@@ -720,6 +721,7 @@ class TaliHeaderInput(BaseModel):
     owner_national_code: str | None = None  # کد ملی/شناسه ملی صاحب کالا، snapshot روی تالی
     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2
     number_bimeh: str | None = None         # شماره بیمه نامه
+    sabt_sefaresh_number: str | None = None  # شماره ثبت سفارش، هم‌راستا خط‌به‌خط با NUMBER_BIMEH
     tali_number: str | None = None          # شماره تالی خودکار و پیوسته، مانند 1074
     name_arzyab: str | None = None          # نام ارزیاب
     number_barnameh: str | None = None      # شماره بارنامه

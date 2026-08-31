@@ -297,6 +297,7 @@
 //           navigate(`/ghabz/${result.id_ghabz}`)
 //         }}
 //       />
+
 //     </div>
 //   )
 // }
@@ -307,7 +308,7 @@ import { BackButton } from '../components/BackButton'
 import { useQuery } from '@tanstack/react-query'
 import { toJalaali } from 'jalaali-js'
 import {
-  Title, Button, Group, Paper, Loader, Center, Text,
+  Alert, Title, Button, Group, Paper, Loader, Center, Text,
 } from '@mantine/core'
 import {
   Bookmark,
@@ -318,6 +319,7 @@ import {
   PencilLine,
   ReceiptText,
   ShieldCheck,
+  TriangleAlert,
   Truck,
   UserRound,
 } from 'lucide-react'
@@ -348,6 +350,24 @@ type TallySummaryData = {
   country_name: string | null
   company_name: string | null
   representative_name: string | null
+}
+
+// One entry per (بیمه نامه, ثبت سفارش) pair of this tally. Customs values are
+// summed across all tallies that share the pair; insured_ceiling is the
+// policy's single value (repeated on rows, extracted with MAX, never summed).
+// is_over entries carry the invoice difference.
+type InsuranceCheckEntry = {
+  number_bimeh: string
+  sabt_sefaresh_number: string
+  total_customs_value: number
+  insured_ceiling: number | null
+  overage: number | null
+  is_over: boolean
+  tally_numbers: string[]
+}
+
+function formatMoney(value: number): string {
+  return Number(value).toLocaleString('fa-IR')
 }
 
 function firstPresent(...values: unknown[]): unknown {
@@ -436,6 +456,13 @@ export function TallyDetailPage() {
     enabled: headerId != null,
   })
 
+  const { data: insuranceCheck } = useQuery({
+    queryKey: ['tally-insurance-check', headerId],
+    queryFn: () => apiGet<InsuranceCheckEntry[]>(`/tally/${headerId}/insurance-check`),
+    enabled: headerId != null,
+  })
+  const overInsured = (insuranceCheck ?? []).filter((entry) => entry.is_over)
+
   useEffect(() => {
     if (isLegacyId && header?.tali_number) {
       navigate(`/tally/${encodeURIComponent(String(header.tali_number))}`, { replace: true })
@@ -444,6 +471,30 @@ export function TallyDetailPage() {
 
   return (
     <div dir="rtl" className="tally-detail-page">
+      {overInsured.map((entry) => (
+        <Alert
+          key={`${entry.number_bimeh}|${entry.sabt_sefaresh_number}`}
+          color="red"
+          variant="light"
+          radius="lg"
+          mb="md"
+          icon={<TriangleAlert size={20} />}
+          title="سقف ارزش کالای بیمه‌شده پر شده است"
+        >
+          مجموع ارزش کالای گمرکی تالی‌های بیمه‌نامه{' '}
+          <bdi dir="ltr">«{entry.number_bimeh || '—'}»</bdi>
+          {entry.sabt_sefaresh_number !== '' && (
+            <> (ثبت سفارش <bdi dir="ltr">«{entry.sabt_sefaresh_number}»</bdi>)</>
+          )}{' '}
+          برابر {formatMoney(entry.total_customs_value)} است و از سقف ارزش
+          کالای بیمه‌شده ({formatMoney(entry.insured_ceiling ?? 0)}) بیشتر شده
+          است؛ مبلغ مابه‌التفاوت {formatMoney(entry.overage ?? 0)} باید در
+          صورتحساب اعمال شود.
+          {entry.tally_numbers.length > 0 && (
+            <> تالی‌های این بیمه: {entry.tally_numbers.join('، ')}</>
+          )}
+        </Alert>
+      ))}
       <Paper className="tally-detail-hero" radius="xl">
         <div className="tally-detail-title-block">
           <span className="tally-detail-title-icon" aria-hidden>

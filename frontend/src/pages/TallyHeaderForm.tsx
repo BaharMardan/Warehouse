@@ -1,10 +1,11 @@
 // import { useState, useEffect } from 'react'
 // import { useNavigate, useParams } from 'react-router-dom'
 // import { BackButton } from '../components/BackButton'
-// import { useQuery } from '@tanstack/react-query'
+// import { useQuery, useQueryClient } from '@tanstack/react-query'
 // import {
-//   Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
+//   ActionIcon, Title, Paper, Grid, TextInput, Textarea, Radio, Select, Group, Button, Stack, LoadingOverlay,
 // } from '@mantine/core'
+// import { Plus, Trash2 } from 'lucide-react'
 // import { RefSelect } from '../components/RefSelect'
 // import { JalaliDate } from '../components/JalaliDate'
 // import { apiSend, apiGet } from '../api/client'
@@ -19,6 +20,28 @@
 //     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
 // }
 
+// function normalizeIntegerInput(s: string): string {
+//   return normalizeDigits(s).replace(/\D/g, '')
+// }
+
+// const DEFAULT_WAREHOUSE_KEEPER = 'آقای میاندهی'
+
+// function parseInsurancePolicyNumbers(value: unknown): string[] {
+//   const numbers = String(value ?? '')
+//     .split(/\r?\n/)
+//     .map((number) => number.trim())
+//     .filter(Boolean)
+//   return numbers.length > 0 ? numbers : ['']
+// }
+
+// function serializeInsurancePolicyNumbers(numbers: string[]): string | null {
+//   const value = numbers
+//     .map((number) => normalizeDigits(number).trim())
+//     .filter(Boolean)
+//     .join('\n')
+//   return value === '' ? null : value
+// }
+
 // /**
 //  * TallyHeaderForm — create a new tally (شمارهٔ تالی) shipment header.
 //  *
@@ -29,13 +52,15 @@
 //  *   - RefSelect   for the 5 foreign-key dropdowns (border, country, company x2, owner)
 //  *   - JalaliDate  for the 2 Persian date fields (entry / unloading)
 //  *
-//  * The form's state mirrors the backend TaliHeaderInput model exactly (ISO dates,
-//  * numeric FKs), so the payload posts straight to /tally-header with no mapping.
+//  * The form sends the editable header fields to /tally-header. The backend owns
+//  * tali_number and allocates it only after a successful create transaction.
 //  */
 
-// // Shape matches the backend model field-for-field.
+// // Editable form fields. The generated tally number is deliberately excluded.
 // type TallyHeaderState = {
 //   number_karaneh: string
+//   tracking_number: string
+//   customs_procedure: string
 //   radef_marze: string // kept as string in the input, sent as number|null
 //   date_enter_marze: string | null // ISO date
 //   date_unloading: string | null // ISO date
@@ -43,34 +68,42 @@
 //   id_company: number | null
 //   id_respons_company: number | null
 //   id_product_ownear: number | null
+//   owner_national_code: string
 //   id_country: number | null
-//   number_bimeh: string
-//   tali_number: string
+//   number_bimeh: string[]
 //   name_arzyab: string
 //   number_barnameh: string
 //   is_bimeh: string // "بله" | "خیر"
 //   name_anbardar: string
 //   accepted_gomrok: string
 //   company_bimeh: string
+//   description: string
 // }
 
 // const EMPTY: TallyHeaderState = {
-//   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
+//   number_karaneh: '', tracking_number: '', customs_procedure: '',
+//   radef_marze: '', date_enter_marze: null, date_unloading: null,
 //   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-//   id_country: null, number_bimeh: '', tali_number: '',
-//   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
-//   accepted_gomrok: '', company_bimeh: '',
+//   owner_national_code: '', id_country: null, number_bimeh: [''],
+//   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
+//   name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
+//   accepted_gomrok: '', company_bimeh: '', description: '',
 // }
 
 // // turn "" into null and numeric strings into numbers, so the payload matches the
 // // backend model (which expects number|null / str|null, never empty strings)
 // function toPayload(s: TallyHeaderState) {
-//   const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
+//   const numOrNull = (v: string) => {
+//     const normalized = normalizeIntegerInput(v)
+//     return normalized === '' ? null : Number(normalized)
+//   }
 //   const strOrNull = (v: string) => (v.trim() === '' ? null : v)
 //   // code/number fields: convert Persian/Arabic digits to Latin before storing
 //   const codeOrNull = (v: string) => strOrNull(normalizeDigits(v))
 //   return {
 //     number_karaneh: codeOrNull(s.number_karaneh),   // ← normalized
+//     tracking_number: codeOrNull(s.tracking_number),
+//     customs_procedure: strOrNull(s.customs_procedure),
 //     radef_marze: numOrNull(normalizeDigits(s.radef_marze)),
 //     date_enter_marze: s.date_enter_marze,
 //     date_unloading: s.date_unloading,
@@ -78,15 +111,18 @@
 //     id_company: s.id_company,
 //     id_respons_company: s.id_respons_company,
 //     id_product_ownear: s.id_product_ownear,
+//     owner_national_code: codeOrNull(s.owner_national_code),
 //     id_country: s.id_country,
-//     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
-//     tali_number: numOrNull(normalizeDigits(s.tali_number)),
+//     // Stored as newline-separated values in the existing database column.
+//     // A legacy single policy number remains fully compatible with this format.
+//     number_bimeh: serializeInsurancePolicyNumbers(s.number_bimeh),
 //     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
 //     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
 //     is_bimeh: strOrNull(s.is_bimeh),
 //     name_anbardar: strOrNull(s.name_anbardar),       // name — left as typed
 //     accepted_gomrok: strOrNull(s.accepted_gomrok),
 //     company_bimeh: strOrNull(s.company_bimeh),
+//     description: strOrNull(s.description),
 //   }
 // }
 // // A loaded tally row (from GET /tally-header/{id}) -> the form's state shape.
@@ -95,6 +131,8 @@
 //   const s = (v: any) => (v == null ? '' : String(v))
 //   return {
 //     number_karaneh: s(r.number_karaneh),
+//     tracking_number: s(r.tracking_number),
+//     customs_procedure: s(r.customs_procedure),
 //     radef_marze: s(r.radef_marze),
 //     date_enter_marze: r.date_enter_marze ?? null,
 //     date_unloading: r.date_unloading ?? null,
@@ -102,37 +140,55 @@
 //     id_company: r.id_company ?? null,
 //     id_respons_company: r.id_respons_company ?? null,
 //     id_product_ownear: r.id_product_ownear ?? null,
+//     owner_national_code: s(r.owner_national_code),
 //     id_country: r.id_country ?? null,
-//     number_bimeh: s(r.number_bimeh),
-//     tali_number: s(r.tali_number),
+//     number_bimeh: parseInsurancePolicyNumbers(r.number_bimeh),
 //     name_arzyab: s(r.name_arzyab),
 //     number_barnameh: s(r.number_barnameh),
 //     is_bimeh: r.is_bimeh ?? 'خیر',
-//     name_anbardar: s(r.name_anbardar),
+//     name_anbardar: s(r.name_anbardar).trim() || DEFAULT_WAREHOUSE_KEEPER,
 //     accepted_gomrok: s(r.accepted_gomrok),
 //     company_bimeh: s(r.company_bimeh),
+//     description: s(r.description),
 //   }
 // }
 
-// // build "name family (national_code)" — matches how the APEX app shows companies/reps
 // const companyLabel = (r: Record<string, any>) =>
+//   String(r.company_name ?? '').trim()
+
+// // build "name family (national_code)" for the transport-company representative
+// const representativeLabel = (r: Record<string, any>) =>
 //   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
 
 // const ownerLabel = (r: Record<string, any>) =>
-//   `${r.name ?? ''} ${r.family ?? ''}`.trim()
+//   String(
+//     r.type === 'حقوقی'
+//       ? `${r.company_name ?? ''} ${r.national_id ? `(${r.national_id})` : ''}`
+//       : `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`,
+//   ).trim()
 
 // export function TallyHeaderForm() {
 //   const navigate = useNavigate()
-//   const { id } = useParams<{ id: string }>()
-//   const isEdit = id != null
-//   const editId = isEdit ? Number(id) : null
+//   const queryClient = useQueryClient()
+//   const { tallyNumber, tallyId } = useParams<{
+//     tallyNumber?: string
+//     tallyId?: string
+//   }>()
+//   const reference = tallyId ?? tallyNumber
+//   const isEdit = reference != null
+//   const isLegacyId = tallyId != null
 
 //   // when editing, load the existing header once and populate the form
 //   const { data: existing } = useQuery({
-//     queryKey: ['tally-header', editId],
-//     queryFn: () => apiGet<Record<string, any>>(`/tally-header/${editId}`),
+//     queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
+//     queryFn: () => apiGet<Record<string, any>>(
+//       isLegacyId
+//         ? `/tally-header/${tallyId}`
+//         : `/tally-header/by-number/${encodeURIComponent(tallyNumber ?? '')}`
+//     ),
 //     enabled: isEdit, // only fetch in edit mode
 //   })
+//   const editId = existing?.id_tali == null ? null : Number(existing.id_tali)
 
 //   useEffect(() => {
 //     if (existing) setForm(rowToState(existing))
@@ -144,6 +200,31 @@
 //   // one helper to update any field by key
 //   const set = <K extends keyof TallyHeaderState>(key: K, value: TallyHeaderState[K]) =>
 //     setForm((f) => ({ ...f, [key]: value }))
+
+//   const updateInsurancePolicyNumber = (index: number, value: string) => {
+//     setForm((current) => ({
+//       ...current,
+//       number_bimeh: current.number_bimeh.map((number, numberIndex) =>
+//         numberIndex === index ? value : number
+//       ),
+//     }))
+//   }
+
+//   const addInsurancePolicyNumber = () => {
+//     setForm((current) => ({
+//       ...current,
+//       number_bimeh: [...current.number_bimeh, ''],
+//     }))
+//   }
+
+//   const removeInsurancePolicyNumber = (index: number) => {
+//     setForm((current) => ({
+//       ...current,
+//       number_bimeh: current.number_bimeh.length === 1
+//         ? ['']
+//         : current.number_bimeh.filter((_, numberIndex) => numberIndex !== index),
+//     }))
+//   }
 
 //   // async function handleSave() {
 //   //   setSaving(true)
@@ -166,24 +247,48 @@
 //     setError(null)
 //     try {
 //       if (isEdit) {
-//         await apiSend(`/tally-header/${editId}`, 'PUT', toPayload(form))
-//         navigate(`/tally/${editId}`) // back to the detail page
+//         if (editId == null) {
+//           throw new Error('اطلاعات تالی هنوز بارگذاری نشده است.')
+//         }
+//         const payload = toPayload(form)
+//         const updated = await apiSend<Record<string, any>>(
+//           `/tally-header/${editId}`,
+//           'PUT',
+//           payload,
+//         )
+//         if (updated.radef_marze !== payload.radef_marze) {
+//           throw new Error('مقدار ردیف مرزی در پاسخ ذخیره تأیید نشد.')
+//         }
+
+//         queryClient.setQueryData(
+//           ['tally-header', isLegacyId ? 'id' : 'number', reference],
+//           updated,
+//         )
+//         await Promise.all([
+//           queryClient.invalidateQueries({
+//             queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
+//           }),
+//           queryClient.invalidateQueries({ queryKey: ['tally-summary', editId] }),
+//         ])
+
+//         const publicNumber = updated.tali_number ?? existing?.tali_number ?? tallyNumber
+//         navigate(publicNumber
+//           ? `/tally/${encodeURIComponent(String(publicNumber))}`
+//           : `/tally/id/${editId}`)
 //       } else {
-//         const created = await apiSend<{ id_tali: number }>('/tally-header', 'POST', toPayload(form))
-//         navigate(`/tally/${created.id_tali}`) // go to the new tally's detail page
+//         const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
+//         navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
 //       }
 //     } catch (e) {
-//       setError('ذخیره تالی ناموفق بود. لطفاً دوباره تلاش کنید.')
+//       const detail = e instanceof Error ? ` ${e.message}` : ''
+//       setError(`ذخیره تالی ناموفق بود.${detail}`)
 //     } finally {
 //       setSaving(false)
 //     }
 //   }
 //   return (
 //     <div dir="rtl" style={{ maxWidth: 1000, margin: '0 auto' }}>
-//       <Group justify="space-between" mb="md">
-//         <Title order={2} fw={700}>{isEdit ? 'ویرایش تالی' : 'ایجاد تالی جدید'}</Title>
-//         <Button onClick={handleSave} loading={saving}>{isEdit ? 'ذخیره تغییرات' : 'ایجاد تالی'}</Button>
-//       </Group>
+//       <Title order={2} fw={700} mb="md">{isEdit ? 'ویرایش تالی' : 'ایجاد تالی جدید'}</Title>
 
 //       <Paper shadow="xs" p="lg" pos="relative">
 //         <LoadingOverlay visible={saving} />
@@ -201,8 +306,11 @@
 //             <TextInput
 //               label="ردیف مرزی"
 //               inputMode="numeric"
+//               pattern="[0-9]*"
 //               value={form.radef_marze}
-//               onChange={(e) => set('radef_marze', e.currentTarget.value)}
+//               onChange={(e) => set('radef_marze', normalizeIntegerInput(e.currentTarget.value))}
+//               // description="فقط عدد وارد کنید."
+//               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
 //             />
 //           </Grid.Col>
 
@@ -246,12 +354,12 @@
 //             />
 //           </Grid.Col>
 
-//           {/* --- row: transport company + its representative (both from companies) --- */}
+//           {/* --- row: transport company + representative (selected independently) --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <RefSelect
 //               label="نام شرکت حمل"
-//               path="/companies"
-//               valueKey="id_repre_company"
+//               path="/transport-companies"
+//               valueKey="id_company"
 //               labelKey={companyLabel}
 //               value={form.id_company}
 //               onChange={(v) => set('id_company', v)}
@@ -260,9 +368,9 @@
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <RefSelect
 //               label="نام نماینده شرکت حمل"
-//               path="/companies"
+//               path="/company-representatives"
 //               valueKey="id_repre_company"
-//               labelKey={companyLabel}
+//               labelKey={representativeLabel}
 //               value={form.id_respons_company}
 //               onChange={(v) => set('id_respons_company', v)}
 //             />
@@ -277,6 +385,10 @@
 //               labelKey={ownerLabel}
 //               value={form.id_product_ownear}
 //               onChange={(v) => set('id_product_ownear', v)}
+//               onPick={(owner) => set(
+//                 'owner_national_code',
+//                 String(owner?.type === 'حقوقی' ? owner?.national_id ?? '' : owner?.national_code ?? ''),
+//               )}
 //             />
 //           </Grid.Col>
 //           <Grid.Col span={{ base: 12, md: 6 }}>
@@ -289,11 +401,44 @@
 
 //           {/* --- row: insurance number + insurance company --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شماره بیمه نامه"
-//               value={form.number_bimeh}
-//               onChange={(e) => set('number_bimeh', e.currentTarget.value)}
-//             />
+//             <Stack gap="xs">
+//               {form.number_bimeh.map((number, index) => (
+//                 <Group key={index} gap="xs" align="flex-end" wrap="nowrap">
+//                   <TextInput
+//                     label={index === 0 ? 'شماره بیمه نامه' : `شماره بیمه نامه ${index + 1}`}
+//                     value={number}
+//                     onChange={(e) => updateInsurancePolicyNumber(index, e.currentTarget.value)}
+//                     style={{ flex: 1 }}
+//                     styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+//                   />
+//                   {index === 0 ? (
+//                     <ActionIcon
+//                       type="button"
+//                       size={36}
+//                       variant="filled"
+//                       color="blue"
+//                       aria-label="افزودن شماره بیمه نامه"
+//                       title="افزودن شماره بیمه نامه"
+//                       onClick={addInsurancePolicyNumber}
+//                     >
+//                       <Plus size={19} strokeWidth={2.2} />
+//                     </ActionIcon>
+//                   ) : (
+//                     <ActionIcon
+//                       type="button"
+//                       size={36}
+//                       variant="light"
+//                       color="red"
+//                       aria-label={`حذف شماره بیمه نامه ${index + 1}`}
+//                       title="حذف این شماره بیمه نامه"
+//                       onClick={() => removeInsurancePolicyNumber(index)}
+//                     >
+//                       <Trash2 size={17} strokeWidth={2} />
+//                     </ActionIcon>
+//                   )}
+//                 </Group>
+//               ))}
+//             </Stack>
 //           </Grid.Col>
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <TextInput
@@ -309,23 +454,57 @@
 //               label="شماره بارنامه"
 //               value={form.number_barnameh}
 //               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
+//               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
 //             />
 //           </Grid.Col>
 
-//           {/* --- row: tally number + warehouse keeper --- */}
+//           {/* --- row: tally number --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <TextInput
 //               label="شماره تالی"
-//               inputMode="numeric"
-//               value={form.tali_number}
-//               onChange={(e) => set('tali_number', e.currentTarget.value)}
+//               value={isEdit ? String(existing?.tali_number ?? '') : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
+//               readOnly
+//               disabled={!isEdit}
+//               styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
 //             />
 //           </Grid.Col>
+
+//           {/* --- row: tracking number + customs procedure --- */}
+//           <Grid.Col span={{ base: 12, md: 6 }}>
+//             <TextInput
+//               label="شماره پیگیری"
+//               value={form.tracking_number}
+//               onChange={(e) => set('tracking_number', e.currentTarget.value)}
+//               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+//             />
+//           </Grid.Col>
+//           <Grid.Col span={{ base: 12, md: 6 }}>
+//             <Select
+//               label="رویه"
+//               placeholder="انتخاب کنید"
+//               data={['واردات', 'صادرات', 'حمل یکسره']}
+//               value={form.customs_procedure || null}
+//               onChange={(value) => set('customs_procedure', value ?? '')}
+//               clearable
+//             />
+//           </Grid.Col>
+
+//           {/* --- row: warehouse keeper + manually entered owner national ID --- */}
 //           <Grid.Col span={{ base: 12, md: 6 }}>
 //             <TextInput
 //               label="نام انبار دار"
 //               value={form.name_anbardar}
 //               onChange={(e) => set('name_anbardar', e.currentTarget.value)}
+//             />
+//           </Grid.Col>
+//           <Grid.Col span={{ base: 12, md: 6 }}>
+//             <TextInput
+//               label="کد ملی / شناسه ملی صاحب کالا"
+//               inputMode="numeric"
+//               maxLength={20}
+//               value={form.owner_national_code}
+//               onChange={(e) => set('owner_national_code', e.currentTarget.value)}
+//               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
 //             />
 //           </Grid.Col>
 
@@ -354,6 +533,15 @@
 //               </Group>
 //             </Radio.Group>
 //           </Grid.Col>
+//           <Grid.Col span={12}>
+//             <Textarea
+//               label="توضیحات"
+//               value={form.description}
+//               onChange={(e) => set('description', e.currentTarget.value)}
+//               minRows={3}
+//               autosize
+//             />
+//           </Grid.Col>
 //         </Grid>
 
 //         {error && (
@@ -361,7 +549,9 @@
 //         )}
 
 //         <Group justify="flex-start" mt="xl">
-//           <Button onClick={handleSave} loading={saving}>ایجاد تالی</Button>
+//           <Button onClick={handleSave} loading={saving}>
+//             {isEdit ? 'ذخیره تغییرات' : 'ایجاد تالی'}
+//           </Button>
 //           <BackButton to="/tally" />
 //         </Group>
 //       </Paper>
@@ -369,375 +559,6 @@
 //   )
 // }
 
-// import { useState, useEffect } from 'react'
-// import { useNavigate, useParams } from 'react-router-dom'
-// import { useQuery } from '@tanstack/react-query'
-// import {
-//   Title, Paper, Grid, TextInput, Radio, Group, Button, Stack, LoadingOverlay,
-// } from '@mantine/core'
-// import { RefSelect } from '../components/RefSelect'
-// import { JalaliDate } from '../components/JalaliDate'
-// import { apiSend, apiGet } from '../api/client'
-
-
-// // Persian (۰۱۲۳) / Arabic-Indic (٠١٢٣) digits -> Latin (0123). Latin passes through.
-// // Used on code/number fields so they store searchable ASCII digits, while
-// // name fields keep whatever script the user typed.
-// function normalizeDigits(s: string): string {
-//   return s
-//     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
-//     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-// }
-
-// /**
-//  * TallyHeaderForm — create a new tally (شمارهٔ تالی) shipment header.
-//  *
-//  * This is the header layer of the tally. Once saved it returns the new ID_TALI,
-//  * which the detail-lines grid and the action sub-screens will hang off of.
-//  *
-//  * It reuses the two primitives we built:
-//  *   - RefSelect   for the 5 foreign-key dropdowns (border, country, company x2, owner)
-//  *   - JalaliDate  for the 2 Persian date fields (entry / unloading)
-//  *
-//  * The form's state mirrors the backend TaliHeaderInput model exactly (ISO dates,
-//  * numeric FKs), so the payload posts straight to /tally-header with no mapping.
-//  */
-
-// // Shape matches the backend model field-for-field.
-// type TallyHeaderState = {
-//   number_karaneh: string
-//   radef_marze: string // kept as string in the input, sent as number|null
-//   date_enter_marze: string | null // ISO date
-//   date_unloading: string | null // ISO date
-//   id_marze: number | null
-//   id_company: number | null
-//   id_respons_company: number | null
-//   id_product_ownear: number | null
-//   id_country: number | null
-//   number_bimeh: string
-//   tali_number: string
-//   name_arzyab: string
-//   number_barnameh: string
-//   is_bimeh: string // "بله" | "خیر"
-//   name_anbardar: string
-//   accepted_gomrok: string
-//   company_bimeh: string
-// }
-
-// const EMPTY: TallyHeaderState = {
-//   number_karaneh: '', radef_marze: '', date_enter_marze: null, date_unloading: null,
-//   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
-//   id_country: null, number_bimeh: '', tali_number: '',
-//   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر', name_anbardar: '',
-//   accepted_gomrok: '', company_bimeh: '',
-// }
-
-// // turn "" into null and numeric strings into numbers, so the payload matches the
-// // backend model (which expects number|null / str|null, never empty strings)
-// function toPayload(s: TallyHeaderState) {
-//   const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
-//   const strOrNull = (v: string) => (v.trim() === '' ? null : v)
-//   // code/number fields: convert Persian/Arabic digits to Latin before storing
-//   const codeOrNull = (v: string) => strOrNull(normalizeDigits(v))
-//   return {
-//     number_karaneh: codeOrNull(s.number_karaneh),   // ← normalized
-//     radef_marze: numOrNull(normalizeDigits(s.radef_marze)),
-//     date_enter_marze: s.date_enter_marze,
-//     date_unloading: s.date_unloading,
-//     id_marze: s.id_marze,
-//     id_company: s.id_company,
-//     id_respons_company: s.id_respons_company,
-//     id_product_ownear: s.id_product_ownear,
-//     id_country: s.id_country,
-//     number_bimeh: codeOrNull(s.number_bimeh),        // ← normalized
-//     tali_number: numOrNull(normalizeDigits(s.tali_number)),
-//     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
-//     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
-//     is_bimeh: strOrNull(s.is_bimeh),
-//     name_anbardar: strOrNull(s.name_anbardar),       // name — left as typed
-//     accepted_gomrok: strOrNull(s.accepted_gomrok),
-//     company_bimeh: strOrNull(s.company_bimeh),
-//   }
-// }
-// // A loaded tally row (from GET /tally-header/{id}) -> the form's state shape.
-// // The API returns nulls and numbers; the form's text fields want strings.
-// function rowToState(r: Record<string, any>): TallyHeaderState {
-//   const s = (v: any) => (v == null ? '' : String(v))
-//   return {
-//     number_karaneh: s(r.number_karaneh),
-//     radef_marze: s(r.radef_marze),
-//     date_enter_marze: r.date_enter_marze ?? null,
-//     date_unloading: r.date_unloading ?? null,
-//     id_marze: r.id_marze ?? null,
-//     id_company: r.id_company ?? null,
-//     id_respons_company: r.id_respons_company ?? null,
-//     id_product_ownear: r.id_product_ownear ?? null,
-//     id_country: r.id_country ?? null,
-//     number_bimeh: s(r.number_bimeh),
-//     tali_number: s(r.tali_number),
-//     name_arzyab: s(r.name_arzyab),
-//     number_barnameh: s(r.number_barnameh),
-//     is_bimeh: r.is_bimeh ?? 'خیر',
-//     name_anbardar: s(r.name_anbardar),
-//     accepted_gomrok: s(r.accepted_gomrok),
-//     company_bimeh: s(r.company_bimeh),
-//   }
-// }
-
-// // build "name family (national_code)" — matches how the APEX app shows companies/reps
-// const companyLabel = (r: Record<string, any>) =>
-//   `${r.name ?? ''} ${r.family ?? ''} ${r.national_code ? `(${r.national_code})` : ''}`.trim()
-
-// const ownerLabel = (r: Record<string, any>) =>
-//   `${r.name ?? ''} ${r.family ?? ''}`.trim()
-
-// export function TallyHeaderForm() {
-//   const navigate = useNavigate()
-//   const { id } = useParams<{ id: string }>()
-//   const isEdit = id != null
-//   const editId = isEdit ? Number(id) : null
-
-//   // when editing, load the existing header once and populate the form
-//   const { data: existing } = useQuery({
-//     queryKey: ['tally-header', editId],
-//     queryFn: () => apiGet<Record<string, any>>(`/tally-header/${editId}`),
-//     enabled: isEdit, // only fetch in edit mode
-//   })
-
-//   useEffect(() => {
-//     if (existing) setForm(rowToState(existing))
-//   }, [existing])
-//   const [form, setForm] = useState<TallyHeaderState>(EMPTY)
-//   const [saving, setSaving] = useState(false)
-//   const [error, setError] = useState<string | null>(null)
-
-//   // one helper to update any field by key
-//   const set = <K extends keyof TallyHeaderState>(key: K, value: TallyHeaderState[K]) =>
-//     setForm((f) => ({ ...f, [key]: value }))
-
-//   // async function handleSave() {
-//   //   setSaving(true)
-//   //   setError(null)
-//   //   try {
-//   //   //   const created = await apiPost<{ id_tali: number }>('/tally-header', toPayload(form))
-//   //     const created = await apiSend<{ id_tali: number }>('/tally-header', 'POST', toPayload(form))
-//   //     // once saved we have the new tally id — go to its detail view (built next).
-//   //     // for now, navigate back to the tally list.
-//   //     navigate('/tally')
-//   //     return created
-//   //   } catch (e) {
-//   //     setError('ذخیره تالی ناموفق بود. لطفاً دوباره تلاش کنید.')
-//   //   } finally {
-//   //     setSaving(false)
-//   //   }
-//   // }
-//   async function handleSave() {
-//     setSaving(true)
-//     setError(null)
-//     try {
-//       if (isEdit) {
-//         await apiSend(`/tally-header/${editId}`, 'PUT', toPayload(form))
-//         navigate(`/tally/${editId}`) // back to the detail page
-//       } else {
-//         const created = await apiSend<{ id_tali: number }>('/tally-header', 'POST', toPayload(form))
-//         navigate(`/tally/${created.id_tali}`) // go to the new tally's detail page
-//       }
-//     } catch (e) {
-//       setError('ذخیره تالی ناموفق بود. لطفاً دوباره تلاش کنید.')
-//     } finally {
-//       setSaving(false)
-//     }
-//   }
-//   return (
-//     <div dir="rtl" style={{ maxWidth: 1000, margin: '0 auto' }}>
-//       <Group justify="space-between" mb="md">
-//         <Title order={2}>{isEdit ? 'ویرایش تالی' : 'ایجاد تالی جدید'}</Title>
-//         <Button onClick={handleSave} loading={saving}>{isEdit ? 'ذخیره تغییرات' : 'ایجاد تالی'}</Button>
-//       </Group>
-
-//       <Paper shadow="xs" p="lg" pos="relative">
-//         <LoadingOverlay visible={saving} />
-
-//         <Grid gutter="md">
-//           {/* --- row: karaneh / transit + border row number --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شماره کارنه / ترانزیت"
-//               value={form.number_karaneh}
-//               onChange={(e) => set('number_karaneh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="ردیف مرزی"
-//               inputMode="numeric"
-//               value={form.radef_marze}
-//               onChange={(e) => set('radef_marze', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: entry border (term cat 1) + origin country (term cat 2) --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <RefSelect
-//               label="نام مرز ورودی"
-//               path="/terms"
-//               params={{ category_id: 1 }}
-//               valueKey="sys_term_id"
-//               labelKey="value"
-//               value={form.id_marze}
-//               onChange={(v) => set('id_marze', v)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <RefSelect
-//               label="مبدا حمل (کشور)"
-//               path="/terms"
-//               params={{ category_id: 2 }}
-//               valueKey="sys_term_id"
-//               labelKey="value"
-//               value={form.id_country}
-//               onChange={(v) => set('id_country', v)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: two Jalali dates --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <JalaliDate
-//               label="تاریخ ورود به مرز"
-//               value={form.date_enter_marze}
-//               onChange={(iso) => set('date_enter_marze', iso)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <JalaliDate
-//               label="تاریخ تخلیه"
-//               value={form.date_unloading}
-//               onChange={(iso) => set('date_unloading', iso)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: transport company + its representative (both from companies) --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <RefSelect
-//               label="نام شرکت حمل"
-//               path="/companies"
-//               valueKey="id_repre_company"
-//               labelKey={companyLabel}
-//               value={form.id_company}
-//               onChange={(v) => set('id_company', v)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <RefSelect
-//               label="نام نماینده شرکت حمل"
-//               path="/companies"
-//               valueKey="id_repre_company"
-//               labelKey={companyLabel}
-//               value={form.id_respons_company}
-//               onChange={(v) => set('id_respons_company', v)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: goods owner + assessor --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <RefSelect
-//               label="صاحب کالا"
-//               path="/owners"
-//               valueKey="id_owner"
-//               labelKey={ownerLabel}
-//               value={form.id_product_ownear}
-//               onChange={(v) => set('id_product_ownear', v)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="نام ارزیاب"
-//               value={form.name_arzyab}
-//               onChange={(e) => set('name_arzyab', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: insurance number + insurance company --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شماره بیمه نامه"
-//               value={form.number_bimeh}
-//               onChange={(e) => set('number_bimeh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شرکت بیمه گر"
-//               value={form.company_bimeh}
-//               onChange={(e) => set('company_bimeh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: barnameh number --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شماره بارنامه"
-//               value={form.number_barnameh}
-//               onChange={(e) => set('number_barnameh', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: tally number + warehouse keeper --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="شماره تالی"
-//               inputMode="numeric"
-//               value={form.tali_number}
-//               onChange={(e) => set('tali_number', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <TextInput
-//               label="نام انبار دار"
-//               value={form.name_anbardar}
-//               onChange={(e) => set('name_anbardar', e.currentTarget.value)}
-//             />
-//           </Grid.Col>
-
-//           {/* --- row: two yes/no radios --- */}
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <Radio.Group
-//               label="آیا بیمه دارد؟"
-//               value={form.is_bimeh}
-//               onChange={(v) => set('is_bimeh', v)}
-//             >
-//               <Group mt="xs">
-//                 <Radio value="بله" label="بله" />
-//                 <Radio value="خیر" label="خیر" />
-//               </Group>
-//             </Radio.Group>
-//           </Grid.Col>
-//           <Grid.Col span={{ base: 12, md: 6 }}>
-//             <Radio.Group
-//               label="تایید گمرک"
-//               value={form.accepted_gomrok}
-//               onChange={(v) => set('accepted_gomrok', v)}
-//             >
-//               <Group mt="xs">
-//                 <Radio value="بله" label="بله" />
-//                 <Radio value="خیر" label="خیر" />
-//               </Group>
-//             </Radio.Group>
-//           </Grid.Col>
-//         </Grid>
-
-//         {error && (
-//           <div style={{ color: 'var(--mantine-color-red-6)', marginTop: 16 }}>{error}</div>
-//         )}
-
-//         <Group justify="flex-start" mt="xl">
-//           <Button onClick={handleSave} loading={saving}>ایجاد تالی</Button>
-//           <Button variant="subtle" onClick={() => navigate('/tally')}>لغو</Button>
-//         </Group>
-//       </Paper>
-//     </div>
-//   )
-// }
 
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -767,20 +588,59 @@ function normalizeIntegerInput(s: string): string {
 
 const DEFAULT_WAREHOUSE_KEEPER = 'آقای میاندهی'
 
-function parseInsurancePolicyNumbers(value: unknown): string[] {
-  const numbers = String(value ?? '')
-    .split(/\r?\n/)
-    .map((number) => number.trim())
-    .filter(Boolean)
-  return numbers.length > 0 ? numbers : ['']
+// NUMBER_BIMEH and SABT_SEFARESH_NUMBER are stored as newline-separated text
+// aligned line-by-line: the pair on one line identifies one insurance. Empty
+// lines are therefore preserved inside a kept pair (a pair is dropped only
+// when BOTH sides are empty), so the alignment survives round-trips. A legacy
+// header with a NULL ثبت سفارش column parses to '' on every line.
+function parseInsurancePairs(
+  bimeh: unknown,
+  sabt: unknown,
+): { number_bimeh: string[]; sabt_sefaresh_number: string[] } {
+  const bimehLines = String(bimeh ?? '').split(/\r?\n/).map((line) => line.trim())
+  const sabtLines = String(sabt ?? '').split(/\r?\n/).map((line) => line.trim())
+  const length = Math.max(bimehLines.length, sabtLines.length)
+
+  const numberBimeh: string[] = []
+  const sabtSefaresh: string[] = []
+  for (let index = 0; index < length; index += 1) {
+    const bimehValue = bimehLines[index] ?? ''
+    const sabtValue = sabtLines[index] ?? ''
+    if (bimehValue === '' && sabtValue === '') continue
+    numberBimeh.push(bimehValue)
+    sabtSefaresh.push(sabtValue)
+  }
+  if (numberBimeh.length === 0) {
+    numberBimeh.push('')
+    sabtSefaresh.push('')
+  }
+  return { number_bimeh: numberBimeh, sabt_sefaresh_number: sabtSefaresh }
 }
 
-function serializeInsurancePolicyNumbers(numbers: string[]): string | null {
-  const value = numbers
-    .map((number) => normalizeDigits(number).trim())
-    .filter(Boolean)
-    .join('\n')
-  return value === '' ? null : value
+function serializeInsurancePairs(
+  bimeh: string[],
+  sabt: string[],
+): { number_bimeh: string | null; sabt_sefaresh_number: string | null } {
+  const keptBimeh: string[] = []
+  const keptSabt: string[] = []
+  for (let index = 0; index < bimeh.length; index += 1) {
+    const bimehValue = normalizeDigits(bimeh[index] ?? '').trim()
+    const sabtValue = normalizeDigits(sabt[index] ?? '').trim()
+    if (bimehValue === '' && sabtValue === '') continue
+    keptBimeh.push(bimehValue)
+    keptSabt.push(sabtValue)
+  }
+  const serialize = (lines: string[]) => {
+    const value = lines.join('\n')
+    return lines.every((line) => line === '') ? null : value
+  }
+  if (keptBimeh.length === 0) {
+    return { number_bimeh: null, sabt_sefaresh_number: null }
+  }
+  return {
+    number_bimeh: serialize(keptBimeh),
+    sabt_sefaresh_number: serialize(keptSabt),
+  }
 }
 
 /**
@@ -812,6 +672,7 @@ type TallyHeaderState = {
   owner_national_code: string
   id_country: number | null
   number_bimeh: string[]
+  sabt_sefaresh_number: string[] // aligned index-by-index with number_bimeh
   name_arzyab: string
   number_barnameh: string
   is_bimeh: string // "بله" | "خیر"
@@ -826,6 +687,7 @@ const EMPTY: TallyHeaderState = {
   radef_marze: '', date_enter_marze: null, date_unloading: null,
   id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
   owner_national_code: '', id_country: null, number_bimeh: [''],
+  sabt_sefaresh_number: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
   name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
   accepted_gomrok: '', company_bimeh: '', description: '',
@@ -854,9 +716,9 @@ function toPayload(s: TallyHeaderState) {
     id_product_ownear: s.id_product_ownear,
     owner_national_code: codeOrNull(s.owner_national_code),
     id_country: s.id_country,
-    // Stored as newline-separated values in the existing database column.
-    // A legacy single policy number remains fully compatible with this format.
-    number_bimeh: serializeInsurancePolicyNumbers(s.number_bimeh),
+    // Stored as newline-separated values aligned line-by-line across the two
+    // columns. A legacy single policy number remains fully compatible.
+    ...serializeInsurancePairs(s.number_bimeh, s.sabt_sefaresh_number),
     name_arzyab: strOrNull(s.name_arzyab),           // name — left as typed
     number_barnameh: codeOrNull(s.number_barnameh),  // ← normalized
     is_bimeh: strOrNull(s.is_bimeh),
@@ -883,7 +745,7 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     id_product_ownear: r.id_product_ownear ?? null,
     owner_national_code: s(r.owner_national_code),
     id_country: r.id_country ?? null,
-    number_bimeh: parseInsurancePolicyNumbers(r.number_bimeh),
+    ...parseInsurancePairs(r.number_bimeh, r.sabt_sefaresh_number),
     name_arzyab: s(r.name_arzyab),
     number_barnameh: s(r.number_barnameh),
     is_bimeh: r.is_bimeh ?? 'خیر',
@@ -942,28 +804,36 @@ export function TallyHeaderForm() {
   const set = <K extends keyof TallyHeaderState>(key: K, value: TallyHeaderState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
-  const updateInsurancePolicyNumber = (index: number, value: string) => {
+  const updateInsurancePair = (
+    index: number,
+    field: 'number_bimeh' | 'sabt_sefaresh_number',
+    value: string,
+  ) => {
     setForm((current) => ({
       ...current,
-      number_bimeh: current.number_bimeh.map((number, numberIndex) =>
+      [field]: current[field].map((number, numberIndex) =>
         numberIndex === index ? value : number
       ),
     }))
   }
 
-  const addInsurancePolicyNumber = () => {
+  const addInsurancePair = () => {
     setForm((current) => ({
       ...current,
       number_bimeh: [...current.number_bimeh, ''],
+      sabt_sefaresh_number: [...current.sabt_sefaresh_number, ''],
     }))
   }
 
-  const removeInsurancePolicyNumber = (index: number) => {
+  const removeInsurancePair = (index: number) => {
     setForm((current) => ({
       ...current,
       number_bimeh: current.number_bimeh.length === 1
         ? ['']
         : current.number_bimeh.filter((_, numberIndex) => numberIndex !== index),
+      sabt_sefaresh_number: current.sabt_sefaresh_number.length === 1
+        ? ['']
+        : current.sabt_sefaresh_number.filter((_, numberIndex) => numberIndex !== index),
     }))
   }
 
@@ -1140,7 +1010,9 @@ export function TallyHeaderForm() {
             />
           </Grid.Col>
 
-          {/* --- row: insurance number + insurance company --- */}
+          {/* --- row: insurance pairs (policy number + order registration) --- */}
+          {/* One line = one insurance identity. Adding/removing acts on the pair
+              so the two columns stay aligned line-by-line in the database. */}
           <Grid.Col span={{ base: 12, md: 6 }}>
             <Stack gap="xs">
               {form.number_bimeh.map((number, index) => (
@@ -1148,7 +1020,14 @@ export function TallyHeaderForm() {
                   <TextInput
                     label={index === 0 ? 'شماره بیمه نامه' : `شماره بیمه نامه ${index + 1}`}
                     value={number}
-                    onChange={(e) => updateInsurancePolicyNumber(index, e.currentTarget.value)}
+                    onChange={(e) => updateInsurancePair(index, 'number_bimeh', e.currentTarget.value)}
+                    style={{ flex: 1 }}
+                    styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+                  />
+                  <TextInput
+                    label={index === 0 ? 'شماره ثبت سفارش' : `شماره ثبت سفارش ${index + 1}`}
+                    value={form.sabt_sefaresh_number[index] ?? ''}
+                    onChange={(e) => updateInsurancePair(index, 'sabt_sefaresh_number', e.currentTarget.value)}
                     style={{ flex: 1 }}
                     styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
                   />
@@ -1158,9 +1037,9 @@ export function TallyHeaderForm() {
                       size={36}
                       variant="filled"
                       color="blue"
-                      aria-label="افزودن شماره بیمه نامه"
-                      title="افزودن شماره بیمه نامه"
-                      onClick={addInsurancePolicyNumber}
+                      aria-label="افزودن بیمه نامه و ثبت سفارش"
+                      title="افزودن بیمه نامه و ثبت سفارش"
+                      onClick={addInsurancePair}
                     >
                       <Plus size={19} strokeWidth={2.2} />
                     </ActionIcon>
@@ -1170,9 +1049,9 @@ export function TallyHeaderForm() {
                       size={36}
                       variant="light"
                       color="red"
-                      aria-label={`حذف شماره بیمه نامه ${index + 1}`}
-                      title="حذف این شماره بیمه نامه"
-                      onClick={() => removeInsurancePolicyNumber(index)}
+                      aria-label={`حذف بیمه نامه و ثبت سفارش ${index + 1}`}
+                      title="حذف این بیمه نامه و ثبت سفارش"
+                      onClick={() => removeInsurancePair(index)}
                     >
                       <Trash2 size={17} strokeWidth={2} />
                     </ActionIcon>
