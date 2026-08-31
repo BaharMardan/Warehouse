@@ -7,7 +7,6 @@
 //   Modal, TextInput, Grid, Stack,
 // } from '@mantine/core'
 // import { apiGet, apiSend } from '../api/client'
-// import { RefSelect } from '../components/RefSelect'
 // import { TermValueSelect } from '../components/TermValueSelect'
 // import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 
@@ -261,8 +260,6 @@
 //               value={line.weighte_asnad} onChange={(e) => set('weighte_asnad', e.currentTarget.value)} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="وزن باسکول" inputMode="numeric"
 //               value={line.weighte_baskol} onChange={(e) => set('weighte_baskol', e.currentTarget.value)} /></Grid.Col>
-//             <Grid.Col span={6}><RefSelect label="طاق" path="/tagh" valueKey="id_tagh" labelKey="name_tagh"
-//               value={line.id_tagh_anbar} onChange={(v) => set('id_tagh_anbar', v)} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="شماره حامل"
 //               value={line.number_hamel} onChange={(e) => set('number_hamel', e.currentTarget.value)} /></Grid.Col>
 //             {sourceLocations.anbar && (
@@ -284,16 +281,16 @@
 //   )
 // }
 
-
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
+  Badge, Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
   Modal, TextInput, Grid, Stack,
 } from '@mantine/core'
 import { apiGet, apiSend } from '../api/client'
+import { RefSelect } from '../components/RefSelect'
 import { TermValueSelect } from '../components/TermValueSelect'
 import { CommodityPicker, type Commodity } from '../components/CommodityPicker'
 
@@ -312,13 +309,12 @@ type DetailRow = {
   number_hamel: string | null
   id_tagh_anbar: number | null
   tagh_name: string | null
-  source_anbar_names: string | null
-  source_tagh_names: string | null
 }
 
 type GhabzSummary = {
   id_ghabz: number
   ghabz_number: string | null
+  is_master: string | null
   number_ghabz: number | null
   number_tali: string | null
   tali_id: number | null
@@ -359,7 +355,6 @@ export function GhabzDetailPage() {
   const [picked, setPicked] = useState<Commodity | null>(null)
   // HS code of the row being edited, used to restore the catalog selection below.
   const [hydrateHs, setHydrateHs] = useState<string | null>(null)
-  const [sourceLocations, setSourceLocations] = useState({ anbar: '', tagh: '' })
 
   const { data: summary } = useQuery({
     queryKey: ['ghabz-summary', headerId],
@@ -442,8 +437,7 @@ export function GhabzDetailPage() {
   }
 
   function openAdd() {
-    setEditingId(null); setLine(EMPTY); setPicked(null); setHydrateHs(null)
-    setSourceLocations({ anbar: '', tagh: '' }); setModalOpen(true)
+    setEditingId(null); setLine(EMPTY); setPicked(null); setHydrateHs(null); setModalOpen(true)
   }
   function openEdit(r: DetailRow) {
     setEditingId(r.id_ghabz_anbar_details)
@@ -455,10 +449,6 @@ export function GhabzDetailPage() {
       type_basteh: r.type_basteh ?? '', number_kala: String(r.number_kala ?? ''),
       weighte_asnad: String(r.weighte_asnad ?? ''), weighte_baskol: String(r.weighte_baskol ?? ''),
       number_hamel: r.number_hamel ?? '', id_tagh_anbar: r.id_tagh_anbar,
-    })
-    setSourceLocations({
-      anbar: r.source_anbar_names ?? '',
-      tagh: r.source_tagh_names ?? r.tagh_name ?? '',
     })
     setModalOpen(true)
   }
@@ -473,6 +463,9 @@ export function GhabzDetailPage() {
         <Group gap="sm" align="baseline">
           <Title order={2}>
             قبض انبار <bdi dir="ltr">{receiptNumber ?? '—'}</bdi>
+            {summary?.is_master === 'yes' && (
+              <Badge ml="xs" color="indigo" variant="light">مادر</Badge>
+            )}
           </Title>
           {summary?.number_tali && (
             <Text c="dimmed" size="sm">تالی <bdi dir="ltr">{summary.number_tali}</bdi></Text>
@@ -547,16 +540,10 @@ export function GhabzDetailPage() {
               value={line.weighte_asnad} onChange={(e) => set('weighte_asnad', e.currentTarget.value)} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="وزن باسکول" inputMode="numeric"
               value={line.weighte_baskol} onChange={(e) => set('weighte_baskol', e.currentTarget.value)} /></Grid.Col>
+            <Grid.Col span={6}><RefSelect label="طاق" path="/tagh" valueKey="id_tagh" labelKey="name_tagh"
+              value={line.id_tagh_anbar} onChange={(v) => set('id_tagh_anbar', v)} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="شماره حامل"
               value={line.number_hamel} onChange={(e) => set('number_hamel', e.currentTarget.value)} /></Grid.Col>
-            {sourceLocations.anbar && (
-              <Grid.Col span={6}><TextInput label="انبارهای ردیف‌های تالی" readOnly
-                value={sourceLocations.anbar} /></Grid.Col>
-            )}
-            {sourceLocations.tagh && (
-              <Grid.Col span={6}><TextInput label="طاق‌های ردیف‌های تالی" readOnly
-                value={sourceLocations.tagh} /></Grid.Col>
-            )}
           </Grid>
           <Group justify="flex-start" mt="md">
             <Button onClick={() => saveMutation.mutate(line)} loading={saveMutation.isPending}>ذخیره</Button>

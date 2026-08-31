@@ -15,8 +15,9 @@ from app.services.ghabz_allotment import (
     drawable,
     full_draw,
     has_allotment,
-    plan_lines,
+    master_lines,
     over_issued,
+    plan_lines,
     remaining,
     shared_anbar,
 )
@@ -143,35 +144,6 @@ def test_duplicate_code_is_rejected_before_the_unique_constraint():
     with pytest.raises(HTTPException) as caught:
         plan_lines(request, [row], {110: row})
     assert "بیش از یک بار" in caught.value.detail
-
-
-def test_same_code_with_different_packaging_creates_separate_lines():
-    bag = allotment(type_bastem="کیسه")
-    carton = allotment(type_bastem="کارتن")
-    rows = [bag, carton]
-    by_key = {"110::کیسه": bag, "110::کارتن": carton}
-    request = [
-        GhabzLineInput(code_kala=110, type_basteh="کیسه"),
-        GhabzLineInput(code_kala=110, type_basteh="کارتن"),
-    ]
-
-    lines = plan_lines(request, rows, by_key)
-
-    assert [line["type_basteh"] for line in lines] == ["کیسه", "کارتن"]
-
-
-def test_merged_line_keeps_all_source_location_labels():
-    row = allotment(
-        number_hamel="12 ایران 34، 67 ایران 10",
-        source_anbar_names="انبار ۶، انبار ۷",
-        source_tagh_names="طاق 2A، طاق 3A",
-    )
-
-    line = full_draw(row)
-
-    assert "67 ایران 10" in line["number_hamel"]
-    assert line["source_anbar_names"] == "انبار ۶، انبار ۷"
-    assert line["source_tagh_names"] == "طاق 2A، طاق 3A"
 
 
 def test_negative_quantity_is_rejected():
@@ -311,8 +283,57 @@ def test_tally_allotment_ignores_soft_deleted_tally_rows():
     assert "t.\"IS_DELETED\" = 'no'" in inline_view
 
 
-def test_tally_allotment_groups_by_code_and_packaging():
-    sql = re.search(
-        r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S
-    ).group(1)
-    assert 'GROUP BY t."CODE_GROUPE_KALA", t."TYPE_BASTEM"' in sql
+# --- master receipts --------------------------------------------------------
+# A master (قبض انبار مادر) summarises the whole tally for internal records while
+# child receipts split the same goods for customers. The amended trigger measures
+# it on its own, so it carries full quantities regardless of what children took.
+
+def test_master_takes_the_tally_total_not_the_remainder():
+    row = allotment(issued_number_kala=600, issued_weighte_asnad=15_000)
+
+    lines = master_lines([row])
+
+    assert lines[0]["number_kala"] == 880
+    assert lines[0]["weighte_asnad"] == 22176
+    assert lines[0]["weighte_baskol"] == 21899
+
+
+def test_master_covers_every_code_including_fully_issued_ones():
+    spent = allotment(code_kala=99, issued_number_kala=880,
+                      issued_weighte_asnad=22176, issued_weighte_baskol=21899)
+    open_row = allotment(code_kala=110)
+
+    lines = master_lines([spent, open_row])
+
+    assert sorted(line["code_kala"] for line in lines) == [99, 110]
+
+
+def test_master_skips_codes_the_trigger_would_reject():
+    """NULL code and all-zero allotment both raise inside the trigger."""
+    null_code = allotment(code_kala=None)
+    zeroed = allotment(code_kala=77, tally_number_kala=0, tally_weighte=0,
+                       tally_weighte_baskol=0)
+    good = allotment(code_kala=110)
+
+    lines = master_lines([null_code, zeroed, good])
+
+    assert [line["code_kala"] for line in lines] == [110]
+
+
+def test_master_on_an_empty_tally_is_refused():
+    with pytest.raises(HTTPException) as caught:
+        master_lines([allotment(code_kala=None)])
+    assert caught.value.status_code == 400
+
+
+def test_master_carries_the_descriptive_columns():
+    line = master_lines([allotment()])[0]
+
+    assert line["hscode"] == "08023100"
+    assert line["type_basteh"] == "کیسه"
+
+
+def test_issued_sums_exclude_master_receipts():
+    """Otherwise a master would consume the allotment its children draw from."""
+    for subquery in issued_subqueries():
+        assert "IS_MASTER" in subquery

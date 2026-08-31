@@ -1,4 +1,4 @@
-// import { useEffect } from 'react'
+// import { useEffect, useState } from 'react'
 // import { useParams, useNavigate } from 'react-router-dom'
 // import { BackButton } from '../components/BackButton'
 // import { useQuery } from '@tanstack/react-query'
@@ -19,8 +19,9 @@
 //   UserRound,
 // } from 'lucide-react'
 // import { IconPrint } from '../components/icons'
-// import { apiGet, apiSend } from '../api/client'
+// import { apiGet } from '../api/client'
 // // import { TallyDiamoundSection } from '../components/TallyDiamoundSection'
+// import { GhabzIssueModal } from '../components/GhabzIssueModal'
 // import { TallyJunctionSection } from '../components/TallyJunctionSection'
 // import { TallyGoodsGrid } from '../components/TallyGoodsGrid'
 // import { tallyJunctions } from '../components/junctions'
@@ -107,6 +108,7 @@
 //   const reference = tallyId ?? tallyNumber ?? ''
 //   const isLegacyId = tallyId != null
 //   const navigate = useNavigate()
+//   const [issueOpen, setIssueOpen] = useState(false)
 
 //   // The public URL uses TALI_NUMBER. The database ID is resolved once and then
 //   // retained only for relational API calls below this page.
@@ -187,11 +189,7 @@
 //             variant="light"
 //             color="teal"
 //             leftSection={<ReceiptText size={17} />}
-//             onClick={async () => {
-//               if (headerId == null) return
-//               const r = await apiSend<{ id_ghabz: number }>(`/ghabz/from-tally/${headerId}`, 'POST')
-//               navigate(`/ghabz/${r.id_ghabz}/edit`)
-//             }}
+//             onClick={() => setIssueOpen(true)}
 //             disabled={headerId == null}
 //           >
 //             صدور قبض انبار
@@ -288,6 +286,17 @@
 //           <TallyJunctionSection key={cfg.key} config={cfg} tallyId={headerId} />
 //         ))}
 //       </div>
+
+//       <GhabzIssueModal
+//         opened={issueOpen}
+//         onClose={() => setIssueOpen(false)}
+//         tallyId={headerId}
+//         tallyNumber={header?.tali_number ?? tallyNumber}
+//         onIssued={(result) => {
+//           setIssueOpen(false)
+//           navigate(`/ghabz/${result.id_ghabz}`)
+//         }}
+//       />
 //     </div>
 //   )
 // }
@@ -591,6 +600,7 @@ export function TallyDetailPage() {
           navigate(`/ghabz/${result.id_ghabz}`)
         }}
       />
+
     </div>
   )
 }
