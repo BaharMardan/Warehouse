@@ -16,6 +16,7 @@ from app.services.ghabz_allotment import (
     full_draw,
     has_allotment,
     master_lines,
+    normalize_hscode,
     over_issued,
     plan_lines,
     remaining,
@@ -52,7 +53,11 @@ def test_remaining_is_allotment_minus_issued():
     assert remaining(row, "weighte_baskol") == 21899
 
 
-def test_a_code_with_no_tally_quantity_is_notdrawable():
+def test_hscode_normalization_is_stable():
+    assert normalize_hscode("  ab-12 ") == "AB-12"
+
+
+def test_an_hscode_with_no_tally_quantity_is_notdrawable():
     """This is the ORA-20011 case: the trigger rejects an all-zero allotment."""
     row = allotment(tally_number_kala=0, tally_weighte=0, tally_weighte_baskol=0)
 
@@ -60,9 +65,9 @@ def test_a_code_with_no_tally_quantity_is_notdrawable():
     assert not drawable(row)
 
 
-def test_a_null_code_is_neverdrawable():
-    """NULL code_kala matches nothing in the trigger and collides on the UNIQUE."""
-    assert not drawable(allotment(code_kala=None))
+def test_a_blank_hscode_is_neverdrawable():
+    """Blank HS codes must not merge unrelated tally rows."""
+    assert not drawable(allotment(hscode="  "))
 
 
 def test_a_fully_issued_code_is_notdrawable():
@@ -78,7 +83,7 @@ def test_a_fully_issued_code_is_notdrawable():
 def test_default_draw_takes_exactly_what_remains():
     row = allotment(issued_number_kala=480, issued_weighte_asnad=12000)
 
-    lines = plan_lines(None, [row], {110: row})
+    lines = plan_lines(None, [row], {"08023100": row})
 
     assert len(lines) == 1
     assert lines[0]["number_kala"] == 400
@@ -91,7 +96,8 @@ def test_default_draw_skips_codes_with_nothing_left():
                       issued_weighte_asnad=22176, issued_weighte_baskol=21899)
     open_row = allotment(code_kala=110)
 
-    lines = plan_lines(None, [empty, open_row], {99: empty, 110: open_row})
+    empty["hscode"] = "EMPTY"
+    lines = plan_lines(None, [empty, open_row], {"EMPTY": empty, "08023100": open_row})
 
     assert [line["code_kala"] for line in lines] == [110]
 
@@ -101,16 +107,16 @@ def test_nothing_left_at_all_is_a_clear_refusal():
                     issued_weighte_baskol=21899)
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines(None, [row], {110: row})
+        plan_lines(None, [row], {"08023100": row})
     assert caught.value.status_code == 400
     assert "باقی‌مانده" in caught.value.detail
 
 
 def test_partial_draw_is_allowed():
     row = allotment()
-    request = [GhabzLineInput(code_kala=110, number_kala=400, weighte_asnad=10000)]
+    request = [GhabzLineInput(hscode="08023100", number_kala=400, weighte_asnad=10000)]
 
-    lines = plan_lines(request, [row], {110: row})
+    lines = plan_lines(request, [row], {"08023100": row})
 
     assert lines[0]["number_kala"] == 400
     assert lines[0]["weighte_asnad"] == 10000
@@ -120,29 +126,29 @@ def test_partial_draw_is_allowed():
 
 def test_overdrawing_names_the_code_and_the_remainder():
     row = allotment(issued_number_kala=500)
-    request = [GhabzLineInput(code_kala=110, number_kala=400)]
+    request = [GhabzLineInput(hscode="08023100", number_kala=400)]
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines(request, [row], {110: row})
+        plan_lines(request, [row], {"08023100": row})
     assert caught.value.status_code == 400
     assert "380" in caught.value.detail
-    assert "110" in caught.value.detail
+    assert "08023100" in caught.value.detail
 
 
-def test_unknown_code_is_rejected_before_the_trigger_sees_it():
+def test_unknown_hscode_is_rejected_before_the_trigger_sees_it():
     row = allotment()
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines([GhabzLineInput(code_kala=777)], [row], {110: row})
+        plan_lines([GhabzLineInput(hscode="777")], [row], {"08023100": row})
     assert "777" in caught.value.detail
 
 
-def test_duplicate_code_is_rejected_before_the_unique_constraint():
+def test_duplicate_hscode_is_rejected_before_the_unique_constraint():
     row = allotment()
-    request = [GhabzLineInput(code_kala=110), GhabzLineInput(code_kala=110)]
+    request = [GhabzLineInput(hscode="08023100"), GhabzLineInput(hscode=" 08023100 ")]
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines(request, [row], {110: row})
+        plan_lines(request, [row], {"08023100": row})
     assert "بیش از یک بار" in caught.value.detail
 
 
@@ -150,17 +156,17 @@ def test_negative_quantity_is_rejected():
     row = allotment()
 
     with pytest.raises(HTTPException):
-        plan_lines([GhabzLineInput(code_kala=110, number_kala=-1)], [row], {110: row})
+        plan_lines([GhabzLineInput(hscode="08023100", number_kala=-1)], [row], {"08023100": row})
 
 
 def test_a_line_drawing_nothing_is_rejected():
     row = allotment()
     request = [
-        GhabzLineInput(code_kala=110, number_kala=0, weighte_asnad=0, weighte_baskol=0)
+        GhabzLineInput(hscode="08023100", number_kala=0, weighte_asnad=0, weighte_baskol=0)
     ]
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines(request, [row], {110: row})
+        plan_lines(request, [row], {"08023100": row})
     assert "هیچ مقداری" in caught.value.detail
 
 
@@ -227,7 +233,7 @@ def test_an_over_issued_code_is_still_drawable_on_its_other_measures():
 def test_default_draw_on_an_over_issued_row_is_zero_not_negative():
     row = over_issued_row()
 
-    lines = plan_lines(None, [row], {110: row})
+    lines = plan_lines(None, [row], {"08023100": row})
 
     assert lines[0]["weighte_baskol"] == 0
     assert lines[0]["number_kala"] == 7
@@ -237,7 +243,7 @@ def test_drawing_on_an_exhausted_measure_is_refused_with_zero_as_the_limit():
     row = over_issued_row()
 
     with pytest.raises(HTTPException) as caught:
-        plan_lines([GhabzLineInput(code_kala=110, weighte_baskol=5)], [row], {110: row})
+        plan_lines([GhabzLineInput(hscode="08023100", weighte_baskol=5)], [row], {"08023100": row})
     assert "0" in caught.value.detail
 
 
@@ -251,12 +257,26 @@ import pathlib
 import re
 
 ROUTER = pathlib.Path(__file__).resolve().parents[1] / "app" / "routers" / "ghabz.py"
+HSCODE_MIGRATION = (
+    pathlib.Path(__file__).resolve().parents[1] / "migrate_ghabz_hscode_groups.py"
+)
+
+
+def active_allotments_sql() -> str:
+    """The file preserves old implementations as comments; use the live last one."""
+    matches = re.findall(
+        r'(?m)^ALLOTMENTS_SQL = """(.*?)"""',
+        ROUTER.read_text(encoding="utf-8"),
+        re.S,
+    )
+    assert matches, "active ALLOTMENTS_SQL not found"
+    return matches[-1]
 
 
 def issued_subqueries() -> list[str]:
-    sql = re.search(r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S)
-    assert sql, "ALLOTMENTS_SQL not found"
-    return re.findall(r"NVL\(\(\s*SELECT SUM\(d\.(.*?)\), 0\)", sql.group(1), re.S)
+    return re.findall(
+        r"NVL\(\(\s*SELECT SUM\(d\.(.*?)\), 0\)", active_allotments_sql(), re.S
+    )
 
 
 def test_all_three_issued_sums_are_present():
@@ -276,11 +296,24 @@ def test_issued_sums_ignore_soft_deleted_receipt_headers(index):
 
 
 def test_tally_allotment_ignores_soft_deleted_tally_rows():
-    sql = re.search(
-        r'ALLOTMENTS_SQL = """(.*?)"""', ROUTER.read_text(encoding="utf-8"), re.S
-    ).group(1)
+    sql = active_allotments_sql()
     inline_view = sql.split("FROM (", 1)[1]
     assert "t.\"IS_DELETED\" = 'no'" in inline_view
+
+
+def test_allotments_group_only_by_normalized_hscode():
+    sql = active_allotments_sql()
+    inline_view = sql.split("FROM (", 1)[1]
+    assert 'GROUP BY UPPER(TRIM(t."HSCODE"))' in inline_view
+    assert 'GROUP BY t."CODE_GROUPE_KALA"' not in inline_view
+    assert 'GROUP BY t."TYPE_BASTEM"' not in inline_view
+
+
+@pytest.mark.parametrize("index", [0, 1, 2])
+def test_issued_sums_match_by_hscode_not_goods_code(index):
+    subquery = issued_subqueries()[index]
+    assert 'UPPER(TRIM(d."HSCODE")) = g.hscode' in subquery
+    assert 'd."code_kala" = g.code_kala' not in subquery
 
 
 # --- master receipts --------------------------------------------------------
@@ -298,22 +331,22 @@ def test_master_takes_the_tally_total_not_the_remainder():
     assert lines[0]["weighte_baskol"] == 21899
 
 
-def test_master_covers_every_code_including_fully_issued_ones():
-    spent = allotment(code_kala=99, issued_number_kala=880,
+def test_master_covers_every_hscode_including_fully_issued_ones():
+    spent = allotment(code_kala=99, hscode="SPENT", issued_number_kala=880,
                       issued_weighte_asnad=22176, issued_weighte_baskol=21899)
-    open_row = allotment(code_kala=110)
+    open_row = allotment(code_kala=110, hscode="OPEN")
 
     lines = master_lines([spent, open_row])
 
     assert sorted(line["code_kala"] for line in lines) == [99, 110]
 
 
-def test_master_skips_codes_the_trigger_would_reject():
-    """NULL code and all-zero allotment both raise inside the trigger."""
-    null_code = allotment(code_kala=None)
-    zeroed = allotment(code_kala=77, tally_number_kala=0, tally_weighte=0,
+def test_master_skips_hscodes_the_trigger_would_reject():
+    """Blank HS Code and all-zero allotment both raise inside the trigger."""
+    null_code = allotment(hscode=None)
+    zeroed = allotment(code_kala=77, hscode="ZERO", tally_number_kala=0, tally_weighte=0,
                        tally_weighte_baskol=0)
-    good = allotment(code_kala=110)
+    good = allotment(code_kala=110, hscode="GOOD")
 
     lines = master_lines([null_code, zeroed, good])
 
@@ -322,7 +355,7 @@ def test_master_skips_codes_the_trigger_would_reject():
 
 def test_master_on_an_empty_tally_is_refused():
     with pytest.raises(HTTPException) as caught:
-        master_lines([allotment(code_kala=None)])
+        master_lines([allotment(hscode=None)])
     assert caught.value.status_code == 400
 
 
@@ -337,3 +370,16 @@ def test_issued_sums_exclude_master_receipts():
     """Otherwise a master would consume the allotment its children draw from."""
     for subquery in issued_subqueries():
         assert "IS_MASTER" in subquery
+
+
+def test_hscode_migration_trigger_uses_the_same_grouping_key():
+    source = HSCODE_MIGRATION.read_text(encoding="utf-8")
+    assert 'UPPER(TRIM("d"."HSCODE")) = "g_rows"(i)."HSCODE"' in source
+    assert 'UPPER(TRIM("t"."HSCODE")) = "g_rows"(i)."HSCODE"' in source
+    assert '"t"."CODE_GROUPE_KALA" = "g_rows"(i)."CODE_KALA"' not in source
+
+
+def test_hscode_migration_replaces_packaging_uniqueness():
+    source = HSCODE_MIGRATION.read_text(encoding="utf-8")
+    assert "UQ_GHABZ_HEADER_HSCODE" in source
+    assert '_drop_constraint_if_present(cursor, "UQ_GHABZ_CODE_PACKAGE")' in source

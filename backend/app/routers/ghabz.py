@@ -13,8 +13,8 @@
 # The receipt-line model is dictated by two objects the legacy schema already
 # enforces on FA_ghabz_anbar_DETAILES:
 
-# * UQ_GHABZ_CODE_PACKAGE -- UNIQUE (receipt, goods code, packaging), so packaging
-#   variants of the same goods code remain separate receipt lines.
+# * FA_CON_تکرار_کدکلا -- UNIQUE (ID_GHABZ_ANBAR_HEADAR, code_kala), so a receipt
+#   holds at most one line per goods code.
 # * TRG_CHK_GHABZ_TALI_LIMIT -- sums NUMBER_KALA / WEIGHTE_asnad / WEIGHTE_BASKOL
 #   over every receipt of the parent tally for a code, and rejects the insert when
 #   that total exceeds the tally's own totals for the same CODE_GROUPE_KALA, or
@@ -32,6 +32,8 @@
 # rows forever, and ALLOTMENTS_SQL must agree with whichever version is installed
 # or the picker will offer quantities the insert refuses.
 # """
+# import logging
+# import re
 # from datetime import datetime
 
 # import oracledb
@@ -44,16 +46,22 @@
 # from app.services.ghabz_allotment import (
 #     GhabzFromTallyInput,
 #     annotate,
+#     master_lines,
 #     plan_lines,
 #     shared_anbar,
 # )
 # from app.services.ghabz_numbering import (
+#     MasterAlreadyIssued,
 #     TallyNotFound,
 #     TallyNotNumbered,
 #     allocate_ghabz_number,
+#     find_by_number,
+#     master_number,
 # )
 
 # router = APIRouter(prefix="/ghabz", tags=["ghabz"])
+
+# logger = logging.getLogger(__name__)
 
 # # Legal owners in the imported data keep their name in NAME rather than
 # # COMPANY_NAME, so a bare CASE on TYPE returns blank for them. COALESCE reads
@@ -70,6 +78,7 @@
 #     h."ID_ghabz"            AS id_ghabz,
 #     h."GHABZ_NUMBER"        AS ghabz_number,
 #     h."GHABZ_SEQ"           AS ghabz_seq,
+#     NVL(h."IS_MASTER", 'no') AS is_master,
 #     h."number_ghabz"        AS number_ghabz,
 #     h."NUMBER_tali"         AS number_tali,
 #     h."TALI_ID"             AS tali_id,
@@ -94,6 +103,18 @@
 # LEFT JOIN "FA_ANBAR"                  a         ON a."ID_ANBAR"            = h."ID_anbar"
 # LEFT JOIN "FA_USERS"                  u         ON u."ID"                  = h."CREATE_BY"
 # WHERE h."IS_DELETED" = 'no'
+#   AND (
+#         -- APEX-era receipts carry no GHABZ_NUMBER and many never had lines
+#         -- migrated. Hiding those would erase visible history, so the empty
+#         -- check applies only to receipts this system issued.
+#         h."GHABZ_NUMBER" IS NULL
+#      OR EXISTS (
+#             SELECT 1
+#             FROM "FA_ghabz_anbar_DETAILES" d
+#             WHERE d."ID_GHABZ_ANBAR_HEADAR" = h."ID_ghabz"
+#               AND d."IS_DELETED" = 'no'
+#         )
+#       )
 # ORDER BY h."ID_ghabz" DESC
 # """
 
@@ -105,6 +126,7 @@
 #     h."ID_ghabz"             AS id_ghabz,
 #     h."GHABZ_NUMBER"         AS ghabz_number,
 #     h."GHABZ_SEQ"            AS ghabz_seq,
+#     NVL(h."IS_MASTER", 'no') AS is_master,
 #     h."number_ghabz"         AS number_ghabz,
 #     h."TALI_ID"              AS tali_id,
 #     h."NUMBER_tali"          AS number_tali,
@@ -158,8 +180,6 @@
 #     d."WEIGHTE_asnad"          AS weighte_asnad,
 #     d."WEIGHTE_BASKOL"         AS weighte_baskol,
 #     d."NUMBER_HAMEL"           AS number_hamel,
-#     d."SOURCE_ANBAR_NAMES"     AS source_anbar_names,
-#     d."SOURCE_TAGH_NAMES"      AS source_tagh_names,
 #     d."ID_TAGH_ANBAR"          AS id_tagh_anbar,
 #     tg."NAME_TAGH"             AS tagh_name
 # FROM "FA_ghabz_anbar_DETAILES" d
@@ -168,10 +188,10 @@
 # ORDER BY d."ID_ghabz_anbar_DETAILS"
 # """
 
-# # One row per goods code + packaging on the tally: what the tally allots, what the existing
+# # One row per goods code on the tally: what the tally allots, what the existing
 # # receipts already took, and therefore what is still drawable. The descriptive
-# # rows with the same code and packaging are merged; all distinct carriers,
-# # warehouses and bays are retained as comma-separated source snapshots.
+# # columns are a representative value (MIN) because several tally rows can share
+# # a code while differing in طاق or حامل; the operator can edit the line after.
 # #
 # # Every side filters soft deletes, matching TRG_CHK_GHABZ_TALI_LIMIT as amended
 # # by migrate_ghabz_trigger_soft_delete.py. Deleting a receipt line, or a whole
@@ -192,8 +212,6 @@
 #     g.id_tagh_anbar         AS id_tagh_anbar,
 #     tg."NAME_TAGH"          AS tagh_name,
 #     g.number_hamel          AS number_hamel,
-#     g.source_anbar_names    AS source_anbar_names,
-#     g.source_tagh_names     AS source_tagh_names,
 #     g.tally_line_count      AS tally_line_count,
 #     g.tally_number_kala     AS tally_number_kala,
 #     g.tally_weighte         AS tally_weighte,
@@ -204,9 +222,9 @@
 #         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
 #         WHERE h."TALI_ID" = :tid
 #           AND d."code_kala" = g.code_kala
-#           AND NVL(TRIM(d."TYPE_BASTEh"), CHR(0)) = NVL(TRIM(g.type_bastem), CHR(0))
 #           AND d."IS_DELETED" = 'no'
 #           AND h."IS_DELETED" = 'no'
+#           AND NVL(h."IS_MASTER", 'no') = 'no'
 #     ), 0) AS issued_number_kala,
 #     NVL((
 #         SELECT SUM(d."WEIGHTE_asnad")
@@ -214,9 +232,9 @@
 #         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
 #         WHERE h."TALI_ID" = :tid
 #           AND d."code_kala" = g.code_kala
-#           AND NVL(TRIM(d."TYPE_BASTEh"), CHR(0)) = NVL(TRIM(g.type_bastem), CHR(0))
 #           AND d."IS_DELETED" = 'no'
 #           AND h."IS_DELETED" = 'no'
+#           AND NVL(h."IS_MASTER", 'no') = 'no'
 #     ), 0) AS issued_weighte_asnad,
 #     NVL((
 #         SELECT SUM(d."WEIGHTE_BASKOL")
@@ -224,34 +242,27 @@
 #         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
 #         WHERE h."TALI_ID" = :tid
 #           AND d."code_kala" = g.code_kala
-#           AND NVL(TRIM(d."TYPE_BASTEh"), CHR(0)) = NVL(TRIM(g.type_bastem), CHR(0))
 #           AND d."IS_DELETED" = 'no'
 #           AND h."IS_DELETED" = 'no'
+#           AND NVL(h."IS_MASTER", 'no') = 'no'
 #     ), 0) AS issued_weighte_baskol
 # FROM (
 #     SELECT
 #         t."CODE_GROUPE_KALA"            AS code_kala,
 #         MIN(t."DESCRIPTION_KALA")       AS description_kala,
 #         MIN(t."HSCODE")                 AS hscode,
-#         t."TYPE_BASTEM"                 AS type_bastem,
-#         CASE WHEN COUNT(DISTINCT t."ID_ANBAR") = 1 THEN MIN(t."ID_ANBAR") END AS id_anbar,
-#         CASE WHEN COUNT(DISTINCT t."ID_TAGH_ANBAR") = 1 THEN MIN(t."ID_TAGH_ANBAR") END AS id_tagh_anbar,
-#         LISTAGG(DISTINCT NULLIF(TRIM(t."NUMBER_HAMEL"), ''), '، ')
-#           WITHIN GROUP (ORDER BY NULLIF(TRIM(t."NUMBER_HAMEL"), '')) AS number_hamel,
-#         LISTAGG(DISTINCT NULLIF(TRIM(ta."NAME_ANBAR"), ''), '، ')
-#           WITHIN GROUP (ORDER BY NULLIF(TRIM(ta."NAME_ANBAR"), '')) AS source_anbar_names,
-#         LISTAGG(DISTINCT NULLIF(TRIM(tt."NAME_TAGH"), ''), '، ')
-#           WITHIN GROUP (ORDER BY NULLIF(TRIM(tt."NAME_TAGH"), '')) AS source_tagh_names,
+#         MIN(t."TYPE_BASTEM")            AS type_bastem,
+#         MIN(t."ID_ANBAR")               AS id_anbar,
+#         MIN(t."ID_TAGH_ANBAR")          AS id_tagh_anbar,
+#         MIN(t."NUMBER_HAMEL")           AS number_hamel,
 #         COUNT(*)                        AS tally_line_count,
 #         NVL(SUM(t."NUMBER_KALA"), 0)    AS tally_number_kala,
 #         NVL(SUM(t."WEIGHTE"), 0)        AS tally_weighte,
 #         NVL(SUM(t."WEIGHTE_BASKOL"), 0) AS tally_weighte_baskol
 #     FROM "FA_TALI_DETAILES" t
-#     LEFT JOIN "FA_ANBAR" ta ON ta."ID_ANBAR" = t."ID_ANBAR"
-#     LEFT JOIN "FA_TAGH_ANBAR" tt ON tt."ID_TAGH" = t."ID_TAGH_ANBAR"
 #     WHERE t."ID_HEADERS_TALI" = :tid
 #       AND t."IS_DELETED" = 'no'
-#     GROUP BY t."CODE_GROUPE_KALA", t."TYPE_BASTEM"
+#     GROUP BY t."CODE_GROUPE_KALA"
 # ) g
 # LEFT JOIN "FA_ANBAR"      a  ON a."ID_ANBAR" = g.id_anbar
 # LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = g.id_tagh_anbar
@@ -274,15 +285,42 @@
 #     "DATE_UNLOADING", "DATE_ENTER_MARZE",
 #     "ID_MARZE", "ID_COUNTRY", "ID_COMPANY", "ID_PRODUCT_OWNEAR", "ID_anbar",
 #     "NAME_ANBARDAR", "status_BIMEH", "NUMBER_BIMEH", "COMPANY_BIMEH",
-#     "IS_DELETED", "CREATE_AT", "CREATE_BY"
+#     "IS_MASTER", "IS_DELETED", "CREATE_AT", "CREATE_BY"
 # ) VALUES (
 #     :tali_id, :number_tali, :ghabz_number, :ghabz_seq,
 #     :number_karaneh, :number_royea, :number_marze, :tracking_number,
 #     :date_unloading, :date_enter_marze,
 #     :id_marze, :id_country, :id_company, :id_product_ownear, :id_anbar,
 #     :name_anbardar, :status_bimeh, :number_bimeh, :company_bimeh,
-#     'no', :created_at, :actor_id
+#     :is_master, 'no', :created_at, :actor_id
 # ) RETURNING "ID_ghabz" INTO :new_id
+# """
+
+# COUNT_LIVE_LINES_SQL = """
+# SELECT COUNT(*)
+# FROM "FA_ghabz_anbar_DETAILES"
+# WHERE "ID_GHABZ_ANBAR_HEADAR" = :header_id
+#   AND "IS_DELETED" = 'no'
+# """
+
+# REVIVE_MASTER_SQL = """
+# UPDATE "fa_ghabz_anbar_header"
+#    SET "IS_DELETED" = 'no', "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor_id
+#  WHERE "ID_ghabz" = :header_id
+# """
+
+# # A hard DELETE, against this project's soft-delete convention, and deliberately.
+# #
+# # The unique constraints on this table (FA_CON_تکرار_کدکلا, UQ_GHABZ_CODE_PACKAGE)
+# # do not ignore soft-deleted rows, so a line marked deleted still occupies its
+# # (header, code, packaging) slot. Rebuilding a master by soft-deleting the old
+# # lines and inserting fresh ones therefore collides with the very rows it just
+# # retired. The master is a regenerated snapshot of the tally with no archival
+# # value of its own and nothing referencing its lines, so removing them outright
+# # is safe here. This is NOT a licence to hard-delete elsewhere.
+# CLEAR_MASTER_LINES_SQL = """
+# DELETE FROM "FA_ghabz_anbar_DETAILES"
+#  WHERE "ID_GHABZ_ANBAR_HEADAR" = :header_id
 # """
 
 # INSERT_LINE = """
@@ -294,20 +332,6 @@
 #     :header_id, :code_kala, :description_kala, :hscode,
 #     :type_basteh, :number_kala, :weighte_asnad, :weighte_baskol,
 #     :number_hamel, :id_tagh_anbar, 'no', :created_at, :actor_id
-# )
-# """
-
-# INSERT_LINE_WITH_SOURCES = """
-# INSERT INTO "FA_ghabz_anbar_DETAILES" (
-#     "ID_GHABZ_ANBAR_HEADAR", "code_kala", "DESCRIPTION_KALA", "HSCODE",
-#     "TYPE_BASTEh", "NUMBER_KALA", "WEIGHTE_asnad", "WEIGHTE_BASKOL",
-#     "NUMBER_HAMEL", "ID_TAGH_ANBAR", "SOURCE_ANBAR_NAMES", "SOURCE_TAGH_NAMES",
-#     "IS_DELETED", "CREATE_AT", "CREATE_BY"
-# ) VALUES (
-#     :header_id, :code_kala, :description_kala, :hscode,
-#     :type_basteh, :number_kala, :weighte_asnad, :weighte_baskol,
-#     :number_hamel, :id_tagh_anbar, :source_anbar_names, :source_tagh_names,
-#     'no', :created_at, :actor_id
 # )
 # """
 
@@ -342,9 +366,42 @@
 #         if code in text:
 #             fragment = text.split(code + ":", 1)[1]
 #             return fragment.split("ORA-")[0].strip()
-#     if ("FA_CON_" in text or "UQ_GHABZ_CODE_PACKAGE" in text) and "ORA-00001" in text:
-#         return "برای هر ترکیب کد کالا و نوع بسته‌بندی فقط یک ردیف در هر قبض مجاز است."
+#     if "ORA-00001" in text:
+#         # Unique constraints here do not ignore soft-deleted rows, so a line the
+#         # operator "deleted" still blocks its combination. Say so plainly.
+#         if "FA_CON_" in text:
+#             return "برای هر کد کالا فقط یک ردیف در هر قبض انبار مجاز است."
+#         if "UQ_GHABZ_CODE_PACKAGE" in text:
+#             return (
+#                 "برای هر ترکیب کد کالا و نوع بسته‌بندی فقط یک ردیف در هر قبض انبار "
+#                 "مجاز است. توجه کنید که ردیف حذف‌شده هم این ترکیب را اشغال نگه "
+#                 "می‌دارد و باید ابتدا آن را بازیابی یا کاملاً پاک کرد."
+#             )
 #     return None
+
+
+# def _oracle_code(exc: BaseException) -> str:
+#     """Identify a database failure precisely enough to act on.
+
+#     Oracle 23ai names the violated constraint and, via ORA-03301, the column
+#     values that already exist. Reporting only "ORA-00001" throws that away and
+#     costs a round trip, so the constraint and values come along.
+#     """
+#     text = " ".join(str(exc).split())
+#     parts: list[str] = []
+
+#     code = re.search(r"ORA-\d{5}", text)
+#     parts.append(code.group(0) if code else "unknown")
+
+#     constraint = re.search(r"constraint \(([^)]+)\)", text)
+#     if constraint:
+#         parts.append(constraint.group(1))
+
+#     values = re.search(r"row with column values \(([^)]*)\)", text)
+#     if values:
+#         parts.append(values.group(1))
+
+#     return " / ".join(parts)
 
 
 # @router.get("/list", dependencies=[Depends(get_current_user)])
@@ -372,6 +429,156 @@
 #     return fetch_all(DETAILS_SQL, {"hid": header_id})
 
 
+# @router.post("/from-tally/{tali_id}/master", status_code=201)
+# def create_master_ghabz(
+#     tali_id: int,
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     """Issue the tally's master receipt: every goods code at its full total.
+
+#     Re-running this revives and rebuilds a previously deleted master instead of
+#     issuing a new one. Number _0 is fixed, and UQ_FA_GHABZ_NUMBER does not ignore
+#     soft-deleted rows, so a second master would collide -- rebuilding is both the
+#     only safe option and the one the operator actually wants when the tally has
+#     changed underneath.
+#     """
+#     with get_connection() as conn:
+#         try:
+#             with conn.cursor() as cursor:
+#                 cursor.execute(FROM_TALLY_READ, {"tid": tali_id})
+#                 tally_rows = _rows_with_columns(cursor)
+#                 if not tally_rows:
+#                     raise HTTPException(status_code=404, detail="تالی یافت نشد")
+#                 tally = tally_rows[0]
+
+#                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
+#                 allotments = _rows_with_columns(cursor)
+#                 lines = master_lines(allotments)
+
+#                 cursor.execute("SELECT SYSDATE FROM DUAL")
+#                 created_at = cursor.fetchone()[0]
+#                 actor_id = current_user["id"]
+
+#                 # Work out the number first, then look for a row already
+#                 # holding it. UQ_FA_GHABZ_NUMBER is what an insert collides
+#                 # with, so that is the key worth searching on.
+#                 ghabz_number, sequence, tali_number = master_number(cursor, tali_id)
+#                 existing = find_by_number(cursor, ghabz_number)
+#                 rebuilt = existing is not None
+
+#                 if rebuilt:
+#                     header_id, _, is_deleted, was_master = existing
+#                     header_id = int(header_id)
+
+#                     if str(was_master) != "yes":
+#                         raise HTTPException(
+#                             status_code=409,
+#                             detail=(
+#                                 f"شماره {ghabz_number} به یک قبض انبار عادی تعلق دارد "
+#                                 "و نمی‌توان آن را به قبض مادر تبدیل کرد."
+#                             ),
+#                         )
+#                     # An emptied master is not a master. Deleting its lines is
+#                     # how an operator asks for it to be rebuilt, so only one
+#                     # that still holds lines blocks a re-issue.
+#                     cursor.execute(
+#                         COUNT_LIVE_LINES_SQL, {"header_id": header_id}
+#                     )
+#                     live_lines = int(cursor.fetchone()[0])
+#                     if str(is_deleted) == "no" and live_lines > 0:
+#                         raise MasterAlreadyIssued(ghabz_number)
+
+#                     cursor.execute(
+#                         REVIVE_MASTER_SQL,
+#                         {"header_id": header_id, "actor_id": actor_id},
+#                     )
+#                     cursor.execute(
+#                         CLEAR_MASTER_LINES_SQL, {"header_id": header_id}
+#                     )
+#                 else:
+#                     new_id_var = cursor.var(int)
+#                     cursor.execute(
+#                         INSERT_GHABZ,
+#                         {
+#                             "tali_id": tali_id,
+#                             "number_tali": tali_number,
+#                             "ghabz_number": ghabz_number,
+#                             "ghabz_seq": sequence,
+#                             "number_karaneh": tally.get("number_karaneh"),
+#                             "number_royea": tally.get("customs_procedure"),
+#                             "number_marze": tally.get("radef_marze"),
+#                             "tracking_number": tally.get("tracking_number"),
+#                             "date_unloading": _as_date(tally.get("date_unloading")),
+#                             "date_enter_marze": _as_date(tally.get("date_enter_marze")),
+#                             "id_marze": tally.get("id_marze"),
+#                             "id_country": tally.get("id_country"),
+#                             "id_company": tally.get("id_company"),
+#                             "id_product_ownear": tally.get("id_product_ownear"),
+#                             "id_anbar": shared_anbar(allotments),
+#                             "name_anbardar": tally.get("name_anbardar"),
+#                             "status_bimeh": tally.get("is_bimeh"),
+#                             "number_bimeh": tally.get("number_bimeh"),
+#                             "company_bimeh": tally.get("company_bimeh"),
+#                             "is_master": "yes",
+#                             "created_at": created_at,
+#                             "actor_id": actor_id,
+#                             "new_id": new_id_var,
+#                         },
+#                     )
+#                     header_id = _returned_int(new_id_var)
+
+#                 cursor.executemany(
+#                     INSERT_LINE,
+#                     [
+#                         {
+#                             "header_id": header_id,
+#                             "created_at": created_at,
+#                             "actor_id": actor_id,
+#                             **line,
+#                         }
+#                         for line in lines
+#                     ],
+#                 )
+
+#             conn.commit()
+#             return {
+#                 "id_ghabz": header_id,
+#                 "ghabz_number": ghabz_number,
+#                 "ghabz_seq": sequence,
+#                 "line_count": len(lines),
+#                 "is_master": True,
+#                 "rebuilt": rebuilt,
+#             }
+#         except HTTPException:
+#             conn.rollback()
+#             raise
+#         except MasterAlreadyIssued as exc:
+#             conn.rollback()
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=(
+#                     f"قبض انبار مادر برای این تالی قبلاً با شماره {exc} صادر شده است."
+#                 ),
+#             ) from exc
+#         except TallyNotFound as exc:
+#             conn.rollback()
+#             raise HTTPException(status_code=404, detail="تالی یافت نشد") from exc
+#         except TallyNotNumbered as exc:
+#             conn.rollback()
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="این تالی شماره ندارد و نمی‌توان برای آن قبض انبار صادر کرد.",
+#             ) from exc
+#         except oracledb.DatabaseError as exc:
+#             conn.rollback()
+#             message = _trigger_message(exc)
+#             if message:
+#                 raise HTTPException(status_code=400, detail=message) from exc
+#             logger.exception("صدور قبض انبار مادر ناموفق بود.")
+#             raise HTTPException(
+#                 status_code=500, detail=f"صدور قبض انبار مادر ناموفق بود. ({_oracle_code(exc)})"
+#             ) from exc
+
 # @router.post("/from-tally/{tali_id}", status_code=201)
 # def create_ghabz_from_tally(
 #     tali_id: int,
@@ -391,14 +598,14 @@
 #                 tally = tally_rows[0]
 
 #                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
-#                 allotments = annotate(_rows_with_columns(cursor))
-#                 by_key = {
-#                     row["allotment_key"]: row
+#                 allotments = _rows_with_columns(cursor)
+#                 by_code = {
+#                     row["code_kala"]: row
 #                     for row in allotments
 #                     if row["code_kala"] is not None
 #                 }
 
-#                 lines = plan_lines(requested, allotments, by_key)
+#                 lines = plan_lines(requested, allotments, by_code)
 
 #                 ghabz_number, sequence, tali_number = allocate_ghabz_number(
 #                     cursor, tali_id
@@ -426,12 +633,13 @@
 #                         "id_company": tally.get("id_company"),
 #                         "id_product_ownear": tally.get("id_product_ownear"),
 #                         "id_anbar": shared_anbar(
-#                             [by_key[line["allotment_key"]] for line in lines]
+#                             [by_code[line["code_kala"]] for line in lines]
 #                         ),
 #                         "name_anbardar": tally.get("name_anbardar"),
 #                         "status_bimeh": tally.get("is_bimeh"),
 #                         "number_bimeh": tally.get("number_bimeh"),
 #                         "company_bimeh": tally.get("company_bimeh"),
+#                         "is_master": "no",
 #                         "created_at": created_at,
 #                         "actor_id": current_user["id"],
 #                         "new_id": new_id_var,
@@ -440,13 +648,13 @@
 #                 new_id = _returned_int(new_id_var)
 
 #                 cursor.executemany(
-#                     INSERT_LINE_WITH_SOURCES,
+#                     INSERT_LINE,
 #                     [
 #                         {
 #                             "header_id": new_id,
 #                             "created_at": created_at,
 #                             "actor_id": current_user["id"],
-#                             **{key: value for key, value in line.items() if key != "allotment_key"},
+#                             **line,
 #                         }
 #                         for line in lines
 #                     ],
@@ -476,22 +684,24 @@
 #             message = _trigger_message(exc)
 #             if message:
 #                 raise HTTPException(status_code=400, detail=message) from exc
+#             logger.exception("تخصیص شماره و صدور قبض انبار ناموفق بود.")
 #             raise HTTPException(
 #                 status_code=500,
-#                 detail="تخصیص شماره و صدور قبض انبار ناموفق بود.",
+#                 detail=f"تخصیص شماره و صدور قبض انبار ناموفق بود. ({_oracle_code(exc)})",
 #             ) from exc
 #         except ValueError as exc:
 #             conn.rollback()
+#             logger.exception("تخصیص شماره و صدور قبض انبار ناموفق بود.")
 #             raise HTTPException(
 #                 status_code=500,
-#                 detail="تخصیص شماره و صدور قبض انبار ناموفق بود.",
+#                 detail=f"تخصیص شماره و صدور قبض انبار ناموفق بود. ({_oracle_code(exc)})",
 #             ) from exc
 
 """قبض انبار (warehouse receipt) reads and the create-from-tally flow.
 
   GET  /ghabz/list                            - all receipts, FK names resolved
   GET  /ghabz/{id}/details                    - one receipt's line items
-  GET  /ghabz/from-tally/{tali_id}/allotments - per goods-code allotment, issued
+  GET  /ghabz/from-tally/{tali_id}/allotments - per-HS-code allotment, issued
                                                 and remaining quantities
   POST /ghabz/from-tally/{tali_id}            - issue a receipt drawing quantities
 
@@ -499,21 +709,8 @@ Plain field edits still go through the factory routers (/ghabz-header,
 /ghabz-details). Creation does not, because the receipt number has to be
 allocated in the same transaction as the insert -- see services/ghabz_numbering.
 
-The receipt-line model is dictated by two objects the legacy schema already
-enforces on FA_ghabz_anbar_DETAILES:
-
-* FA_CON_تکرار_کدکلا -- UNIQUE (ID_GHABZ_ANBAR_HEADAR, code_kala), so a receipt
-  holds at most one line per goods code.
-* TRG_CHK_GHABZ_TALI_LIMIT -- sums NUMBER_KALA / WEIGHTE_asnad / WEIGHTE_BASKOL
-  over every receipt of the parent tally for a code, and rejects the insert when
-  that total exceeds the tally's own totals for the same CODE_GROUPE_KALA, or
-  when the tally has no such code at all.
-
-So a receipt line is not a copy of a tally row. One tally row per receipt line
-would collide on the constraint whenever two rows share a code. A line is a
-*draw against a per-code allotment*: the tally says how much of code 110 exists,
-each receipt takes some of it, and the receipts may never sum past the tally.
-That is what makes several receipts per tally meaningful.
+Each receipt line is a draw against one normalized HS Code allotment. Goods
+group and packaging remain descriptive only; neither splits an allotment.
 
 Soft deletes release quantity: a deleted receipt line, a deleted receipt, and a
 deleted tally row all stop counting. This requires the amended trigger from
@@ -536,6 +733,7 @@ from app.services.ghabz_allotment import (
     GhabzFromTallyInput,
     annotate,
     master_lines,
+    normalize_hscode,
     plan_lines,
     shared_anbar,
 )
@@ -677,10 +875,10 @@ WHERE d."ID_GHABZ_ANBAR_HEADAR" = :hid AND d."IS_DELETED" = 'no'
 ORDER BY d."ID_ghabz_anbar_DETAILS"
 """
 
-# One row per goods code on the tally: what the tally allots, what the existing
+# One row per normalized HS Code on the tally: what the tally allots, what the existing
 # receipts already took, and therefore what is still drawable. The descriptive
-# columns are a representative value (MIN) because several tally rows can share
-# a code while differing in طاق or حامل; the operator can edit the line after.
+# columns are representative values because several tally rows can share an HS
+# Code while differing in goods group, packaging, طاق or حامل.
 #
 # Every side filters soft deletes, matching TRG_CHK_GHABZ_TALI_LIMIT as amended
 # by migrate_ghabz_trigger_soft_delete.py. Deleting a receipt line, or a whole
@@ -710,7 +908,7 @@ SELECT
         FROM "FA_ghabz_anbar_DETAILES" d
         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
         WHERE h."TALI_ID" = :tid
-          AND d."code_kala" = g.code_kala
+          AND UPPER(TRIM(d."HSCODE")) = g.hscode
           AND d."IS_DELETED" = 'no'
           AND h."IS_DELETED" = 'no'
           AND NVL(h."IS_MASTER", 'no') = 'no'
@@ -720,7 +918,7 @@ SELECT
         FROM "FA_ghabz_anbar_DETAILES" d
         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
         WHERE h."TALI_ID" = :tid
-          AND d."code_kala" = g.code_kala
+          AND UPPER(TRIM(d."HSCODE")) = g.hscode
           AND d."IS_DELETED" = 'no'
           AND h."IS_DELETED" = 'no'
           AND NVL(h."IS_MASTER", 'no') = 'no'
@@ -730,17 +928,19 @@ SELECT
         FROM "FA_ghabz_anbar_DETAILES" d
         JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
         WHERE h."TALI_ID" = :tid
-          AND d."code_kala" = g.code_kala
+          AND UPPER(TRIM(d."HSCODE")) = g.hscode
           AND d."IS_DELETED" = 'no'
           AND h."IS_DELETED" = 'no'
           AND NVL(h."IS_MASTER", 'no') = 'no'
     ), 0) AS issued_weighte_baskol
 FROM (
     SELECT
-        t."CODE_GROUPE_KALA"            AS code_kala,
-        MIN(t."DESCRIPTION_KALA")       AS description_kala,
-        MIN(t."HSCODE")                 AS hscode,
-        MIN(t."TYPE_BASTEM")            AS type_bastem,
+        MIN(t."CODE_GROUPE_KALA")       AS code_kala,
+        CASE WHEN COUNT(DISTINCT TRIM(t."DESCRIPTION_KALA")) > 1
+             THEN 'چند شرح کالا' ELSE MIN(t."DESCRIPTION_KALA") END AS description_kala,
+        UPPER(TRIM(t."HSCODE"))          AS hscode,
+        CASE WHEN COUNT(DISTINCT TRIM(t."TYPE_BASTEM")) > 1
+             THEN 'چند نوع بسته‌بندی' ELSE MIN(t."TYPE_BASTEM") END AS type_bastem,
         MIN(t."ID_ANBAR")               AS id_anbar,
         MIN(t."ID_TAGH_ANBAR")          AS id_tagh_anbar,
         MIN(t."NUMBER_HAMEL")           AS number_hamel,
@@ -751,11 +951,11 @@ FROM (
     FROM "FA_TALI_DETAILES" t
     WHERE t."ID_HEADERS_TALI" = :tid
       AND t."IS_DELETED" = 'no'
-    GROUP BY t."CODE_GROUPE_KALA"
+    GROUP BY UPPER(TRIM(t."HSCODE"))
 ) g
 LEFT JOIN "FA_ANBAR"      a  ON a."ID_ANBAR" = g.id_anbar
 LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = g.id_tagh_anbar
-ORDER BY g.code_kala
+ORDER BY g.hscode
 """
 
 FROM_TALLY_READ = """
@@ -851,21 +1051,18 @@ def _as_date(value):
 def _trigger_message(exc: oracledb.DatabaseError) -> str | None:
     """Surface the trigger's own Persian text instead of a raw ORA- dump."""
     text = str(exc)
-    for code in ("ORA-20001", "ORA-20002", "ORA-20003", "ORA-20010", "ORA-20011"):
+    for code in (
+        "ORA-20001", "ORA-20002", "ORA-20003",
+        "ORA-20010", "ORA-20011", "ORA-20012",
+    ):
         if code in text:
             fragment = text.split(code + ":", 1)[1]
             return fragment.split("ORA-")[0].strip()
     if "ORA-00001" in text:
         # Unique constraints here do not ignore soft-deleted rows, so a line the
         # operator "deleted" still blocks its combination. Say so plainly.
-        if "FA_CON_" in text:
-            return "برای هر کد کالا فقط یک ردیف در هر قبض انبار مجاز است."
-        if "UQ_GHABZ_CODE_PACKAGE" in text:
-            return (
-                "برای هر ترکیب کد کالا و نوع بسته‌بندی فقط یک ردیف در هر قبض انبار "
-                "مجاز است. توجه کنید که ردیف حذف‌شده هم این ترکیب را اشغال نگه "
-                "می‌دارد و باید ابتدا آن را بازیابی یا کاملاً پاک کرد."
-            )
+        if "UQ_GHABZ_HEADER_HSCODE" in text:
+            return "برای هر HS Code فقط یک ردیف فعال در هر قبض انبار مجاز است."
     return None
 
 
@@ -900,7 +1097,7 @@ def list_ghabz():
 
 @router.get("/from-tally/{tali_id}/allotments", dependencies=[Depends(get_current_user)])
 def list_ghabz_allotments(tali_id: int):
-    """Per goods code: tally allotment, already issued, and what remains."""
+    """Per HS Code: tally allotment, already issued, and what remains."""
     return annotate(fetch_all(ALLOTMENTS_SQL, {"tid": tali_id}))
 
 
@@ -923,7 +1120,7 @@ def create_master_ghabz(
     tali_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    """Issue the tally's master receipt: every goods code at its full total.
+    """Issue the tally's master receipt: every HS Code at its full total.
 
     Re-running this revives and rebuilds a previously deleted master instead of
     issuing a new one. Number _0 is fixed, and UQ_FA_GHABZ_NUMBER does not ignore
@@ -1074,7 +1271,7 @@ def create_ghabz_from_tally(
     selection: GhabzFromTallyInput | None = None,
     current_user: dict = Depends(get_current_user),
 ):
-    """Issue one receipt, drawing quantities per goods code against the tally."""
+    """Issue one receipt, drawing quantities per HS Code against the tally."""
     requested = selection.lines if selection is not None else None
 
     with get_connection() as conn:
@@ -1088,13 +1285,13 @@ def create_ghabz_from_tally(
 
                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
                 allotments = _rows_with_columns(cursor)
-                by_code = {
-                    row["code_kala"]: row
+                by_hscode = {
+                    normalize_hscode(row["hscode"]): row
                     for row in allotments
-                    if row["code_kala"] is not None
+                    if normalize_hscode(row.get("hscode"))
                 }
 
-                lines = plan_lines(requested, allotments, by_code)
+                lines = plan_lines(requested, allotments, by_hscode)
 
                 ghabz_number, sequence, tali_number = allocate_ghabz_number(
                     cursor, tali_id
@@ -1122,7 +1319,7 @@ def create_ghabz_from_tally(
                         "id_company": tally.get("id_company"),
                         "id_product_ownear": tally.get("id_product_ownear"),
                         "id_anbar": shared_anbar(
-                            [by_code[line["code_kala"]] for line in lines]
+                            [by_hscode[normalize_hscode(line["hscode"])] for line in lines]
                         ),
                         "name_anbardar": tally.get("name_anbardar"),
                         "status_bimeh": tally.get("is_bimeh"),

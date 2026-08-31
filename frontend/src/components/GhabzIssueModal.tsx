@@ -18,6 +18,11 @@
 //  *
 //  * Amounts default to the full remainder, which is the common case: one receipt
 //  * for the whole tally. Editing them down is what makes a split delivery work.
+//  *
+//  * The master receipt (قبض انبار مادر) is issued from here too. It is a summary
+//  * of the whole tally for internal records rather than a draw against it, so the
+//  * amended trigger measures it on its own and issuing it does not reduce what the
+//  * customer receipts below can still take.
 //  */
 
 // type Allotment = {
@@ -53,6 +58,7 @@
 //   ghabz_number: string
 //   ghabz_seq: number
 //   line_count: number
+//   rebuilt?: boolean
 // }
 
 // const EMPTY = '—'
@@ -149,6 +155,21 @@
 //       setError(persianError(mutationError, 'صدور قبض انبار ناموفق بود.'))
 //     },
 //   })
+
+//   const issueMaster = useMutation({
+//     mutationFn: () =>
+//       apiSend<IssueResult>(`/ghabz/from-tally/${tallyId}/master`, 'POST'),
+//     onSuccess: (result) => {
+//       queryClient.invalidateQueries({ queryKey: ['ghabz-list'] })
+//       queryClient.invalidateQueries({ queryKey: ['ghabz-allotments', tallyId] })
+//       onIssued(result)
+//     },
+//     onError: (mutationError) => {
+//       setError(persianError(mutationError, 'صدور قبض انبار مادر ناموفق بود.'))
+//     },
+//   })
+
+//   const busy = issue.isPending || issueMaster.isPending
 
 //   const toggle = (code: number) => {
 //     setSelected((current) =>
@@ -361,16 +382,33 @@
 
 //         {error && <Alert color="red" variant="light" mt="sm">{error}</Alert>}
 
-//         <Group justify="flex-start" mt="lg">
-//           <Button
-//             color="teal"
-//             loading={issue.isPending}
-//             disabled={selected.length === 0 || tallyId == null}
-//             onClick={() => { setError(null); issue.mutate() }}
+//         <Group justify="space-between" mt="lg">
+//           <Group>
+//             <Button
+//               color="teal"
+//               loading={issue.isPending}
+//               disabled={selected.length === 0 || tallyId == null || busy}
+//               onClick={() => { setError(null); issue.mutate() }}
+//             >
+//               صدور قبض انبار
+//             </Button>
+//             <Button variant="subtle" onClick={onClose} disabled={busy}>انصراف</Button>
+//           </Group>
+//           <Tooltip
+//             multiline
+//             w={280}
+//             label="یک قبض شامل همه کدهای کالای تالی با مقدار کامل، برای بایگانی داخلی. مقدار قابل صدور قبض‌های مشتری را کم نمی‌کند و شماره‌اش همیشه با پسوند صفر ثبت می‌شود."
 //           >
-//             صدور قبض انبار
-//           </Button>
-//           <Button variant="subtle" onClick={onClose}>انصراف</Button>
+//             <Button
+//               color="violet"
+//               variant="filled"
+//               loading={issueMaster.isPending}
+//               disabled={rows.length === 0 || tallyId == null || busy}
+//               onClick={() => { setError(null); issueMaster.mutate() }}
+//             >
+//               صدور قبض انبار مادر
+//             </Button>
+//           </Tooltip>
 //         </Group>
 //       </div>
 //     </Modal>
@@ -386,14 +424,12 @@ import {
 import { apiGet, apiSend } from '../api/client'
 
 /**
- * صدور قبض انبار — draw quantities against the tally, per goods code.
+ * صدور قبض انبار — draw quantities against the tally, per HS Code.
  *
  * The database decides the shape of this screen. FA_ghabz_anbar_DETAILES carries
- * UNIQUE (ID_GHABZ_ANBAR_HEADAR, code_kala), and TRG_CHK_GHABZ_TALI_LIMIT caps
- * the sum of every receipt of a tally at the tally's own totals for each
- * CODE_GROUPE_KALA. So a receipt holds one line per code, and issuing means
- * choosing how much of each code's remaining allotment to take — not which
- * tally rows to copy.
+ * one active line per normalized HS Code, and TRG_CHK_GHABZ_TALI_LIMIT caps
+ * receipts against the tally total for that HS Code. Goods group and packaging
+ * are descriptive only and never split the allotment.
  *
  * Amounts default to the full remainder, which is the common case: one receipt
  * for the whole tally. Editing them down is what makes a split delivery work.
@@ -469,7 +505,7 @@ function persianError(error: unknown, fallback: string): string {
 }
 
 function blockedReason(row: Allotment): string {
-  if (row.code_kala == null) return 'کد گروه کالا ندارد'
+  if (row.hscode == null || row.hscode.trim() === '') return 'HS Code ندارد'
   if (!row.has_allotment) return 'مقدار مجاز در تالی صفر است'
   return 'تمام مقدار صادر شده'
 }
@@ -488,8 +524,8 @@ export function GhabzIssueModal({
   onIssued: (result: IssueResult) => void
 }) {
   const queryClient = useQueryClient()
-  const [selected, setSelected] = useState<number[]>([])
-  const [draws, setDraws] = useState<Record<number, Draw>>({})
+  const [selected, setSelected] = useState<string[]>([])
+  const [draws, setDraws] = useState<Record<string, Draw>>({})
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery({
@@ -503,9 +539,9 @@ export function GhabzIssueModal({
 
   useEffect(() => {
     if (!opened) return
-    setSelected(available.map((row) => row.code_kala as number))
+    setSelected(available.map((row) => row.hscode as string))
     setDraws(Object.fromEntries(available.map((row) => [
-      row.code_kala as number,
+      row.hscode as string,
       {
         number_kala: Math.max(row.remaining_number_kala, 0),
         weighte_asnad: Math.max(row.remaining_weighte_asnad, 0),
@@ -518,11 +554,11 @@ export function GhabzIssueModal({
   const issue = useMutation({
     mutationFn: () =>
       apiSend<IssueResult>(`/ghabz/from-tally/${tallyId}`, 'POST', {
-        lines: selected.map((code) => ({
-          code_kala: code,
-          number_kala: draws[code]?.number_kala === '' ? 0 : draws[code]?.number_kala,
-          weighte_asnad: draws[code]?.weighte_asnad === '' ? 0 : draws[code]?.weighte_asnad,
-          weighte_baskol: draws[code]?.weighte_baskol === '' ? 0 : draws[code]?.weighte_baskol,
+        lines: selected.map((hscode) => ({
+          hscode,
+          number_kala: draws[hscode]?.number_kala === '' ? 0 : draws[hscode]?.number_kala,
+          weighte_asnad: draws[hscode]?.weighte_asnad === '' ? 0 : draws[hscode]?.weighte_asnad,
+          weighte_baskol: draws[hscode]?.weighte_baskol === '' ? 0 : draws[hscode]?.weighte_baskol,
         })),
       }),
     onSuccess: (result) => {
@@ -550,16 +586,18 @@ export function GhabzIssueModal({
 
   const busy = issue.isPending || issueMaster.isPending
 
-  const toggle = (code: number) => {
+  const toggle = (hscode: string) => {
     setSelected((current) =>
-      current.includes(code) ? current.filter((value) => value !== code) : [...current, code],
+      current.includes(hscode)
+        ? current.filter((value) => value !== hscode)
+        : [...current, hscode],
     )
   }
 
-  const setDraw = (code: number, key: keyof Draw, value: number | '') => {
+  const setDraw = (hscode: string, key: keyof Draw, value: number | '') => {
     setDraws((current) => ({
       ...current,
-      [code]: { ...current[code], [key]: value },
+      [hscode]: { ...current[hscode], [key]: value },
     }))
   }
 
@@ -607,20 +645,20 @@ export function GhabzIssueModal({
         {rows.length > 0 && (
           <>
             <Text size="sm" c="dimmed" mb="xs">
-              مقدار هر کد کالا به‌صورت پیش‌فرض برابر باقی‌مانده تالی است. برای صدور
+              مقدار هر HS Code به‌صورت پیش‌فرض برابر باقی‌مانده تالی است. برای صدور
               قبض جزئی، مقدار را کمتر کنید؛ مابقی در قبض‌های بعدی قابل صدور است.
             </Text>
 
             <Group justify="space-between" mb="xs">
               <Text size="sm" c="dimmed">
-                {selected.length} کد کالا از {available.length} کد قابل صدور انتخاب شده است
+                {selected.length} HS Code از {available.length} کد قابل صدور انتخاب شده است
               </Text>
               <Group gap="xs">
                 <Button
                   size="xs"
                   variant="subtle"
                   disabled={available.length === 0}
-                  onClick={() => setSelected(available.map((row) => row.code_kala as number))}
+                  onClick={() => setSelected(available.map((row) => row.hscode as string))}
                 >
                   انتخاب همه
                 </Button>
@@ -648,13 +686,13 @@ export function GhabzIssueModal({
                         onChange={(event) =>
                           setSelected(
                             event.currentTarget.checked
-                              ? available.map((row) => row.code_kala as number)
+                              ? available.map((row) => row.hscode as string)
                               : [],
                           )
                         }
                       />
                     </Table.Th>
-                    <Table.Th>کد گروه کالا</Table.Th>
+                    <Table.Th>HS Code</Table.Th>
                     <Table.Th>شرح کالا</Table.Th>
                     <Table.Th>باقی‌مانده تالی</Table.Th>
                     <Table.Th>تعداد</Table.Th>
@@ -664,27 +702,27 @@ export function GhabzIssueModal({
                 </Table.Thead>
                 <Table.Tbody>
                   {rows.map((row, index) => {
-                    const code = row.code_kala
+                    const hscode = row.hscode?.trim() || null
                     const blocked = !row.drawable
-                    const key = code ?? `blocked-${index}`
-                    const checked = code != null && selected.includes(code)
-                    const draw = code != null ? draws[code] : undefined
+                    const key = hscode ?? `blocked-${index}`
+                    const checked = hscode != null && selected.includes(hscode)
+                    const draw = hscode != null ? draws[hscode] : undefined
 
                     return (
                       <Table.Tr key={key} opacity={blocked ? 0.55 : 1}>
                         <Table.Td>
                           <Checkbox
-                            aria-label={`انتخاب کد ${show(code)}`}
+                            aria-label={`انتخاب HS Code ${show(hscode)}`}
                             checked={checked}
                             disabled={blocked}
-                            onChange={() => { if (code != null) toggle(code) }}
+                            onChange={() => { if (hscode != null) toggle(hscode) }}
                           />
                         </Table.Td>
-                        <Table.Td><bdi dir="ltr">{show(code)}</bdi></Table.Td>
+                        <Table.Td><bdi dir="ltr">{show(hscode)}</bdi></Table.Td>
                         <Table.Td>
                           {show(row.description_kala)}
                           {row.tally_line_count > 1 && (
-                            <Tooltip label={`${row.tally_line_count} ردیف تالی با این کد`}>
+                            <Tooltip label={`${row.tally_line_count} ردیف تالی با این HS Code`}>
                               <Badge ml="xs" size="xs" variant="light" color="blue">
                                 {row.tally_line_count} ردیف
                               </Badge>
@@ -738,9 +776,9 @@ export function GhabzIssueModal({
                                   disabled={blocked || !checked}
                                   value={draw?.[measure] ?? ''}
                                   onChange={(value) => {
-                                    if (code == null) return
+                                    if (hscode == null) return
                                     setDraw(
-                                      code,
+                                      hscode,
                                       measure,
                                       value === '' ? '' : Number(value),
                                     )
