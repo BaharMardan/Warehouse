@@ -1,0 +1,110 @@
+.ghabz-print-page {
+  --tally-blue: #10af7f;
+  --tally-blue-dark: #10af7f;
+  --tally-blue-soft: #e7f8f2;
+  background:
+    radial-gradient(circle at 50% -15%, rgba(16, 175, 127, 0.12), transparent 38%),
+    #eef5f3;
+}
+
+.ghabz-print-page .tally-print-sheet {
+  border-color: rgba(16, 175, 127, 0.24);
+}
+
+.ghabz-print-page .tally-print-heading {
+  border-top-color: var(--tally-blue);
+}
+
+.ghabz-print-page .tally-print-action,
+.ghabz-print-page .tally-print-brand-mark {
+  background: #10af7f;
+  box-shadow: 0 3px 8px rgba(16, 175, 127, 0.27), inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
+}
+
+.ghabz-print-page .tally-print-action:hover {
+  background: #0e9b71;
+}
+
+.ghabz-print-page .tally-print-preview-heading h1,
+.ghabz-print-page .tally-print-user b,
+.ghabz-print-page .tally-print-info-icon,
+.ghabz-print-page .tally-print-signatures strong svg {
+  color: var(--tally-blue-dark);
+}
+
+.ghabz-print-page .tally-print-table th {
+  background: #10af7f;
+}
+
+.ghabz-print-page .tally-print-signatures {
+  background: linear-gradient(105deg, #f8fff9, var(--tally-blue-soft), #f8fff9);
+}
+
+.ghabz-print-table th:nth-child(4),
+.ghabz-print-table td:nth-child(4) {
+  width: 28%;
+}
+
+.ghabz-print-carriers {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 13mm;
+  padding: 2.2mm 3mm;
+  grid-template-columns: max-content 1fr;
+  align-items: start;
+  gap: 3mm;
+  border: 0.5px solid var(--tally-line);
+  border-radius: 2.8mm;
+  background: #fbfdff;
+  color: #1d2a3e;
+  font-size: 7pt;
+}
+
+.ghabz-print-carriers > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm 4mm;
+}
+
+.ghabz-print-carriers .tally-print-plate {
+  width: 34mm;
+  height: 8mm;
+  grid-template-columns: 4mm 5mm 4mm 9mm 12mm;
+  font-size: 7.2pt;
+}
+
+.ghabz-print-carriers .tally-print-plate-blue {
+  background: #17479e;
+}
+
+.ghabz-print-carriers bdi {
+  padding: 0.8mm 2mm;
+  border: 0.5px solid #cddbeb;
+  border-radius: 1.5mm;
+  background: #fff;
+  font-weight: 700;
+}
+
+.ghabz-print-notes {
+  min-height: 17mm;
+}
+
+.ghabz-print-signatures {
+  height: 23mm;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.ghabz-print-launch-button {
+  border: 0 !important;
+  background: linear-gradient(135deg, #ff9f43 0%, #f2762e 100%) !important;
+  box-shadow: 0 5px 13px rgba(225, 101, 35, 0.27) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease !important;
+}
+
+.ghabz-print-launch-button:hover {
+  filter: saturate(1.06) brightness(1.03);
+  transform: translateY(-1px);
+  box-shadow: 0 7px 17px rgba(225, 101, 35, 0.32) !important;
+}

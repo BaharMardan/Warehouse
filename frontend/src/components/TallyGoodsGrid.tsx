@@ -469,6 +469,7 @@
 //     },
 //     onSuccess: () => {
 //       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+//       qc.invalidateQueries({ queryKey: ['tally-insurance-check', tallyId] })
 //       // chained entry: after saving a NEW row, drop straight into the next empty one
 //       if (editingId == null && keepGoing) {
 //         setPicked(null)
@@ -485,7 +486,10 @@
 
 //   const deleteMutation = useMutation({
 //     mutationFn: (lineId: number) => apiSend(`/tally-details/${lineId}`, 'DELETE'),
-//     onSuccess: () => qc.invalidateQueries({ queryKey: ['tally-details', tallyId] }),
+//     onSuccess: () => {
+//       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+//       qc.invalidateQueries({ queryKey: ['tally-insurance-check', tallyId] })
+//     },
 //     onError: (e) => alert(`حذف ناموفق بود: ${(e as Error).message}`),
 //   })
 
@@ -1152,13 +1156,13 @@ const EMPTY_LINE: LineForm = {
  * The two field sets that make the whole feature safe. Move a key between them and the
  * grid, the ⬆ buttons, the "کپی از بالا" button and the review warning all follow.
  *
- * number_kala / number_pallet / id_tagh_anbar sit in COPYABLE on purpose: in the
+ * number_kala / id_tagh_anbar sit in COPYABLE on purpose: in the
  * one-commodity-many-containers case they repeat. If the customer says otherwise, move
  * them down — nothing else needs to change.
  */
 const COPYABLE_FIELDS: FieldKey[] = [
   'code_groupe_kala', 'description_kala', 'hscode', 'type_bastem',
-  'number_kala', 'number_pallet', 'value_kala', 'customs_value', 'insured_value',
+  'number_kala', 'customs_value', 'insured_value',
   'insurance_expiry_date',
   'id_anbar', 'id_tagh_anbar', 'zarib_mahal', 'container_type',
 ]
@@ -1247,8 +1251,6 @@ const COLUMNS: ColumnDef[] = [
   { key: 'hscode', label: 'HS Code', group: 'kala', kind: 'text', width: 110 },
   { key: 'type_bastem', label: 'نوع بسته‌بندی', group: 'kala', kind: 'term', width: 130 },
   { key: 'number_kala', label: 'تعداد', group: 'kala', kind: 'int', width: 80 },
-  { key: 'number_pallet', label: 'تعداد پالت', group: 'kala', kind: 'int', width: 90 },
-  { key: 'value_kala', label: 'ارزش کالا', group: 'kala', kind: 'decimal', width: 110 },
   { key: 'customs_value', label: 'ارزش کالای گمرکی', group: 'kala', kind: 'decimal', width: 140 },
   { key: 'insured_value', label: 'ارزش کالای بیمه‌شده', group: 'kala', kind: 'decimal', width: 150 },
   { key: 'insurance_expiry_date', label: 'تاریخ اتمام بیمه', group: 'kala', kind: 'date', width: 145 },
@@ -1513,7 +1515,6 @@ export function TallyGoodsGrid({ tallyId }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
-      qc.invalidateQueries({ queryKey: ['tally-insurance-check', tallyId] })
       // chained entry: after saving a NEW row, drop straight into the next empty one
       if (editingId == null && keepGoing) {
         setPicked(null)
@@ -1530,10 +1531,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
 
   const deleteMutation = useMutation({
     mutationFn: (lineId: number) => apiSend(`/tally-details/${lineId}`, 'DELETE'),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
-      qc.invalidateQueries({ queryKey: ['tally-insurance-check', tallyId] })
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tally-details', tallyId] }),
     onError: (e) => alert(`حذف ناموفق بود: ${(e as Error).message}`),
   })
 

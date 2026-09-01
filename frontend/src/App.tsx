@@ -14,6 +14,7 @@
 // import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
 // import { OwnersPage } from './pages/OwnersPage'
 // import { HomePage } from './pages/HomePage'
+// import { KartablPage } from './pages/KartablPage'
 // import { BaseDataPage } from './pages/BaseDataPage'
 
 // // import ScratchTest from './pages/ScratchTest'
@@ -52,12 +53,12 @@
 //           <Route path="/ghabz/:id" element={<GhabzDetailPage />} />
 //           <Route path="/ghabz/new" element={<GhabzHeaderForm />} />
 //           <Route path="/ghabz/:id/edit" element={<GhabzHeaderForm />} />
+//           <Route path="/kartabl" element={<KartablPage />} />
 //         </Route>
 //       </Routes>
 //     </BrowserRouter>
 //   )
 // }
-
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/useAuth'
@@ -71,6 +72,7 @@ import { TallyDetailPage } from './pages/TallyDetailPage'
 import { TallyPrintPage } from './pages/TallyPrintPage'
 import { GhabzListPage } from './pages/GhabzListPage'
 import { GhabzDetailPage } from './pages/GhabzDetailPage'
+import { GhabzPrintPage } from './pages/GhabzPrintPage'
 import { GhabzHeaderForm } from './pages/GhabzHeaderForm'
 import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
 import { OwnersPage } from './pages/OwnersPage'
@@ -89,6 +91,7 @@ export default function App() {
       <Routes>
         <Route path="/tally/id/:tallyId/print" element={<TallyPrintPage />} />
         <Route path="/tally/:tallyNumber/print" element={<TallyPrintPage />} />
+        <Route path="/ghabz/:id/print" element={<GhabzPrintPage />} />
         <Route element={<AppLayout />}>
           {/* Landing page after login: the Odoo-style module launcher. */}
           <Route index element={<HomePage />} />

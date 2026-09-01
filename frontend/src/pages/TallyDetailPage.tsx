@@ -479,7 +479,7 @@ export function TallyDetailPage() {
           radius="lg"
           mb="md"
           icon={<TriangleAlert size={20} />}
-          title="سقف ارزش کالای بیمه‌شده پر شده است"
+          title="سقف ارزش کالای بیمه‌شده پر شده است."
         >
           مجموع ارزش کالای گمرکی تالی‌های بیمه‌نامه{' '}
           <bdi dir="ltr">«{entry.number_bimeh || '—'}»</bdi>
