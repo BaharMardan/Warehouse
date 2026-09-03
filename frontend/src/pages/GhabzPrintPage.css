@@ -85,8 +85,29 @@
   font-weight: 700;
 }
 
+.ghabz-print-insurance-top {
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 5mm;
+  padding: 1.6mm 3.5mm;
+  border: 0.5px solid var(--tally-line);
+  border-radius: 3mm;
+  background: linear-gradient(145deg, #fff, #fcfdff);
+  box-shadow: 0 2px 7px rgba(35, 64, 102, 0.035);
+  color: #1d2a3e;
+  font-size: 6.6pt;
+}
+
+.ghabz-print-insurance-top .tally-print-info-icon svg {
+  width: 4mm;
+  height: 4mm;
+  stroke-width: 1.8;
+  color: #10af7f;
+}
+
 .ghabz-print-notes {
-  min-height: 17mm;
+  min-height: 9mm;
 }
 
 .ghabz-print-signatures {

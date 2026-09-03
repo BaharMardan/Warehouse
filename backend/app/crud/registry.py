@@ -844,6 +844,7 @@ class GhabzHeaderInput(BaseModel):
     name_anbardar: str | None = None
     name_maneger: str | None = None
     company_bimeh: str | None = None
+    description: str | None = None
     tali_id: int | None = None
 
 

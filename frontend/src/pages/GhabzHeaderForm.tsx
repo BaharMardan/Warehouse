@@ -183,7 +183,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery } from '@tanstack/react-query'
-import { Title, Paper, Grid, TextInput, Group, Button, LoadingOverlay } from '@mantine/core'
+import { Title, Paper, Grid, TextInput, Textarea, Group, Button, LoadingOverlay } from '@mantine/core'
 import { RefSelect } from '../components/RefSelect'
 import { JalaliDate } from '../components/JalaliDate'
 import { apiSend, apiGet } from '../api/client'
@@ -206,6 +206,8 @@ type GhabzState = {
   name_anbardar: string
   name_maneger: string
   tali_id: number | null
+  number_ghabz_uniqe: string
+  description: string
 }
 
 const EMPTY: GhabzState = {
@@ -213,7 +215,7 @@ const EMPTY: GhabzState = {
   date_enter_marze: null, id_marze: null, id_country: null, id_company: null,
   id_product_ownear: null, id_anbar: null, id_tagh_anbara: null, weight: '',
   status_bimeh: '', number_bimeh: '', name_anbardar: '', name_maneger: '',
-  tali_id: null,
+  tali_id: null, number_ghabz_uniqe: '', description: '',
 }
 
 function normalizeDigits(s: string): string {
@@ -237,6 +239,8 @@ function toPayload(s: GhabzState) {
     number_bimeh: codeOrNull(s.number_bimeh), name_anbardar: strOrNull(s.name_anbardar),
     name_maneger: strOrNull(s.name_maneger),
     tali_id: s.tali_id,
+    number_ghabz_uniqe: numOrNull(s.number_ghabz_uniqe),
+    description: strOrNull(s.description),
   }
 }
 
@@ -252,6 +256,7 @@ function rowToState(r: Record<string, any>): GhabzState {
     status_bimeh: s(r.status_bimeh), number_bimeh: s(r.number_bimeh),
     name_anbardar: s(r.name_anbardar), name_maneger: s(r.name_maneger),
     tali_id: r.tali_id ?? null,
+    number_ghabz_uniqe: s(r.number_ghabz_uniqe), description: s(r.description),
   }
 }
 
@@ -315,6 +320,8 @@ export function GhabzHeaderForm() {
           )}
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره قبض" inputMode="numeric"
             value={form.number_ghabz} onChange={(e) => set('number_ghabz', e.currentTarget.value)} /></Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شناسه یکتا" inputMode="numeric"
+            value={form.number_ghabz_uniqe} onChange={(e) => set('number_ghabz_uniqe', e.currentTarget.value)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره کارنه"
             value={form.number_karaneh} onChange={(e) => set('number_karaneh', e.currentTarget.value)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره تالی"
@@ -350,6 +357,10 @@ export function GhabzHeaderForm() {
             value={form.name_anbardar} onChange={(e) => set('name_anbardar', e.currentTarget.value)} /></Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="نام مدیر"
             value={form.name_maneger} onChange={(e) => set('name_maneger', e.currentTarget.value)} /></Grid.Col>
+          <Grid.Col span={12}>
+            <Textarea label="توضیحات" value={form.description}
+              onChange={(e) => set('description', e.currentTarget.value)} minRows={3} autosize />
+          </Grid.Col>
         </Grid>
         {error && <div style={{ color: 'var(--mantine-color-red-6)', marginTop: 16 }}>{error}</div>}
         <Group justify="flex-start" mt="xl">

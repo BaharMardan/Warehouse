@@ -1,0 +1,93 @@
+diff --git a/frontend/src/pages/GhabzDetailPage.tsx b/frontend/src/pages/GhabzDetailPage.tsx
+index fb28b6c..82e148f 100644
+--- a/frontend/src/pages/GhabzDetailPage.tsx
++++ b/frontend/src/pages/GhabzDetailPage.tsx
+@@ -281,13 +281,13 @@
+ //   )
+ // }
+ 
+-import { useState } from 'react'
++import { useEffect, useState } from 'react'
+ import { useParams } from 'react-router-dom'
+ import { BackButton } from '../components/BackButton'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+ import {
+   Badge, Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
+-  Modal, TextInput, Grid,
++  Modal, TextInput, Textarea, Grid,
+ } from '@mantine/core'
+ import { apiGet, apiSend } from '../api/client'
+ import { IconPrint } from '../components/icons'
+@@ -322,6 +322,11 @@ type GhabzSummary = {
+   description: string | null
+ }
+ 
++function normalizeDigits(s: string): string {
++  return s.replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
++          .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
++}
++
+ export function GhabzDetailPage() {
+   const { id } = useParams<{ id: string }>()
+   const headerId = Number(id)
+@@ -344,6 +349,23 @@ export function GhabzDetailPage() {
+     onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-details', headerId] }),
+   })
+ 
++  // Operator enters these two directly on this page; PUT only sends these
++  // fields, and the factory updates only the provided columns.
++  const [uniqeId, setUniqeId] = useState('')
++  const [description, setDescription] = useState('')
++  useEffect(() => {
++    setUniqeId(summary?.number_ghabz_uniqe == null ? '' : String(summary.number_ghabz_uniqe))
++    setDescription(summary?.description ?? '')
++  }, [summary?.number_ghabz_uniqe, summary?.description])
++
++  const saveExtras = useMutation({
++    mutationFn: () => apiSend(`/ghabz-header/${headerId}`, 'PUT', {
++      number_ghabz_uniqe: uniqeId.trim() === '' ? null : Number(normalizeDigits(uniqeId)),
++      description: description.trim() === '' ? null : description,
++    }),
++    onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-summary', headerId] }),
++  })
++
+   // The printed receipt number, not the table's primary key.
+   const receiptNumber = summary?.ghabz_number ?? summary?.number_ghabz ?? null
+   const createdBy = summary?.created_by_full_name?.trim() || summary?.created_by_username?.trim()
+@@ -361,9 +383,6 @@ export function GhabzDetailPage() {
+           {summary?.number_tali && (
+             <Text c="dimmed" size="sm">تالی <bdi dir="ltr">{summary.number_tali}</bdi></Text>
+           )}
+-          {summary?.number_ghabz_uniqe && (
+-            <Text c="dimmed" size="sm">شناسه یکتا: <bdi dir="ltr">{summary.number_ghabz_uniqe}</bdi></Text>
+-          )}
+           {createdBy && <Text c="dimmed" size="sm">ثبت‌کننده: {createdBy}</Text>}
+         </Group>
+         <Group>
+@@ -378,9 +397,23 @@ export function GhabzDetailPage() {
+           <BackButton to="/ghabz" />
+         </Group>
+       </Group>
+-      {summary?.description && (
+-        <Text size="sm" c="dimmed" mb="md">توضیحات: {summary.description}</Text>
+-      )}
++      <Paper shadow="xs" p="md" mb="md">
++        <Grid align="flex-end">
++          <Grid.Col span={{ base: 12, md: 4 }}>
++            <TextInput label="شناسه یکتا" inputMode="numeric" value={uniqeId}
++              onChange={(e) => { setUniqeId(e.currentTarget.value); saveExtras.reset() }} />
++          </Grid.Col>
++          <Grid.Col span={{ base: 12, md: 8 }}>
++            <Textarea label="توضیحات" autosize minRows={2} value={description}
++              onChange={(e) => { setDescription(e.currentTarget.value); saveExtras.reset() }} />
++          </Grid.Col>
++        </Grid>
++        <Group mt="sm" gap="sm">
++          <Button size="xs" loading={saveExtras.isPending} onClick={() => saveExtras.mutate()}>ذخیره</Button>
++          {saveExtras.isSuccess && <Text size="xs" c="teal">ذخیره شد</Text>}
++          {saveExtras.isError && <Text size="xs" c="red">خطا در ذخیره</Text>}
++        </Group>
++      </Paper>
+       <Paper shadow="xs" p="md">
+         <Text fw={600} mb="sm">ردیف‌های کالا</Text>
+         <Divider mb="sm" />

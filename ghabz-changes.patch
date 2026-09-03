@@ -1,0 +1,196 @@
+diff --git a/backend/app/crud/registry.py b/backend/app/crud/registry.py
+index 36899fd..343196e 100644
+--- a/backend/app/crud/registry.py
++++ b/backend/app/crud/registry.py
+@@ -844,6 +844,7 @@ class GhabzHeaderInput(BaseModel):
+     name_anbardar: str | None = None
+     name_maneger: str | None = None
+     company_bimeh: str | None = None
++    description: str | None = None
+     tali_id: int | None = None
+ 
+ 
+diff --git a/frontend/src/pages/GhabzDetailPage.tsx b/frontend/src/pages/GhabzDetailPage.tsx
+index 7f6da2e..fb28b6c 100644
+--- a/frontend/src/pages/GhabzDetailPage.tsx
++++ b/frontend/src/pages/GhabzDetailPage.tsx
+@@ -318,6 +318,8 @@ type GhabzSummary = {
+   tali_id: number | null
+   created_by_username: string | null
+   created_by_full_name: string | null
++  number_ghabz_uniqe: number | null
++  description: string | null
+ }
+ 
+ export function GhabzDetailPage() {
+@@ -359,6 +361,9 @@ export function GhabzDetailPage() {
+           {summary?.number_tali && (
+             <Text c="dimmed" size="sm">تالی <bdi dir="ltr">{summary.number_tali}</bdi></Text>
+           )}
++          {summary?.number_ghabz_uniqe && (
++            <Text c="dimmed" size="sm">شناسه یکتا: <bdi dir="ltr">{summary.number_ghabz_uniqe}</bdi></Text>
++          )}
+           {createdBy && <Text c="dimmed" size="sm">ثبت‌کننده: {createdBy}</Text>}
+         </Group>
+         <Group>
+@@ -373,6 +378,9 @@ export function GhabzDetailPage() {
+           <BackButton to="/ghabz" />
+         </Group>
+       </Group>
++      {summary?.description && (
++        <Text size="sm" c="dimmed" mb="md">توضیحات: {summary.description}</Text>
++      )}
+       <Paper shadow="xs" p="md">
+         <Text fw={600} mb="sm">ردیف‌های کالا</Text>
+         <Divider mb="sm" />
+diff --git a/frontend/src/pages/GhabzHeaderForm.tsx b/frontend/src/pages/GhabzHeaderForm.tsx
+index a33ffd4..69d6d8e 100644
+--- a/frontend/src/pages/GhabzHeaderForm.tsx
++++ b/frontend/src/pages/GhabzHeaderForm.tsx
+@@ -183,7 +183,7 @@ import { useState, useEffect } from 'react'
+ import { useNavigate, useParams } from 'react-router-dom'
+ import { BackButton } from '../components/BackButton'
+ import { useQuery } from '@tanstack/react-query'
+-import { Title, Paper, Grid, TextInput, Group, Button, LoadingOverlay } from '@mantine/core'
++import { Title, Paper, Grid, TextInput, Textarea, Group, Button, LoadingOverlay } from '@mantine/core'
+ import { RefSelect } from '../components/RefSelect'
+ import { JalaliDate } from '../components/JalaliDate'
+ import { apiSend, apiGet } from '../api/client'
+@@ -206,6 +206,8 @@ type GhabzState = {
+   name_anbardar: string
+   name_maneger: string
+   tali_id: number | null
++  number_ghabz_uniqe: string
++  description: string
+ }
+ 
+ const EMPTY: GhabzState = {
+@@ -213,7 +215,7 @@ const EMPTY: GhabzState = {
+   date_enter_marze: null, id_marze: null, id_country: null, id_company: null,
+   id_product_ownear: null, id_anbar: null, id_tagh_anbara: null, weight: '',
+   status_bimeh: '', number_bimeh: '', name_anbardar: '', name_maneger: '',
+-  tali_id: null,
++  tali_id: null, number_ghabz_uniqe: '', description: '',
+ }
+ 
+ function normalizeDigits(s: string): string {
+@@ -237,6 +239,8 @@ function toPayload(s: GhabzState) {
+     number_bimeh: codeOrNull(s.number_bimeh), name_anbardar: strOrNull(s.name_anbardar),
+     name_maneger: strOrNull(s.name_maneger),
+     tali_id: s.tali_id,
++    number_ghabz_uniqe: numOrNull(s.number_ghabz_uniqe),
++    description: strOrNull(s.description),
+   }
+ }
+ 
+@@ -252,6 +256,7 @@ function rowToState(r: Record<string, any>): GhabzState {
+     status_bimeh: s(r.status_bimeh), number_bimeh: s(r.number_bimeh),
+     name_anbardar: s(r.name_anbardar), name_maneger: s(r.name_maneger),
+     tali_id: r.tali_id ?? null,
++    number_ghabz_uniqe: s(r.number_ghabz_uniqe), description: s(r.description),
+   }
+ }
+ 
+@@ -315,6 +320,8 @@ export function GhabzHeaderForm() {
+           )}
+           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره قبض" inputMode="numeric"
+             value={form.number_ghabz} onChange={(e) => set('number_ghabz', e.currentTarget.value)} /></Grid.Col>
++          <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شناسه یکتا" inputMode="numeric"
++            value={form.number_ghabz_uniqe} onChange={(e) => set('number_ghabz_uniqe', e.currentTarget.value)} /></Grid.Col>
+           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره کارنه"
+             value={form.number_karaneh} onChange={(e) => set('number_karaneh', e.currentTarget.value)} /></Grid.Col>
+           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="شماره تالی"
+@@ -350,6 +357,10 @@ export function GhabzHeaderForm() {
+             value={form.name_anbardar} onChange={(e) => set('name_anbardar', e.currentTarget.value)} /></Grid.Col>
+           <Grid.Col span={{ base: 12, md: 6 }}><TextInput label="نام مدیر"
+             value={form.name_maneger} onChange={(e) => set('name_maneger', e.currentTarget.value)} /></Grid.Col>
++          <Grid.Col span={12}>
++            <Textarea label="توضیحات" value={form.description}
++              onChange={(e) => set('description', e.currentTarget.value)} minRows={3} autosize />
++          </Grid.Col>
+         </Grid>
+         {error && <div style={{ color: 'var(--mantine-color-red-6)', marginTop: 16 }}>{error}</div>}
+         <Group justify="flex-start" mt="xl">
+diff --git a/frontend/src/pages/GhabzPrintPage.css b/frontend/src/pages/GhabzPrintPage.css
+index 5511b21..49da427 100644
+--- a/frontend/src/pages/GhabzPrintPage.css
++++ b/frontend/src/pages/GhabzPrintPage.css
+@@ -85,8 +85,29 @@
+   font-weight: 700;
+ }
+ 
++.ghabz-print-insurance-top {
++  display: flex;
++  box-sizing: border-box;
++  align-items: center;
++  gap: 5mm;
++  padding: 1.6mm 3.5mm;
++  border: 0.5px solid var(--tally-line);
++  border-radius: 3mm;
++  background: linear-gradient(145deg, #fff, #fcfdff);
++  box-shadow: 0 2px 7px rgba(35, 64, 102, 0.035);
++  color: #1d2a3e;
++  font-size: 6.6pt;
++}
++
++.ghabz-print-insurance-top .tally-print-info-icon svg {
++  width: 4mm;
++  height: 4mm;
++  stroke-width: 1.8;
++  color: #10af7f;
++}
++
+ .ghabz-print-notes {
+-  min-height: 17mm;
++  min-height: 9mm;
+ }
+ 
+ .ghabz-print-signatures {
+diff --git a/frontend/src/pages/GhabzPrintPage.tsx b/frontend/src/pages/GhabzPrintPage.tsx
+index 8b5e659..cbaf763 100644
+--- a/frontend/src/pages/GhabzPrintPage.tsx
++++ b/frontend/src/pages/GhabzPrintPage.tsx
+@@ -16,6 +16,7 @@ type GhabzHeader = {
+   id_ghabz: number
+   ghabz_number: string | null
+   number_ghabz: number | null
++  number_ghabz_uniqe: number | null
+   number_tali: string | null
+   number_karaneh: string | null
+   number_royea: string | null
+@@ -228,6 +229,7 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
+           </div>
+           <div className="tally-print-info-card">
+             <InfoLine icon={<IdCard />} label="شماره قبض انبار" value={receiptNumber} ltr />
++            <InfoLine icon={<IdCard />} label="شناسه یکتا" value={header.number_ghabz_uniqe} ltr />
+             <InfoLine icon={<IdCard />} label="شماره تالی" value={header.number_tali} ltr />
+             <InfoLine icon={<FileText />} label="شناسه پیگیری" value={header.tracking_number} ltr />
+             <InfoLine icon={<MapPin />} label="مرز ورودی" value={header.marze_name} />
+@@ -235,6 +237,14 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
+           </div>
+         </div>
+ 
++        <div className="ghabz-print-insurance-top">
++          <span className="tally-print-info-icon" aria-hidden><ShieldCheck /></span>
++          <CheckBox checked={insured} label="بیمه دارد" />
++          <CheckBox checked={!insured} label="بیمه ندارد" />
++          <span>شماره بیمه: <bdi dir="ltr">{valueOf(header.number_bimeh)}</bdi></span>
++          <span>شرکت بیمه: {valueOf(header.company_bimeh)}</span>
++        </div>
++
+         <div className="tally-print-table-frame">
+           <table className="tally-print-table ghabz-print-table">
+             <thead><tr>
+@@ -274,12 +284,6 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
+         )}
+ 
+         <div className="tally-print-insurance ghabz-print-notes">
+-          <div className="tally-print-insurance-choice">
+-            <CheckBox checked={insured} label="بیمه دارد" />
+-            <CheckBox checked={!insured} label="بیمه ندارد" />
+-            <span>شماره بیمه: <bdi dir="ltr">{valueOf(header.number_bimeh)}</bdi></span>
+-            <span>شرکت بیمه: {valueOf(header.company_bimeh)}</span>
+-          </div>
+           <div className="tally-print-notes"><strong>توضیحات:</strong><span>{valueOf(header.description)}</span></div>
+         </div>
+ 

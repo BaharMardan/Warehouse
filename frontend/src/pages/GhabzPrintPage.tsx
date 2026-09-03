@@ -16,6 +16,7 @@ type GhabzHeader = {
   id_ghabz: number
   ghabz_number: string | null
   number_ghabz: number | null
+  number_ghabz_uniqe: number | null
   number_tali: string | null
   number_karaneh: string | null
   number_royea: string | null
@@ -228,11 +229,20 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
           </div>
           <div className="tally-print-info-card">
             <InfoLine icon={<IdCard />} label="شماره قبض انبار" value={receiptNumber} ltr />
+            <InfoLine icon={<IdCard />} label="شناسه یکتا" value={header.number_ghabz_uniqe} ltr />
             <InfoLine icon={<IdCard />} label="شماره تالی" value={header.number_tali} ltr />
             <InfoLine icon={<FileText />} label="شناسه پیگیری" value={header.tracking_number} ltr />
             <InfoLine icon={<MapPin />} label="مرز ورودی" value={header.marze_name} />
             <InfoLine icon={<CalendarDays />} label="تاریخ صدور" value={formatJalaliDate(header.create_at)} ltr />
           </div>
+        </div>
+
+        <div className="ghabz-print-insurance-top">
+          <span className="tally-print-info-icon" aria-hidden><ShieldCheck /></span>
+          <CheckBox checked={insured} label="بیمه دارد" />
+          <CheckBox checked={!insured} label="بیمه ندارد" />
+          <span>شماره بیمه: <bdi dir="ltr">{valueOf(header.number_bimeh)}</bdi></span>
+          <span>شرکت بیمه: {valueOf(header.company_bimeh)}</span>
         </div>
 
         <div className="tally-print-table-frame">
@@ -274,12 +284,6 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
         )}
 
         <div className="tally-print-insurance ghabz-print-notes">
-          <div className="tally-print-insurance-choice">
-            <CheckBox checked={insured} label="بیمه دارد" />
-            <CheckBox checked={!insured} label="بیمه ندارد" />
-            <span>شماره بیمه: <bdi dir="ltr">{valueOf(header.number_bimeh)}</bdi></span>
-            <span>شرکت بیمه: {valueOf(header.company_bimeh)}</span>
-          </div>
           <div className="tally-print-notes"><strong>توضیحات:</strong><span>{valueOf(header.description)}</span></div>
         </div>
 

@@ -281,13 +281,13 @@
 //   )
 // }
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge, Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
-  Modal, TextInput, Grid,
+  Modal, TextInput, Textarea, Grid,
 } from '@mantine/core'
 import { apiGet, apiSend } from '../api/client'
 import { IconPrint } from '../components/icons'
@@ -318,6 +318,13 @@ type GhabzSummary = {
   tali_id: number | null
   created_by_username: string | null
   created_by_full_name: string | null
+  number_ghabz_uniqe: number | null
+  description: string | null
+}
+
+function normalizeDigits(s: string): string {
+  return s.replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+          .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
 }
 
 export function GhabzDetailPage() {
@@ -340,6 +347,23 @@ export function GhabzDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: (lineId: number) => apiSend(`/ghabz-details/${lineId}`, 'DELETE'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-details', headerId] }),
+  })
+
+  // Operator enters these two directly on this page; PUT only sends these
+  // fields, and the factory updates only the provided columns.
+  const [uniqeId, setUniqeId] = useState('')
+  const [description, setDescription] = useState('')
+  useEffect(() => {
+    setUniqeId(summary?.number_ghabz_uniqe == null ? '' : String(summary.number_ghabz_uniqe))
+    setDescription(summary?.description ?? '')
+  }, [summary?.number_ghabz_uniqe, summary?.description])
+
+  const saveExtras = useMutation({
+    mutationFn: () => apiSend(`/ghabz-header/${headerId}`, 'PUT', {
+      number_ghabz_uniqe: uniqeId.trim() === '' ? null : Number(normalizeDigits(uniqeId)),
+      description: description.trim() === '' ? null : description,
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-summary', headerId] }),
   })
 
   // The printed receipt number, not the table's primary key.
@@ -373,6 +397,23 @@ export function GhabzDetailPage() {
           <BackButton to="/ghabz" />
         </Group>
       </Group>
+      <Paper shadow="xs" p="md" mb="md">
+        <Grid align="flex-end">
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <TextInput label="شناسه یکتا" inputMode="numeric" value={uniqeId}
+              onChange={(e) => { setUniqeId(e.currentTarget.value); saveExtras.reset() }} />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <Textarea label="توضیحات" autosize minRows={2} value={description}
+              onChange={(e) => { setDescription(e.currentTarget.value); saveExtras.reset() }} />
+          </Grid.Col>
+        </Grid>
+        <Group mt="sm" gap="sm">
+          <Button size="xs" loading={saveExtras.isPending} onClick={() => saveExtras.mutate()}>ذخیره</Button>
+          {saveExtras.isSuccess && <Text size="xs" c="teal">ذخیره شد</Text>}
+          {saveExtras.isError && <Text size="xs" c="red">خطا در ذخیره</Text>}
+        </Group>
+      </Paper>
       <Paper shadow="xs" p="md">
         <Text fw={600} mb="sm">ردیف‌های کالا</Text>
         <Divider mb="sm" />
