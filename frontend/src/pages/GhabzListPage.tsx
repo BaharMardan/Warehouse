@@ -189,14 +189,21 @@ export function GhabzListPage() {
           </>
         }
       />
-      <Paper shadow="xs" p="md">
+      <Paper shadow="none" p={0}>
         {isLoading && <Center py="xl"><Loader /></Center>}
         {isError && <Center py="xl"><Text c="red">خطا در بارگذاری قبض‌ها.</Text></Center>}
         {data && data.length === 0 && (
           <Center py="xl"><Text c="dimmed">هنوز قبضی ثبت نشده است.</Text></Center>
         )}
         {data && data.length > 0 && (
-          <Table striped highlightOnHover withTableBorder>
+          <Table striped highlightOnHover styles={{
+                th: {
+                  backgroundColor: '#10af7f',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  borderColor: '#0d966d',
+                },
+              }}>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>شماره قبض انبار</Table.Th>

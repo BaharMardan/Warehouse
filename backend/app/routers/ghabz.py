@@ -1149,8 +1149,8 @@ def create_master_ghabz(
     """Issue the tally's master receipt: every HS Code at its full total.
 
     Re-running this revives and rebuilds a previously deleted master instead of
-    issuing a new one. Number _0 is fixed, and UQ_FA_GHABZ_NUMBER does not ignore
-    soft-deleted rows, so a second master would collide -- rebuilding is both the
+    issuing a new one. The master's number (sequence 0, printed without a suffix)
+    is fixed, and UQ_FA_GHABZ_NUMBER does not ignore
     only safe option and the one the operator actually wants when the tally has
     changed underneath.
     """

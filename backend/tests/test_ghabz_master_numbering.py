@@ -2,7 +2,8 @@
 
 The master always takes GHABZ_SEQ = 0, so UQ_FA_GHABZ_TALI_SEQ rejects a second
 one without any application check, and MAX(GHABZ_SEQ) + 1 still gives 1 to the
-first child because 0 sorts below it.
+first child because 0 sorts below it. The 0 is stored, not printed: a number
+without a sequence suffix identifies the master.
 """
 
 from datetime import datetime
@@ -13,6 +14,7 @@ from app.services.ghabz_numbering import (
     MASTER_SEQUENCE,
     MasterAlreadyIssued,
     allocate_ghabz_number,
+    format_ghabz_number,
 )
 
 
@@ -49,7 +51,7 @@ def test_master_takes_sequence_zero():
     number, sequence, _ = allocate_ghabz_number(_FakeCursor(tally()), 1, is_master=True)
 
     assert sequence == MASTER_SEQUENCE == 0
-    assert number == "1405_1503_0"
+    assert number == "1405_1503"
 
 
 def test_first_child_is_one_even_though_a_master_holds_zero():
@@ -65,14 +67,23 @@ def test_children_continue_past_the_master():
 
 
 def test_a_live_master_blocks_a_second_one():
-    cursor = _FakeCursor(tally(), master_row=(637, "1405_1503_0", "no"))
+    cursor = _FakeCursor(tally(), master_row=(637, "1405_1503", "no"))
 
     with pytest.raises(MasterAlreadyIssued):
         allocate_ghabz_number(cursor, 1, is_master=True)
 
 
 def test_a_deleted_master_does_not_block_allocation():
-    """The caller revives it instead; number _0 stays with the original row."""
-    cursor = _FakeCursor(tally(), master_row=(637, "1405_1503_0", "yes"))
+    """The caller revives it instead; the master number stays with the original row."""
+    cursor = _FakeCursor(tally(), master_row=(637, "1405_1503", "yes"))
 
     assert allocate_ghabz_number(cursor, 1, is_master=True)[1] == 0
+
+
+def test_master_number_has_no_sequence_suffix():
+    assert format_ghabz_number(1405, "1503", 0) == "1405_1503"
+
+
+def test_child_numbers_keep_their_sequence_suffix():
+    assert format_ghabz_number(1405, "1503", 1) == "1405_1503_1"
+    assert format_ghabz_number(1405, "1503", 12) == "1405_1503_12"

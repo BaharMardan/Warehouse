@@ -100,11 +100,13 @@ parent tally was created in Jalali year 1405.
 Master receipts
 ---------------
 A master (قبض انبار مادر) covers the whole tally for internal records while
-child receipts split the same goods for customers. It always takes sequence 0,
-so it prints as ``1405_1503_0`` and children continue from 1. That choice does
-real work: UQ_FA_GHABZ_TALI_SEQ then enforces one master per tally by itself,
-and ``MAX(GHABZ_SEQ) + 1`` still yields 1 for the first child because 0 sorts
-below it.
+child receipts split the same goods for customers. It always takes sequence 0
+in GHABZ_SEQ, but that 0 is not printed: the master's number is ``1405_1503``
+and its children are ``1405_1503_1``, ``1405_1503_2``, ... A number with no
+sequence suffix is therefore the master, which operators read at a glance.
+Sequence 0 still does real work: UQ_FA_GHABZ_TALI_SEQ enforces one master per
+tally by itself, and ``MAX(GHABZ_SEQ) + 1`` still yields 1 for the first child
+because 0 sorts below it.
 
 Concurrency
 -----------
@@ -162,6 +164,13 @@ class MasterAlreadyIssued(ValueError):
 
 
 MASTER_SEQUENCE = 0
+
+
+def format_ghabz_number(year, tali_number: str, sequence: int) -> str:
+    """Build the printed number; the master (sequence 0) carries no suffix."""
+    if sequence == MASTER_SEQUENCE:
+        return f"{year}_{tali_number}"
+    return f"{year}_{tali_number}_{sequence}"
 
 # Look the master up by the value that actually collides.
 #
@@ -234,4 +243,4 @@ def allocate_ghabz_number(
         cursor.execute(NEXT_SEQUENCE_SQL, {"tali_id": tali_id})
         sequence = int(cursor.fetchone()[0])
 
-    return f"{year}_{tali_number}_{sequence}", sequence, tali_number
+    return format_ghabz_number(year, tali_number, sequence), sequence, tali_number
