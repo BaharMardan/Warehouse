@@ -205,7 +205,7 @@
 //             <IndustrialEstateMark />
 //             <div className="tally-print-brand-copy">
 //               <strong>شرکت آسان تجارت فلات شرق</strong>
-//               <span>شرکت شهرک‌های صنعتی</span>
+//               {/* <span>شرکت شهرک‌های صنعتی</span> */}
 //               <small>شهرک صنعتی توس</small>
 //               <div className="tally-print-user">کاربر: <b>{valueOf(printUser)}</b></div>
 //             </div>
@@ -302,8 +302,9 @@
 //   const headerId = Number(id)
 //   const headerQuery = useQuery({
 //     queryKey: ['ghabz-print-summary', headerId],
-//     queryFn: () => apiGet<GhabzHeader>(`/ghabz/${headerId}/summary`),
+//     queryFn: () => apiGet<GhabzHeader>(`/ghabz/${headerId}/summary?fresh=${Date.now()}`),
 //     enabled: Number.isFinite(headerId),
+//     staleTime: 0,
 //   })
 //   const linesQuery = useQuery({
 //     queryKey: ['ghabz-print-details', headerId],
@@ -400,7 +401,7 @@ type GhabzLine = {
 
 type CurrentUser = { username: string; full_name: string | null }
 
-const ROWS_PER_PAGE = 4
+const ROWS_PER_PAGE = 6
 const EMPTY = '—'
 
 function valueOf(value: unknown): string {
@@ -454,14 +455,7 @@ function IndustrialEstateMark() {
   )
 }
 
-function CheckBox({ checked, label }: { checked: boolean; label: string }) {
-  return (
-    <span className="tally-print-check">
-      <span className="tally-print-check-box" aria-hidden>{checked ? '✓' : ''}</span>
-      {label}
-    </span>
-  )
-}
+
 
 type PlateParts = {
   leading: string
@@ -550,7 +544,7 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
             <IndustrialEstateMark />
             <div className="tally-print-brand-copy">
               <strong>شرکت آسان تجارت فلات شرق</strong>
-              <span>شرکت شهرک‌های صنعتی</span>
+              {/* <span>شرکت شهرک‌های صنعتی</span> */}
               <small>شهرک صنعتی توس</small>
               <div className="tally-print-user">کاربر: <b>{valueOf(printUser)}</b></div>
             </div>
@@ -560,21 +554,43 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
         <div className="tally-print-header-fields">
           <div className="tally-print-info-card">
             <InfoLine icon={<ReceiptText />} label="شماره کارنه / ترانزیت" value={header.number_karaneh} ltr />
+            <InfoLine icon={<IdCard />} label="شناسه یکتا" value={header.number_ghabz_uniqe} ltr />
             <InfoLine icon={<FileText />} label="رویه" value={header.number_royea} />
             <InfoLine icon={<PackageCheck />} label="ردیف مرزی" value={header.number_marze} ltr />
             <InfoLine icon={<CalendarDays />} label="تاریخ ورود به مرز" value={formatJalaliDate(header.date_enter_marze)} ltr />
             <InfoLine icon={<CalendarDays />} label="تاریخ تخلیه" value={formatJalaliDate(header.date_unloading)} ltr />
           </div>
-          <div className="tally-print-info-card tally-print-info-card-wide">
+          {/* <div className="tally-print-info-card tally-print-info-card-wide">
             <InfoLine icon={<Truck />} label="شرکت حمل" value={header.company_name} />
             <InfoLine icon={<UserRound />} label="صاحب کالا" value={header.owner_name} />
             <InfoLine icon={<MapPin />} label="مبدأ حمل" value={header.country_name} />
             <InfoLine icon={<Building2 />} label="انبار" value={header.anbar_name} />
             <InfoLine icon={<UserRound />} label="مسئول انبار" value={header.anbar_masol ?? header.name_anbardar} />
+          </div> */}
+          <div className="tally-print-info-card tally-print-info-card-wide">
+            <InfoLine icon={<UserRound />} label="صاحب کالا" value={header.owner_name} />
+            <InfoLine icon={<MapPin />} label="مبدأ حمل" value={header.country_name} />
+            <InfoLine icon={<Building2 />} label="انبار" value={header.anbar_name} />
+            <InfoLine
+              icon={<ShieldCheck />}
+              label="بیمه"
+              value={insured ? 'دارد' : 'ندارد'}
+            />
+            <InfoLine
+              icon={<FileText />}
+              label="شماره بیمه"
+              value={header.number_bimeh}
+              ltr
+            />
+            <InfoLine
+              icon={<Building2 />}
+              label="شرکت بیمه"
+              value={header.company_bimeh}
+            />
           </div>
           <div className="tally-print-info-card">
+            <InfoLine icon={<Truck />} label="شرکت حمل" value={header.company_name} />
             <InfoLine icon={<IdCard />} label="شماره قبض انبار" value={receiptNumber} ltr />
-            <InfoLine icon={<IdCard />} label="شناسه یکتا" value={header.number_ghabz_uniqe} ltr />
             <InfoLine icon={<IdCard />} label="شماره تالی" value={header.number_tali} ltr />
             <InfoLine icon={<FileText />} label="شناسه پیگیری" value={header.tracking_number} ltr />
             <InfoLine icon={<MapPin />} label="مرز ورودی" value={header.marze_name} />
@@ -582,13 +598,13 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
           </div>
         </div>
 
-        <div className="ghabz-print-insurance-top">
+        {/* <div className="ghabz-print-insurance-top">
           <span className="tally-print-info-icon" aria-hidden><ShieldCheck /></span>
           <CheckBox checked={insured} label="بیمه دارد" />
           <CheckBox checked={!insured} label="بیمه ندارد" />
           <span>شماره بیمه: <bdi dir="ltr">{valueOf(header.number_bimeh)}</bdi></span>
           <span>شرکت بیمه: {valueOf(header.company_bimeh)}</span>
-        </div>
+        </div> */}
 
         <div className="tally-print-table-frame">
           <table className="tally-print-table ghabz-print-table">
@@ -633,8 +649,8 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
         </div>
 
         <footer className="tally-print-signatures ghabz-print-signatures">
-          <div><strong><PencilLine aria-hidden /> مدیر عملیات</strong><span /></div>
           <div><strong><Stamp aria-hidden /> صدور اسناد</strong><span /></div>
+          <div><strong><PencilLine aria-hidden /> مدیر عملیات</strong><span /></div>
         </footer>
       </div>
       {pageCount > 1 && <div className="tally-print-page-number">صفحه {page + 1} از {pageCount}</div>}

@@ -806,7 +806,7 @@ function TallySheet({
             <IndustrialEstateMark />
             <div className="tally-print-brand-copy">
               <strong>شرکت آسان تجارت فلات شرق</strong>
-              <span>شرکت شهرک‌های صنعتی</span>
+              {/* <span>شرکت شهرک‌های صنعتی</span> */}
               <small>شهرک صنعتی توس</small>
               <div className="tally-print-user">
                 کاربر: <b>{valueOf(data.print_user_name)}</b>
