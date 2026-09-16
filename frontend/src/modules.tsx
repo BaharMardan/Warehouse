@@ -10,7 +10,7 @@
 // import type { CrudConfig } from './components/CrudResource'
 // import { resources } from './resources'
 // import {
-//   IconDatabase, IconClipboardList, IconReceipt, IconInvoice,
+//   IconDatabase, IconClipboardList, IconReceipt, IconInvoice, IconKartabl,
 // } from './components/icons'
 
 // type IconComponent = ComponentType<{ size?: number; stroke?: number }>
@@ -26,6 +26,14 @@
 // }
 
 // export const modules: AppModule[] = [
+//   {
+//     key: 'kartabl',
+//     title: 'کارتابل',
+//     description: 'پیگیری پرونده‌ها از تالی تا صورتحساب',
+//     route: '/kartabl',
+//     icon: IconKartabl,
+//     color: 'pink',
+//   },
 //   {
 //     key: 'base-data',
 //     title: 'اطلاعات پایه',
@@ -214,7 +222,6 @@ export const modules: AppModule[] = [
     icon: IconInvoice,
     // color: 'orange',
     color: 'red',
-    enabled: false,
   },
 ]
 

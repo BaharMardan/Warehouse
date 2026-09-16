@@ -1,0 +1,200 @@
+.invoice-print-page {
+  --tally-blue: #e03131;
+  --tally-blue-dark: #c92a2a;
+  --tally-blue-soft: #fff1f1;
+  --tally-line: #f1d1d1;
+
+  background:
+    radial-gradient(
+      circle at 50% -15%,
+      rgba(224, 49, 49, 0.12),
+      transparent 38%
+    ),
+    #f8f0f0;
+
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+.invoice-print-page .invoice-print-sheet {
+  width: 285mm;
+  height: auto;
+  min-height: 198mm;
+  overflow: visible;
+  border-color: rgba(224, 49, 49, 0.22);
+  font-size: 10px;
+}
+
+.invoice-print-page .invoice-print-heading {
+  border-top-color: #e03131;
+}
+
+.invoice-print-page .tally-print-preview-heading h1 {
+  color: #c92a2a;
+}
+
+.invoice-print-page .tally-print-action {
+  background: linear-gradient(145deg, #f05353, #c92a2a);
+  box-shadow:
+    0 3px 8px rgba(201, 42, 42, 0.25),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
+}
+
+.invoice-print-page .tally-print-action:hover {
+  background: linear-gradient(145deg, #ff6868, #b52525);
+}
+
+.invoice-print-page .invoice-print-brand {
+  gap: 3mm;
+}
+
+.invoice-print-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 14mm;
+  height: 14mm;
+  flex: 0 0 14mm;
+  border-radius: 3mm;
+  background: #e03131;
+  color: white;
+  font-size: 20pt;
+  font-weight: 900;
+}
+
+.invoice-print-parties {
+  display: grid;
+  gap: 4mm;
+  margin: 5mm 0;
+}
+
+.invoice-print-box {
+  min-height: 26mm;
+  border: 1px solid #e4bcbc;
+  border-radius: 3mm;
+  background: #fffafa;
+}
+
+.invoice-print-box h2 {
+  margin: 0;
+  padding: 2mm 3mm;
+  border-bottom: 1px solid #e4bcbc;
+  color: #c92a2a;
+  font-size: 12px;
+}
+
+.invoice-print-fields {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2mm 4mm;
+  padding: 3mm;
+  line-height: 1.5;
+}
+
+.invoice-print-wide {
+  grid-column: span 3;
+}
+
+.invoice-print-table {
+  width: 100%;
+  margin-top: 4mm;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.invoice-print-table th,
+.invoice-print-table td {
+  padding: 2mm;
+  border: 1px solid #dfc9c9;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.invoice-print-table th {
+  border-color: #bd2929;
+  background: #e03131;
+  color: white;
+}
+
+.invoice-print-table th:nth-child(2),
+.invoice-print-table td:nth-child(2) {
+  width: 37%;
+  text-align: right;
+}
+
+.invoice-print-table th:first-child,
+.invoice-print-table td:first-child {
+  width: 6%;
+}
+
+.invoice-print-table thead {
+  display: table-header-group;
+}
+
+.invoice-print-table tr {
+  break-inside: avoid;
+}
+
+.invoice-print-total td {
+  border-top: 2px solid #c92a2a;
+  background: #fff1f1;
+  font-weight: 700;
+}
+
+.invoice-print-notes {
+  display: flex;
+  min-height: 23mm;
+  flex-direction: column;
+  margin-top: 7mm;
+  padding: 3mm;
+  border: 1px solid #e4bcbc;
+  border-radius: 3mm;
+}
+
+.invoice-print-notes strong {
+  color: #c92a2a;
+}
+
+.invoice-print-notes span {
+  margin-top: 3mm;
+  white-space: pre-wrap;
+}
+
+.invoice-print-footer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 6mm;
+  text-align: center;
+}
+
+.invoice-print-footer div {
+  min-height: 21mm;
+  padding: 3mm;
+  border-top: 1px solid #d5a9a9;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 5mm;
+}
+
+@media print {
+  .invoice-print-page {
+    background: white;
+  }
+
+  .invoice-print-page .invoice-print-sheet {
+    width: 285mm;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .invoice-print-heading,
+  .invoice-print-parties,
+  .invoice-print-notes,
+  .invoice-print-footer {
+    break-inside: avoid;
+  }
+}
