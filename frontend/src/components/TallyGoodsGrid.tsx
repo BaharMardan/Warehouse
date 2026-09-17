@@ -1068,6 +1068,7 @@ import {
   parseFlexibleJalaliDate,
 } from '../utils/flexibleJalaliDate'
 import './TallyGoodsGrid.css'
+import { handoffKey } from '../api/handoff'
 
 /**
  * TallyGoodsGrid — the tally's goods lines (ردیف‌های کالا) as ONE in-place editable grid.
@@ -1519,6 +1520,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+      qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
       // chained entry: after saving a NEW row, drop straight into the next empty one
       if (editingId == null && keepGoing) {
         setPicked(null)
@@ -1535,7 +1537,11 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
 
   const deleteMutation = useMutation({
     mutationFn: (lineId: number) => apiSend(`/tally-details/${lineId}`, 'DELETE'),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tally-details', tallyId] }),
+    // onSuccess: () => qc.invalidateQueries({ queryKey: ['tally-details', tallyId] }),
+    onSuccess: () => {
+  qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+  qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
+  },
     onError: (e) => alert(`حذف ناموفق بود: ${(e as Error).message}`),
   })
 

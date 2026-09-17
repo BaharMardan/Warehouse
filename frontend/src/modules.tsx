@@ -243,13 +243,41 @@ export const modules: AppModule[] = [
 ]
 
 /** The modules this user may open: the home-page tiles and the sidebar entries. */
+// export function useVisibleModules(): AppModule[] {
+//   const { can, isAdmin } = usePermissions()
+//   return useMemo(
+//     () => modules.filter((m) => (!m.adminOnly || isAdmin) && (!m.permission || can(m.permission))),
+//     [can, isAdmin],
+//   )
+// }
+/** نمایش ماژول‌ها بر اساس دسترسی‌های تعیین‌شده توسط ادمین */
 export function useVisibleModules(): AppModule[] {
   const { can, isAdmin } = usePermissions()
+
   return useMemo(
-    () => modules.filter((m) => (!m.adminOnly || isAdmin) && (!m.permission || can(m.permission))),
+    () =>
+      modules.filter((module) => {
+        if (module.adminOnly && !isAdmin) {
+          return false
+        }
+
+        if (module.key === 'base-data') {
+          return (
+            can('base_data.edit') ||
+            can('commodity.manage')
+          )
+        }
+
+        if (module.permission) {
+          return can(module.permission)
+        }
+
+        return true
+      }),
     [can, isAdmin],
   )
 }
+
 
 /**
  * Which module a URL belongs to. Drives the accent colour of PageHeader and the

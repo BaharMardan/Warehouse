@@ -121,71 +121,270 @@ export function SendToKeeperButton({ tallyId, state }: { tallyId: number | null 
   )
 }
 
-/** The keeper's first task, above the service sections. Each answer saves immediately. */
-export function VolumetricCard({ tallyId, state }: { tallyId: number | null | undefined; state: HandoffState | undefined }) {
+// /** The keeper's first task, above the service sections. Each answer saves immediately. */
+// export function VolumetricCard({ tallyId, state }: { tallyId: number | null | undefined; state: HandoffState | undefined }) {
+//   const { can } = usePermissions()
+//   const save = useHandoffAction(
+//     tallyId,
+//     (answer: VolumetricAnswer) => handoffApi.saveVolumetric(tallyId as number, answer),
+//     'ثبت پاسخ انجام نشد.',
+//   )
+//   const [pallets, setPallets] = useState('')
+
+//   const savedPallets = state?.volumetric_pallets ?? null
+//   useEffect(() => {
+//     setPallets(savedPallets == null ? '' : faDigits(savedPallets))
+//   }, [savedPallets])
+
+//   if (!can('tally.services') || tallyId == null || state?.step !== 'keeper') return null
+
+//   const savePallets = () => {
+//     const typed = latinDigits(pallets).trim()
+//     const value = typed === '' ? null : Number(typed)
+//     if (value !== null && (!Number.isInteger(value) || value < 1)) {
+//       alert('تعداد پالت باید عددی صحیح و دست‌کم ۱ باشد')
+//       return
+//     }
+//     if (value === savedPallets) return
+//     save.mutate({ is_volumetric: 'yes', volumetric_pallets: value })
+//   }
+
+//   return (
+//     <Paper withBorder radius="lg" p="md" mb="md">
+//       <Group justify="space-between" wrap="wrap" gap="md">
+//         <Stack gap={2}>
+//           <Text fw={700}>آیا کالا حجمی است؟</Text>
+//           <Text size="xs" c="dimmed">پاسخ بلافاصله ذخیره می‌شود و برای برگرداندن تالی لازم است.</Text>
+//         </Stack>
+//         <Group gap="lg" wrap="wrap">
+//           <Radio.Group
+//             value={state.is_volumetric ?? ''}
+//             onChange={(value) => save.mutate(
+//               value === 'yes'
+//                 ? { is_volumetric: 'yes', volumetric_pallets: savedPallets }
+//                 : { is_volumetric: 'no', volumetric_pallets: null },
+//             )}
+//           >
+//             <Group gap="md">
+//               <Radio value="yes" label="بله" disabled={save.isPending} />
+//               <Radio value="no" label="خیر" disabled={save.isPending} />
+//             </Group>
+//           </Radio.Group>
+//           {state.is_volumetric === 'yes' && (
+//             <TextInput
+//               label="تعداد پالت"
+//               inputMode="numeric"
+//               w={150}
+//               value={pallets}
+//               onChange={(event) => setPallets(event.currentTarget.value)}
+//               onBlur={savePallets}
+//               onKeyDown={(event) => {
+//                 if (event.key === 'Enter') event.currentTarget.blur()
+//               }}
+//             />
+//           )}
+//           {save.isPending && <Text size="xs" c="dimmed">در حال ذخیره…</Text>}
+//         </Group>
+//       </Group>
+//     </Paper>
+//   )
+// }
+
+export function VolumetricCard({
+  tallyId,
+  state,
+}: {
+  tallyId: number | null | undefined
+  state: HandoffState | undefined
+}) {
   const { can } = usePermissions()
+
   const save = useHandoffAction(
     tallyId,
-    (answer: VolumetricAnswer) => handoffApi.saveVolumetric(tallyId as number, answer),
+    (answer: VolumetricAnswer) =>
+      handoffApi.saveVolumetric(tallyId as number, answer),
     'ثبت پاسخ انجام نشد.',
   )
-  const [pallets, setPallets] = useState('')
 
+  const [pallets, setPallets] = useState('')
   const savedPallets = state?.volumetric_pallets ?? null
+
   useEffect(() => {
     setPallets(savedPallets == null ? '' : faDigits(savedPallets))
   }, [savedPallets])
 
-  if (!can('tally.services') || tallyId == null || state?.step !== 'keeper') return null
+  if (
+    !can('tally.services') ||
+    tallyId == null ||
+    state?.step !== 'keeper'
+  ) {
+    return null
+  }
 
   const savePallets = () => {
     const typed = latinDigits(pallets).trim()
     const value = typed === '' ? null : Number(typed)
-    if (value !== null && (!Number.isInteger(value) || value < 1)) {
+
+    if (
+      value !== null &&
+      (!Number.isInteger(value) || value < 1)
+    ) {
       alert('تعداد پالت باید عددی صحیح و دست‌کم ۱ باشد')
       return
     }
+
     if (value === savedPallets) return
-    save.mutate({ is_volumetric: 'yes', volumetric_pallets: value })
+
+    save.mutate({
+      is_volumetric: 'yes',
+      volumetric_pallets: value,
+    })
   }
 
   return (
-    <Paper withBorder radius="lg" p="md" mb="md">
-      <Group justify="space-between" wrap="wrap" gap="md">
-        <Stack gap={2}>
-          <Text fw={700}>آیا کالا حجمی است؟</Text>
-          <Text size="xs" c="dimmed">پاسخ بلافاصله ذخیره می‌شود و برای برگرداندن تالی لازم است.</Text>
-        </Stack>
-        <Group gap="lg" wrap="wrap">
-          <Radio.Group
-            value={state.is_volumetric ?? ''}
-            onChange={(value) => save.mutate(
-              value === 'yes'
-                ? { is_volumetric: 'yes', volumetric_pallets: savedPallets }
-                : { is_volumetric: 'no', volumetric_pallets: null },
-            )}
+    <Paper
+      className="tally-detail-section volumetric-card"
+      radius="xl"
+      dir="rtl"
+    >
+      <div className="tally-detail-section-header">
+        <div className="volumetric-heading">
+          <span
+            className="tally-detail-section-icon"
+            aria-hidden="true"
           >
-            <Group gap="md">
-              <Radio value="yes" label="بله" disabled={save.isPending} />
-              <Radio value="no" label="خیر" disabled={save.isPending} />
-            </Group>
-          </Radio.Group>
-          {state.is_volumetric === 'yes' && (
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+              <path d="M3 8v8l9 5 9-5V8" />
+              <path d="M12 13v8" />
+              <path d="m7.5 5.5 9 5" />
+            </svg>
+          </span>
+
+          <div className="tally-detail-section-heading">
+            <h3>آیا بار حجمی است؟</h3>
+            
+          </div>
+        </div>
+
+        <Badge
+          color={state.is_volumetric ? 'teal' : 'orange'}
+          variant="light"
+          radius="sm"
+          role="status"
+        >
+          {save.isPending
+            ? 'در حال ذخیره…'
+            : state.is_volumetric
+              ? 'پاسخ ثبت شده'
+              : 'نیاز به پاسخ'}
+        </Badge>
+      </div>
+
+      <div className="tally-detail-section-rule" />
+
+      <div className="volumetric-body">
+        <Radio.Group
+          name={`volumetric-${tallyId}`}
+          // label="نوع بار"
+          value={state.is_volumetric ?? ''}
+          onChange={(value) =>
+            save.mutate(
+              value === 'yes'
+                ? {
+                    is_volumetric: 'yes',
+                    volumetric_pallets: savedPallets,
+                  }
+                : {
+                    is_volumetric: 'no',
+                    volumetric_pallets: null,
+                  },
+            )
+          }
+        >
+          <div className="volumetric-options">
+            <div
+              className="volumetric-option"
+              data-selected={state.is_volumetric === 'yes'}
+            >
+              <Radio
+                value="yes"
+                label="بله"
+                disabled={save.isPending}
+                size="md"
+                styles={{
+                  body: { alignItems: 'center' },
+                  labelWrapper: { flex: 1 },
+                  label: {
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    paddingBlock: 8,
+                  },
+                }}
+              />
+            </div>
+
+            <div
+              className="volumetric-option"
+              data-selected={state.is_volumetric === 'no'}
+            >
+              <Radio
+                value="no"
+                label="خیر"
+                disabled={save.isPending}
+                size="md"
+                styles={{
+                  body: { alignItems: 'center' },
+                  labelWrapper: { flex: 1 },
+                  label: {
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    paddingBlock: 8,
+                  },
+                }}
+              />
+            </div>
+          </div>
+        </Radio.Group>
+
+        {state.is_volumetric === 'yes' && (
+          <div className="volumetric-pallets">
             <TextInput
               label="تعداد پالت"
+              // description="عدد صحیح و حداقل ۱"
+              placeholder="مثلاً ۱۲"
               inputMode="numeric"
-              w={150}
+              autoComplete="off"
+              size="md"
+              radius="md"
               value={pallets}
-              onChange={(event) => setPallets(event.currentTarget.value)}
+              disabled={save.isPending}
+              onChange={(event) =>
+                setPallets(event.currentTarget.value)
+              }
               onBlur={savePallets}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur()
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
               }}
             />
-          )}
-          {save.isPending && <Text size="xs" c="dimmed">در حال ذخیره…</Text>}
-        </Group>
-      </Group>
+          </div>
+        )}
+
+        <Text size="xs" c="dimmed">
+          پاسخ شما به‌صورت خودکار ذخیره می‌شود.
+        </Text>
+      </div>
     </Paper>
   )
 }
