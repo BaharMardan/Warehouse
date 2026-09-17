@@ -9,110 +9,114 @@ FOR INSERT OR UPDATE ON "FA_ghabz_anbar_DETAILES"
 COMPOUND TRIGGER
 
     TYPE "t_row" IS RECORD (
-        "ID_GHABZ_ANBAR_HEADAR"  "FA_ghabz_anbar_DETAILES"."ID_GHABZ_ANBAR_HEADAR"%TYPE,
-        "CODE_KALA"              "FA_ghabz_anbar_DETAILES"."code_kala"%TYPE
+        "ID_GHABZ_ANBAR_HEADAR" "FA_ghabz_anbar_DETAILES"."ID_GHABZ_ANBAR_HEADAR"%TYPE,
+        "HSCODE"                "FA_ghabz_anbar_DETAILES"."HSCODE"%TYPE
     );
-
     TYPE "t_rows" IS TABLE OF "t_row";
     "g_rows" "t_rows" := "t_rows"();
 
     BEFORE EACH ROW IS
     BEGIN
-        "g_rows".EXTEND;
-        "g_rows"("g_rows".COUNT)."ID_GHABZ_ANBAR_HEADAR" := :NEW."ID_GHABZ_ANBAR_HEADAR";
-        "g_rows"("g_rows".COUNT)."CODE_KALA"             := :NEW."code_kala";
+        IF NVL(:NEW."IS_DELETED", 'no') = 'no' THEN
+            IF TRIM(:NEW."HSCODE") IS NULL THEN
+                RAISE_APPLICATION_ERROR(
+                    -20012,
+                    'برای صدور قبض انبار، HS Code الزامی است'
+                );
+            END IF;
+
+            "g_rows".EXTEND;
+            "g_rows"("g_rows".COUNT)."ID_GHABZ_ANBAR_HEADAR" :=
+                :NEW."ID_GHABZ_ANBAR_HEADAR";
+            "g_rows"("g_rows".COUNT)."HSCODE" := UPPER(TRIM(:NEW."HSCODE"));
+        END IF;
     END BEFORE EACH ROW;
 
     AFTER STATEMENT IS
-
-        "v_tali_id"               "FA_TALI_HEADER"."ID_TALI"%TYPE;
-
-        "v_sum_number"            NUMBER;
-        "v_sum_weight"            NUMBER;
-        "v_sum_weight_baskol"     NUMBER;
-
-        "v_tali_number"           NUMBER;
-        "v_tali_weight"           NUMBER;
-        "v_tali_weight_baskol"    NUMBER;
-
+        "v_tali_id"             "FA_TALI_HEADER"."ID_TALI"%TYPE;
+        "v_is_master"           "fa_ghabz_anbar_header"."IS_MASTER"%TYPE;
+        "v_sum_number"          NUMBER;
+        "v_sum_weight"          NUMBER;
+        "v_sum_weight_baskol"   NUMBER;
+        "v_tali_number"         NUMBER;
+        "v_tali_weight"         NUMBER;
+        "v_tali_weight_baskol"  NUMBER;
     BEGIN
-        FOR i IN 1 .. "g_rows".COUNT LOOP
+        IF "g_rows".COUNT > 0 THEN
+            FOR i IN 1 .. "g_rows".COUNT LOOP
+                BEGIN
+                    SELECT "h"."TALI_ID", NVL("h"."IS_MASTER", 'no')
+                      INTO "v_tali_id", "v_is_master"
+                      FROM "fa_ghabz_anbar_header" "h"
+                     WHERE "h"."ID_ghabz" =
+                           "g_rows"(i)."ID_GHABZ_ANBAR_HEADAR";
+                EXCEPTION WHEN NO_DATA_FOUND THEN
+                    RAISE_APPLICATION_ERROR(
+                        -20010,
+                        'برای قبض انبار با ID = ' ||
+                        "g_rows"(i)."ID_GHABZ_ANBAR_HEADAR" ||
+                        ' هیچ رکورد هدر یافت نشد'
+                    );
+                END;
 
-            BEGIN
-                SELECT "h"."TALI_ID"
-                INTO "v_tali_id"
-                FROM "fa_ghabz_anbar_header" "h"
-                WHERE "h"."ID_ghabz" = "g_rows"(i)."ID_GHABZ_ANBAR_HEADAR";
+                IF "v_is_master" = 'yes' THEN
+                    SELECT NVL(SUM("d"."NUMBER_KALA"), 0),
+                           NVL(SUM("d"."WEIGHTE_asnad"), 0),
+                           NVL(SUM("d"."WEIGHTE_BASKOL"), 0)
+                      INTO "v_sum_number", "v_sum_weight", "v_sum_weight_baskol"
+                      FROM "FA_ghabz_anbar_DETAILES" "d"
+                     WHERE "d"."ID_GHABZ_ANBAR_HEADAR" =
+                           "g_rows"(i)."ID_GHABZ_ANBAR_HEADAR"
+                       AND UPPER(TRIM("d"."HSCODE")) = "g_rows"(i)."HSCODE"
+                       AND "d"."IS_DELETED" = 'no';
+                ELSE
+                    SELECT NVL(SUM("d"."NUMBER_KALA"), 0),
+                           NVL(SUM("d"."WEIGHTE_asnad"), 0),
+                           NVL(SUM("d"."WEIGHTE_BASKOL"), 0)
+                      INTO "v_sum_number", "v_sum_weight", "v_sum_weight_baskol"
+                      FROM "FA_ghabz_anbar_DETAILES" "d"
+                      JOIN "fa_ghabz_anbar_header" "h"
+                        ON "h"."ID_ghabz" = "d"."ID_GHABZ_ANBAR_HEADAR"
+                     WHERE "h"."TALI_ID" = "v_tali_id"
+                       AND UPPER(TRIM("d"."HSCODE")) = "g_rows"(i)."HSCODE"
+                       AND "d"."IS_DELETED" = 'no'
+                       AND "h"."IS_DELETED" = 'no'
+                       AND NVL("h"."IS_MASTER", 'no') = 'no';
+                END IF;
 
-            EXCEPTION WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(
-                    -20010,
-                    'برای قبض انبار با ID = ' || "g_rows"(i)."ID_GHABZ_ANBAR_HEADAR" ||
-                    ' هیچ رکورد هدر یافت نشد'
-                );
-            END;
+                SELECT NVL(SUM("t"."NUMBER_KALA"), 0),
+                       NVL(SUM("t"."WEIGHTE"), 0),
+                       NVL(SUM("t"."WEIGHTE_BASKOL"), 0)
+                  INTO "v_tali_number", "v_tali_weight", "v_tali_weight_baskol"
+                  FROM "FA_TALI_DETAILES" "t"
+                 WHERE "t"."ID_HEADERS_TALI" = "v_tali_id"
+                   AND UPPER(TRIM("t"."HSCODE")) = "g_rows"(i)."HSCODE"
+                   AND "t"."IS_DELETED" = 'no';
 
-            SELECT
-                NVL(SUM("d"."NUMBER_KALA"),0),
-                NVL(SUM("d"."WEIGHTE_asnad"),0),
-                NVL(SUM("d"."WEIGHTE_BASKOL"),0)
-            INTO
-                "v_sum_number",
-                "v_sum_weight",
-                "v_sum_weight_baskol"
-            FROM "FA_ghabz_anbar_DETAILES" "d"
-            JOIN "fa_ghabz_anbar_header" "h"
-              ON "h"."ID_ghabz" = "d"."ID_GHABZ_ANBAR_HEADAR"
-            WHERE "h"."TALI_ID" = "v_tali_id"
-              AND "d"."code_kala" = "g_rows"(i)."CODE_KALA";
-
-            SELECT
-                NVL(SUM("t"."NUMBER_KALA"),0),
-                NVL(SUM("t"."WEIGHTE"),0),
-                NVL(SUM("t"."WEIGHTE_BASKOL"),0)
-            INTO
-                "v_tali_number",
-                "v_tali_weight",
-                "v_tali_weight_baskol"
-            FROM "FA_TALI_DETAILES" "t"
-            WHERE "t"."ID_HEADERS_TALI" = "v_tali_id"
-              AND "t"."CODE_GROUPE_KALA" = "g_rows"(i)."CODE_KALA";
-
-            IF "v_tali_number" = 0
-            AND "v_tali_weight" = 0
-            AND "v_tali_weight_baskol" = 0 THEN
-                RAISE_APPLICATION_ERROR(
-                    -20011,
-                    'برای کالا با کد ' || "g_rows"(i)."CODE_KALA" ||
-                    ' در تالی هیچ مقدار مجازی تعریف نشده است'
-                );
-            END IF;
-
-            IF "v_sum_number" > "v_tali_number" THEN
-                RAISE_APPLICATION_ERROR(
-                    -20001,
-                    'تعداد ثبت شده برای کالا از مجموع مقدار مجاز در تالی بیشتر است'
-                );
-            END IF;
-
-            IF "v_sum_weight" > "v_tali_weight" THEN
-                RAISE_APPLICATION_ERROR(
-                    -20002,
-                    'وزن اسناد ثبت شده برای کالا از مجموع مقدار مجاز در تالی بیشتر است'
-                );
-            END IF;
-
-            IF "v_sum_weight_baskol" > "v_tali_weight_baskol" THEN
-                RAISE_APPLICATION_ERROR(
-                    -20003,
-                    'وزن باسکول ثبت شده برای کالا از مجموع مقدار مجاز در تالی بیشتر است'
-                );
-            END IF;
-
-        END LOOP;
-
+                IF "v_tali_number" = 0
+                   AND "v_tali_weight" = 0
+                   AND "v_tali_weight_baskol" = 0 THEN
+                    RAISE_APPLICATION_ERROR(
+                        -20011,
+                        'برای HS Code ' || "g_rows"(i)."HSCODE" ||
+                        ' در تالی هیچ مقدار مجازی تعریف نشده است'
+                    );
+                END IF;
+                IF "v_sum_number" > "v_tali_number" THEN
+                    RAISE_APPLICATION_ERROR(-20001,
+                        'تعداد ثبت شده برای HS Code از مجموع مقدار مجاز در تالی بیشتر است');
+                END IF;
+                IF "v_sum_weight" > "v_tali_weight" THEN
+                    RAISE_APPLICATION_ERROR(-20002,
+                        'وزن اسناد ثبت شده برای HS Code از مجموع مقدار مجاز در تالی بیشتر است');
+                END IF;
+                IF "v_sum_weight_baskol" > "v_tali_weight_baskol" THEN
+                    RAISE_APPLICATION_ERROR(-20003,
+                        'وزن باسکول ثبت شده برای HS Code از مجموع مقدار مجاز در تالی بیشتر است');
+                END IF;
+            END LOOP;
+        END IF;
     END AFTER STATEMENT;
-
 END "TRG_CHK_GHABZ_TALI_LIMIT";
 /
 ALTER TRIGGER "TRG_CHK_GHABZ_TALI_LIMIT" ENABLE;

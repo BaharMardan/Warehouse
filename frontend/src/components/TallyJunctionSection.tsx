@@ -377,6 +377,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { apiGet, apiSend } from '../api/client'
+import { usePermissions } from '../auth/usePermissions'
 import { RefSelect } from './RefSelect'
 import { IconEdit, IconTrash } from './icons'
 
@@ -432,6 +433,8 @@ function normalizeDigits(s: string): string {
 
 export function TallyJunctionSection({ config, tallyId }: { config: JunctionConfig; tallyId: number }) {
   const qc = useQueryClient()
+  // Every section in tallyJunctions is part of the warehouse keeper's step.
+  const canEdit = usePermissions().can('tally.services')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [rateId, setRateId] = useState<number | null>(null)
@@ -526,14 +529,16 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
             <Text>ثبت و مدیریت خدمات مرتبط با این تالی</Text>
           </div>
         </div>
-        <Button
-          className="tally-detail-add-button"
-          size="sm"
-          leftSection={<Plus size={17} />}
-          onClick={openAdd}
-        >
-          افزودن
-        </Button>
+        {canEdit && (
+          <Button
+            className="tally-detail-add-button"
+            size="sm"
+            leftSection={<Plus size={17} />}
+            onClick={openAdd}
+          >
+            افزودن
+          </Button>
+        )}
       </div>
       <div className="tally-detail-section-rule" />
 
@@ -553,7 +558,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
         <Center className="tally-detail-empty-state tally-detail-empty-state-compact">
           <SectionIcon size={25} strokeWidth={1.6} aria-hidden />
           <Text fw={700}>هنوز ردیفی ثبت نشده است.</Text>
-          <Text size="sm">برای این بخش می‌توانید مورد جدید اضافه کنید.</Text>
+          {canEdit && <Text size="sm">برای این بخش می‌توانید مورد جدید اضافه کنید.</Text>}
         </Center>
       )}
 
@@ -575,7 +580,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                   {config.selectField && <Table.Th>{config.selectField.label}</Table.Th>}
                   {config.selectField?.inlineWithCatalog && <Table.Th>مبلغ</Table.Th>}
                   <Table.Th>توضیحات</Table.Th>
-                  <Table.Th className="tally-detail-actions-cell">عملیات</Table.Th>
+                  {canEdit && <Table.Th className="tally-detail-actions-cell">عملیات</Table.Th>}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -599,34 +604,36 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                       </Table.Td>
                     )}
                     <Table.Td>{row.description ?? '—'}</Table.Td>
-                    <Table.Td className="tally-detail-actions-cell">
-                      <Group gap={4} justify="center" wrap="nowrap">
-                        <Tooltip label="ویرایش" withArrow>
-                          <ActionIcon
-                            className="tally-detail-row-action"
-                            variant="light"
-                            color="blue"
-                            radius="md"
-                            aria-label="ویرایش"
-                            onClick={() => openEdit(row)}
-                          >
-                            <IconEdit size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="حذف" withArrow>
-                          <ActionIcon
-                            className="tally-detail-row-action"
-                            variant="light"
-                            color="red"
-                            radius="md"
-                            aria-label="حذف"
-                            onClick={() => confirm('حذف این ردیف؟') && deleteMutation.mutate(row.id)}
-                          >
-                            <IconTrash size={18} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Group>
-                    </Table.Td>
+                    {canEdit && (
+                      <Table.Td className="tally-detail-actions-cell">
+                        <Group gap={4} justify="center" wrap="nowrap">
+                          <Tooltip label="ویرایش" withArrow>
+                            <ActionIcon
+                              className="tally-detail-row-action"
+                              variant="light"
+                              color="blue"
+                              radius="md"
+                              aria-label="ویرایش"
+                              onClick={() => openEdit(row)}
+                            >
+                              <IconEdit size={18} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="حذف" withArrow>
+                            <ActionIcon
+                              className="tally-detail-row-action"
+                              variant="light"
+                              color="red"
+                              radius="md"
+                              aria-label="حذف"
+                              onClick={() => confirm('حذف این ردیف؟') && deleteMutation.mutate(row.id)}
+                            >
+                              <IconTrash size={18} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Table.Td>
+                    )}
                   </Table.Tr>
                 ))}
               </Table.Tbody>

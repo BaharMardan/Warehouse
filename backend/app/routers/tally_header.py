@@ -170,7 +170,7 @@ from datetime import datetime
 import oracledb
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
@@ -235,12 +235,12 @@ def _returned_int(value) -> int:
     return int(result)
 
 
-@router.get("", dependencies=[Depends(get_current_user)])
+@router.get("", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_headers():
     return fetch_all(_PLAN["list"])
 
 
-@router.get("/by-number/{tali_number}", dependencies=[Depends(get_current_user)])
+@router.get("/by-number/{tali_number}", dependencies=[Depends(require_permission("tally.view"))])
 def get_tally_header_by_number(tali_number: str):
     """Resolve the public tally number to its header and internal relational ID."""
     row = fetch_one(GET_BY_NUMBER_SQL, {"tali_number": tali_number})
@@ -249,7 +249,7 @@ def get_tally_header_by_number(tali_number: str):
     return row
 
 
-@router.get("/{row_id}", dependencies=[Depends(get_current_user)])
+@router.get("/{row_id}", dependencies=[Depends(require_permission("tally.view"))])
 def get_tally_header(row_id: int):
     row = fetch_one(_PLAN["one"], {"id": row_id})
     if row is None:
@@ -260,7 +260,7 @@ def get_tally_header(row_id: int):
 @router.post("", status_code=201)
 def create_tally_header(
     item: TaliHeaderInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("tally.edit")),
 ):
     # Always discard a client value. TALI_NUMBER is a server-owned identifier.
     payload = item.model_dump()
@@ -304,7 +304,7 @@ def create_tally_header(
 def update_tally_header(
     row_id: int,
     item: TaliHeaderInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("tally.edit")),
 ):
     provided = item.model_dump(exclude_unset=True)
     provided.pop("tali_number", None)  # immutable even if a caller sends it manually
@@ -321,7 +321,7 @@ def update_tally_header(
 @router.delete("/{row_id}", status_code=204)
 def delete_tally_header(
     row_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("tally.delete")),
 ):
     params = {"id": row_id, "actor_id": current_user["id"]}
     if execute(_PLAN["delete"], params) == 0:

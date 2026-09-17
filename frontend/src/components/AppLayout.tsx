@@ -289,8 +289,10 @@ import {
 } from '@mantine/core'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { useCurrentUser } from '../auth/usePermissions'
+import { KeeperQueueBell } from './KeeperQueueBell'
 import { resources } from '../resources'
-import { modules, moduleForPath, accentVars } from '../modules'
+import { moduleForPath, accentVars, useVisibleModules } from '../modules'
 import { IconSun, IconMoon, IconHome, IconApps } from './icons'
 
 const navLinkStyle = { borderRadius: 8, marginBottom: 2 }
@@ -301,6 +303,8 @@ const isBaseDataRoute = (pathname: string) => resources.some((r) => r.route === 
 
 export function AppLayout() {
   const { signOut } = useAuth()
+  const { data: currentUser } = useCurrentUser()
+  const visibleModules = useVisibleModules()
   const location = useLocation()
   const { setColorScheme } = useMantineColorScheme()
   const computed = useComputedColorScheme('light', { getInitialValueInEffect: true })
@@ -433,6 +437,12 @@ export function AppLayout() {
                 {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
               </ActionIcon>
             </Tooltip>
+            <KeeperQueueBell />
+            {currentUser && (
+              <Text size="sm" c="dimmed" visibleFrom="sm" lineClamp={1}>
+                {currentUser.full_name || currentUser.username}
+              </Text>
+            )}
             <Button variant="subtle" color="red" radius="md" onClick={signOut}>خروج</Button>
           </Group>
         </Group>
@@ -453,7 +463,7 @@ export function AppLayout() {
             style={navLinkStyle}
           />
 
-          {modules.map((m) => {
+          {visibleModules.map((m) => {
             const Icon = m.icon
 
             if (m.enabled === false) {

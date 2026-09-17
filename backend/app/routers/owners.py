@@ -11,7 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, model_validator
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_login, require_permission
 from app.core.db import get_connection
 
 
@@ -166,14 +166,14 @@ def _replace_representatives(cursor, owner_id: int, item: OwnerInput, actor_id: 
         )
 
 
-@router.get("", dependencies=[Depends(get_current_user)])
+@router.get("", dependencies=[Depends(require_login)])
 def list_owners():
     with get_connection() as connection:
         with connection.cursor() as cursor:
             return _load_owners(cursor)
 
 
-@router.get("/{owner_id}", dependencies=[Depends(get_current_user)])
+@router.get("/{owner_id}", dependencies=[Depends(require_login)])
 def get_owner(owner_id: int):
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -184,7 +184,7 @@ def get_owner(owner_id: int):
 
 
 @router.post("", status_code=201)
-def create_owner(item: OwnerInput, current_user: dict = Depends(get_current_user)):
+def create_owner(item: OwnerInput, current_user: dict = Depends(require_permission("base_data.edit"))):
     payload = _normalized_payload(item)
     with get_connection() as connection:
         with connection.cursor() as cursor:
@@ -212,7 +212,7 @@ def create_owner(item: OwnerInput, current_user: dict = Depends(get_current_user
 def update_owner(
     owner_id: int,
     item: OwnerInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("base_data.edit")),
 ):
     payload = _normalized_payload(item)
     with get_connection() as connection:
@@ -241,7 +241,7 @@ def update_owner(
 
 
 @router.delete("/{owner_id}", status_code=204)
-def delete_owner(owner_id: int, current_user: dict = Depends(get_current_user)):
+def delete_owner(owner_id: int, current_user: dict = Depends(require_permission("base_data.edit"))):
     del current_user  # Authentication is the intended side effect of this dependency.
     with get_connection() as connection:
         with connection.cursor() as cursor:

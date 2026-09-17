@@ -204,6 +204,9 @@ import { CrudFormModal, type FieldDef } from './CrudFormModal'
 import { PageHeader } from './PageHeader'
 import { BackButton } from './BackButton'
 import { makeCrudApi } from '../api/crud'
+import { ForbiddenError } from '../api/client'
+import { usePermissions } from '../auth/usePermissions'
+import type { PermissionCode } from '../auth/permissions'
 import { IconSearch, IconRefresh, IconPlus, IconEdit, IconTrash, IconInbox } from './icons'
 
 export interface CrudConfig<T> {
@@ -218,6 +221,7 @@ export interface CrudConfig<T> {
   emptyStateEntity?: string // grammatically correct noun/adjective used in the empty-state sentence
   listFilter?: Partial<Record<keyof T, unknown>> // fixed lookup scope, e.g. one term category
   fixedValues?: Record<string, unknown>          // values always included in create/update payloads
+  writePermission?: PermissionCode               // who may add, edit and delete; default 'base_data.edit'
 }
 
 // Persian/Arabic-Indic digits -> Latin so search matches either script.
@@ -228,6 +232,9 @@ const normalizeDigits = (s: string) =>
 export function CrudResource<T extends Record<string, any>>({ config }: { config: CrudConfig<T> }) {
   const api = makeCrudApi<T>(config.path)
   const qc = useQueryClient()
+  // Every CrudResource today is a base-data lookup: everyone reads it, and only
+  // base_data.edit may change it (the backend enforces the same rule).
+  const canEdit = usePermissions().can(config.writePermission ?? 'base_data.edit')
   const { data, isLoading, error, isFetching } = useQuery({ queryKey: [config.queryKey], queryFn: api.list })
 
   const [open, setOpen] = useState(false)
@@ -314,10 +321,14 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
           <Text fw={600} size="lg">
             {`هنوز ${config.emptyStateEntity ?? `${config.entity}‌ای`} ثبت نشده است`}
           </Text>
-          <Text size="sm" c="dimmed">{`اولین ${config.entity} را اضافه کنید تا اینجا نمایش داده شود.`}</Text>
-          <Button mt="xs" radius="md" leftSection={<IconPlus size={18} />} onClick={openAdd}>
-            {`افزودن ${config.entity}`}
-          </Button>
+          {canEdit && (
+            <>
+              <Text size="sm" c="dimmed">{`اولین ${config.entity} را اضافه کنید تا اینجا نمایش داده شود.`}</Text>
+              <Button mt="xs" radius="md" leftSection={<IconPlus size={18} />} onClick={openAdd}>
+                {`افزودن ${config.entity}`}
+              </Button>
+            </>
+          )}
         </Stack>
       </Center>
     ) : (
@@ -339,12 +350,14 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
         subtitle={`مدیریت ${config.title}`}
         actions={
           <>
-            <Button
-              variant="white" radius="md" leftSection={<IconPlus size={18} />}
-              onClick={openAdd}
-            >
-              {`افزودن ${config.entity}`}
-            </Button>
+            {canEdit && (
+              <Button
+                variant="white" radius="md" leftSection={<IconPlus size={18} />}
+                onClick={openAdd}
+              >
+                {`افزودن ${config.entity}`}
+              </Button>
+            )}
             <BackButton to="/base-data" />
           </>
         }
@@ -371,7 +384,7 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
       </Paper>
 
       <DataTable
-        columns={columns}
+        columns={canEdit ? columns : config.columns}
         data={isLoading ? undefined : filtered}
         isLoading={isLoading}
         error={error}
@@ -392,7 +405,9 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
         fields={config.fields}
         initial={editing}
         loading={save.isPending}
-        error={save.isError ? 'ذخیره انجام نشد. لطفاً دوباره تلاش کنید.' : null}
+        error={save.isError
+          ? save.error instanceof ForbiddenError ? save.error.message : 'ذخیره انجام نشد. لطفاً دوباره تلاش کنید.'
+          : null}
         title={editing ? `ویرایش ${config.entity}` : `افزودن ${config.entity}`}
       />
     </Box>

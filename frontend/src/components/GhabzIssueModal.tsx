@@ -421,7 +421,7 @@ import {
   Alert, Badge, Button, Center, Checkbox, Group, Loader, Modal,
   NumberInput, ScrollArea, Table, Text, Tooltip,
 } from '@mantine/core'
-import { apiGet, apiSend } from '../api/client'
+import { ForbiddenError, apiGet, apiSend } from '../api/client'
 
 /**
  * صدور قبض انبار — draw quantities against the tally, per HS Code.
@@ -489,6 +489,7 @@ function num(value: number | null | undefined): string {
 
 /** apiSend throws `POST /path failed: 400 {"detail":"..."}`; surface just the detail. */
 function persianError(error: unknown, fallback: string): string {
+  if (error instanceof ForbiddenError) return error.message
   const raw = error instanceof Error ? error.message : String(error ?? '')
   const match = raw.match(/\{[\s\S]*\}$/)
   if (match) {

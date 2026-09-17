@@ -303,7 +303,7 @@
 
 import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ActionIcon, Badge, Button, Center, Group, Loader, Menu, Paper, Table, Text,
 } from '@mantine/core'
@@ -313,6 +313,7 @@ import { PageHeader } from '../components/PageHeader'
 import { BackButton } from '../components/BackButton'
 import { TallyNumber } from '../components/TallyNumber'
 import { modules } from '../modules'
+import { usePermissions } from '../auth/usePermissions'
 import {
   IconClipboardList, IconDots, IconInvoice, IconReceipt, IconRefresh,
 } from '../components/icons'
@@ -335,6 +336,7 @@ type KartablRow = {
   representative_name: string | null
   date_unloading: string | null // ISO
   workflow_status: 'open' | 'pending' | 'closed'
+  handoff_step: 'operator' | 'keeper' | 'returned'
   receipts: string | null // LISTAGG payload: "id|number,id|number"
   invoice_id: number | null
 }
@@ -384,11 +386,16 @@ function isoToJalali(iso: string | null): string {
 
 function RowActions({ row }: { row: KartablRow }) {
   const navigate = useNavigate()
+  const { can } = usePermissions()
   const receipts = parseReceipts(row.receipts)
   const status = STATUS[row.workflow_status] ?? STATUS.open
 
   // Saved invoices can be opened; generating a new invoice is not yet available.
   const invoiceEnabled = modules.find((m) => m.key === 'invoice')?.enabled !== false && row.invoice_id != null
+  const canTally = can('tally.view')
+  const canGhabz = can('ghabz.view')
+  const canInvoice = can('invoice.view')
+  if (!canTally && !canGhabz && !canInvoice) return null
 
   return (
     <Menu shadow="md" width={230} position="bottom-end" withinPortal>
@@ -402,19 +409,21 @@ function RowActions({ row }: { row: KartablRow }) {
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Item
-          leftSection={<IconClipboardList size={16} />}
-          onClick={() => navigate(tallyPath(row))}
-        >
-          تالی
-        </Menu.Item>
+        {canTally && (
+          <Menu.Item
+            leftSection={<IconClipboardList size={16} />}
+            onClick={() => navigate(tallyPath(row))}
+          >
+            تالی
+          </Menu.Item>
+        )}
 
-        {receipts.length === 0 && (
+        {canGhabz && receipts.length === 0 && (
           <Menu.Item leftSection={<IconReceipt size={16} />} disabled>
             قبض انبار (صادر نشده)
           </Menu.Item>
         )}
-        {receipts.length === 1 && (
+        {canGhabz && receipts.length === 1 && (
           <Menu.Item
             leftSection={<IconReceipt size={16} />}
             onClick={() => navigate(`/ghabz/${receipts[0].id}`)}
@@ -422,7 +431,7 @@ function RowActions({ row }: { row: KartablRow }) {
             قبض انبار
           </Menu.Item>
         )}
-        {receipts.length > 1 && (
+        {canGhabz && receipts.length > 1 && (
           <>
             <Menu.Label>قبض انبار</Menu.Label>
             {receipts.map((r) => (
@@ -437,16 +446,18 @@ function RowActions({ row }: { row: KartablRow }) {
           </>
         )}
 
-        <Menu.Item
-          leftSection={<IconInvoice size={16} />}
-          disabled={!invoiceEnabled}
-          rightSection={!invoiceEnabled
-            ? <Badge size="xs" variant="light" color="gray">به‌زودی</Badge>
-            : undefined}
-          onClick={() => navigate(`/invoice/${row.invoice_id}`)}
-        >
-          صورتحساب
-        </Menu.Item>
+        {canInvoice && (
+          <Menu.Item
+            leftSection={<IconInvoice size={16} />}
+            disabled={!invoiceEnabled}
+            rightSection={!invoiceEnabled
+              ? <Badge size="xs" variant="light" color="gray">به‌زودی</Badge>
+              : undefined}
+            onClick={() => navigate(`/invoice/${row.invoice_id}`)}
+          >
+            صورتحساب
+          </Menu.Item>
+        )}
       </Menu.Dropdown>
     </Menu>
   )
@@ -454,11 +465,18 @@ function RowActions({ row }: { row: KartablRow }) {
 
 export function KartablPage() {
   const navigate = useNavigate()
+  const canTally = usePermissions().can('tally.view')
+  const [params, setParams] = useSearchParams()
+  const onlyWaiting = params.get('waiting') === '1'
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['kartabl-list'],
     queryFn: () => apiGet<KartablRow[]>('/kartabl/list'),
   })
+
+  // The bell links here with ?waiting=1, so a keeper lands on their own queue.
+  const waiting = (data ?? []).filter((row) => row.handoff_step === 'keeper')
+  const rows = onlyWaiting ? waiting : data
 
   return (
     <div dir="rtl">
@@ -503,6 +521,16 @@ export function KartablPage() {
         subtitle="پیگیری پرونده‌ها از تالی تا صورتحساب"
         actions={
           <>
+            {waiting.length > 0 && (
+              <Button
+                variant={onlyWaiting ? "filled" : "light"} color="orange" radius="md"
+                onClick={() => setParams(onlyWaiting ? {} : { waiting: '1' }, { replace: true })}
+              >
+                {onlyWaiting
+                  ? 'نمایش همه'
+                  : `فقط در انتظار انباردار (${waiting.length.toLocaleString('fa-IR')})`}
+              </Button>
+            )}
             <Button
               variant="default" radius="md" leftSection={<IconRefresh size={18} />}
               onClick={() => refetch()} loading={isFetching && !isLoading}
@@ -534,10 +562,14 @@ export function KartablPage() {
       <Paper shadow="xs" p="md">
         {isLoading && <Center py="xl"><Loader /></Center>}
         {isError && <Center py="xl"><Text c="red">خطا در بارگذاری کارتابل.</Text></Center>}
-        {data && data.length === 0 && (
-          <Center py="xl"><Text c="dimmed">هنوز پرونده‌ای ثبت نشده است.</Text></Center>
+        {rows && rows.length === 0 && (
+          <Center py="xl">
+            <Text c="dimmed">
+              {onlyWaiting ? 'تالی در انتظار انباردار نیست.' : 'هنوز پرونده‌ای ثبت نشده است.'}
+            </Text>
+          </Center>
         )}
-        {data && data.length > 0 && (
+        {rows && rows.length > 0 && (
           <Table.ScrollContainer minWidth={860}>
             <Table highlightOnHover={false} withTableBorder verticalSpacing="sm">
               <Table.Thead className="kt-table-header">
@@ -552,7 +584,7 @@ export function KartablPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {data.map((row) => {
+                {rows.map((row) => {
                   const status = STATUS[row.workflow_status] ?? STATUS.open
                   const c = status.color
                   return (
@@ -566,12 +598,17 @@ export function KartablPage() {
                         '--kt-bg-hover': `color-mix(in srgb, ${status.accent} 28%, white)`,
                         '--kt-bg-hover-strong': `color-mix(in srgb, ${status.accent} 36%, white)`,
                       } as CSSProperties}
-                      onClick={() => navigate(tallyPath(row))}
+                      onClick={canTally ? () => navigate(tallyPath(row)) : undefined}
                     >
                       <Table.Td>
                         <Text fw={700} c={`${c}.8`}>
                           <TallyNumber value={row.tali_number} />
                         </Text>
+                        {row.handoff_step === 'keeper' && (
+                          <Badge color="orange" variant="light" radius="sm" size="xs" mt={4}>
+                            در انتظار انباردار
+                          </Badge>
+                        )}
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" lineClamp={2}>{row.kala_description?.trim() || '—'}</Text>

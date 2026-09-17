@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerificationError
 
 from app.core.config import settings
 
@@ -13,11 +13,16 @@ def hash_password(plain: str) -> str:
     return _hasher.hash(plain)
 
 
-def verify_password(plain: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str | None) -> bool:
+    # A user restored from the git data capture has no hash (extract_data.py
+    # never exports it), and argon2 raises on a missing or malformed hash.
+    # Refuse the login instead of answering 500.
+    if not hashed:
+        return False
     try:
         _hasher.verify(hashed, plain)
         return True
-    except VerifyMismatchError:
+    except (VerificationError, InvalidHashError):
         return False
 
 

@@ -308,7 +308,7 @@ import { BackButton } from '../components/BackButton'
 import { useQuery } from '@tanstack/react-query'
 import { toJalaali } from 'jalaali-js'
 import {
-  Alert, Title, Button, Group, Paper, Loader, Center, Text,
+  Alert, Title, Button, Group, Paper, Loader, Center, Text, Tooltip,
 } from '@mantine/core'
 import {
   Bookmark,
@@ -331,6 +331,10 @@ import { TallyJunctionSection } from '../components/TallyJunctionSection'
 import { TallyGoodsGrid } from '../components/TallyGoodsGrid'
 import { tallyJunctions } from '../components/junctions'
 import { TallyNumber } from '../components/TallyNumber'
+import {
+  HandoffBanner, ReturnToOperatorButton, SendToKeeperButton, VolumetricCard, useHandoff,
+} from '../components/TallyHandoff'
+import { usePermissions } from '../auth/usePermissions'
 import './TallyDetailPage.css'
 /**
  * TallyDetailPage — one tally's detail view at /tally/:tallyNumber.
@@ -432,6 +436,7 @@ export function TallyDetailPage() {
   const isLegacyId = tallyId != null
   const navigate = useNavigate()
   const [issueOpen, setIssueOpen] = useState(false)
+  const { can } = usePermissions()
 
   // The public URL uses TALI_NUMBER. The database ID is resolved once and then
   // retained only for relational API calls below this page.
@@ -449,6 +454,7 @@ export function TallyDetailPage() {
     enabled: reference !== '',
   })
   const headerId = header?.id_tali == null ? undefined : Number(header.id_tali)
+  const { data: handoff } = useHandoff(headerId)
 
   const { data: summary } = useQuery({
     queryKey: ['tally-summary', headerId],
@@ -527,27 +533,41 @@ export function TallyDetailPage() {
           >
             چاپ تالی
           </Button>
-          <Button
-            variant="light"
-            leftSection={<PencilLine size={17} />}
-            onClick={() => {
-              const publicNumber = header?.tali_number ?? tallyNumber
-              navigate(publicNumber
-                ? `/tally/${encodeURIComponent(String(publicNumber))}/edit`
-                : `/tally/id/${tallyId}/edit`)
-            }}
-          >
-            ویرایش سربرگ
-          </Button>
-          <Button
-            variant="light"
-            color="teal"
-            leftSection={<ReceiptText size={17} />}
-            onClick={() => setIssueOpen(true)}
-            disabled={headerId == null}
-          >
-            صدور قبض انبار
-          </Button>
+          {can('tally.edit') && (
+            <Button
+              variant="light"
+              leftSection={<PencilLine size={17} />}
+              onClick={() => {
+                const publicNumber = header?.tali_number ?? tallyNumber
+                navigate(publicNumber
+                  ? `/tally/${encodeURIComponent(String(publicNumber))}/edit`
+                  : `/tally/id/${tallyId}/edit`)
+              }}
+            >
+              ویرایش سربرگ
+            </Button>
+          )}
+          {can('ghabz.issue') && (
+            <Tooltip
+              label="تا انباردار تالی را تکمیل و برنگرداند، قبض انبار صادر نمی‌شود"
+              disabled={handoff?.step === 'returned'}
+              withArrow
+              multiline
+              w={240}
+            >
+              <span>
+                <Button
+                  variant="light"
+                  color="teal"
+                  leftSection={<ReceiptText size={17} />}
+                  onClick={() => setIssueOpen(true)}
+                  disabled={headerId == null || handoff?.step !== 'returned'}
+                >
+                  صدور قبض انبار
+                </Button>
+              </span>
+            </Tooltip>
+          )}
           <BackButton to="/tally" />
         </Group>
       </Paper>
@@ -633,13 +653,22 @@ export function TallyDetailPage() {
         </Center>
       )}
 
-      <TallyGoodsGrid tallyId={headerId} />
+      <HandoffBanner state={handoff} />
+
+      <TallyGoodsGrid
+        tallyId={headerId}
+        headerExtra={<SendToKeeperButton tallyId={headerId} state={handoff} />}
+      />
+
+      <VolumetricCard tallyId={headerId} state={handoff} />
 
       <div className="tally-detail-junctions">
         {headerId != null && tallyJunctions.map((cfg) => (
           <TallyJunctionSection key={cfg.key} config={cfg} tallyId={headerId} />
         ))}
       </div>
+
+      <ReturnToOperatorButton tallyId={headerId} state={handoff} />
 
       <GhabzIssueModal
         opened={issueOpen}

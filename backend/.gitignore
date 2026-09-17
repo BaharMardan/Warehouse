@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 .venv/
+rbac_diagnostic.txt
+tally_handoff_diagnostic.txt

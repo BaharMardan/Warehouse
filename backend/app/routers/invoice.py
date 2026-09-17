@@ -196,7 +196,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services import invoice_calc as calc
 
@@ -290,7 +290,7 @@ def _row_json(r: calc.InvoiceDetailRow) -> dict:
     }
 
 
-@router.get("/from-tally/{tali_id}/preview", dependencies=[Depends(get_current_user)])
+@router.get("/from-tally/{tali_id}/preview", dependencies=[Depends(require_permission("invoice.view"))])
 def preview_from_tally(tali_id: int):
     """Compute a tally's invoice detail rows without saving. Returns storage rows,
     service rows, the tier used, and the grand total. Does not persist."""
@@ -431,12 +431,12 @@ def _serialize_saved(row: dict) -> dict:
             for key, value in row.items()}
 
 
-@router.get('/list', dependencies=[Depends(get_current_user)])
+@router.get('/list', dependencies=[Depends(require_permission("invoice.view"))])
 def list_invoices():
     return [_serialize_saved(row) for row in fetch_all(INVOICE_LIST_SQL)]
 
 
-@router.get('/{invoice_id}', dependencies=[Depends(get_current_user)])
+@router.get('/{invoice_id}', dependencies=[Depends(require_permission("invoice.view"))])
 def get_invoice(invoice_id: int):
     header = fetch_one(INVOICE_HEADER_SQL, {'invoice_id': invoice_id})
     if header is None:

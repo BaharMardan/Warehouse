@@ -237,7 +237,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 
-from app.auth.deps import get_current_user, require_admin
+from app.auth.deps import require_login, require_permission
 from app.core.db import get_connection
 from app.services.base import fetch_all, fetch_one, execute, insert_returning_id
 from app.services.xlsx_catalog import parse_catalog, normalize
@@ -271,7 +271,7 @@ class CommodityUpdate(BaseModel):
     storage_group_id: int | None = None
 
 
-@router.get("", dependencies=[Depends(get_current_user)])
+@router.get("", dependencies=[Depends(require_login)])
 def search_commodities(
     q: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
@@ -302,7 +302,7 @@ def search_commodities(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@router.get("/storage-groups", dependencies=[Depends(get_current_user)])
+@router.get("/storage-groups", dependencies=[Depends(require_login)])
 def storage_groups():
     """The warehouse storage-price groups, with a HUMAN name for each.
 
@@ -324,7 +324,7 @@ def storage_groups():
     )
 
 
-@router.get("/{row_id}", dependencies=[Depends(get_current_user)])
+@router.get("/{row_id}", dependencies=[Depends(require_login)])
 def get_commodity(row_id: int):
     row = fetch_one(f"{_SELECT} WHERE c.ID = :id", {"id": row_id})
     if row is None:
@@ -333,7 +333,7 @@ def get_commodity(row_id: int):
 
 
 @router.post("", status_code=201)
-def create_commodity(item: CommodityUpdate, admin: dict = Depends(require_admin)):
+def create_commodity(item: CommodityUpdate, current_user: dict = Depends(require_permission("commodity.manage"))):
     new_id = insert_returning_id(
         """
         INSERT INTO FA_COMMODITY_CATALOG
@@ -352,16 +352,16 @@ def create_commodity(item: CommodityUpdate, admin: dict = Depends(require_admin)
             "customs_duty": item.customs_duty,
             "commercial_profit": item.commercial_profit,
             "storage_group_id": item.storage_group_id,
-            "create_by": admin["id"],
+            "create_by": current_user["id"],
         },
     )
     return fetch_one(f"{_SELECT} WHERE c.ID = :id", {"id": new_id})
 
 
 @router.put("/{row_id}")
-def update_commodity(row_id: int, item: CommodityUpdate, admin: dict = Depends(require_admin)):
+def update_commodity(row_id: int, item: CommodityUpdate, current_user: dict = Depends(require_permission("commodity.manage"))):
     provided = item.model_dump(exclude_unset=True)
-    sets, params = [], {"id": row_id, "actor": admin["id"]}
+    sets, params = [], {"id": row_id, "actor": current_user["id"]}
     for field in ("hs_code", "description_fa", "unit", "customs_duty",
                   "commercial_profit", "storage_group_id"):
         if field in provided:
@@ -383,18 +383,18 @@ def update_commodity(row_id: int, item: CommodityUpdate, admin: dict = Depends(r
 
 
 @router.delete("/{row_id}", status_code=204)
-def delete_commodity(row_id: int, admin: dict = Depends(require_admin)):
+def delete_commodity(row_id: int, current_user: dict = Depends(require_permission("commodity.manage"))):
     affected = execute(
         "UPDATE FA_COMMODITY_CATALOG SET IS_DELETED='yes', MODIFY_AT=SYSDATE, "
         "MODIFY_BY=:actor WHERE ID=:id AND IS_DELETED='no'",
-        {"id": row_id, "actor": admin["id"]},
+        {"id": row_id, "actor": current_user["id"]},
     )
     if affected == 0:
         raise HTTPException(status_code=404, detail="کالا یافت نشد")
 
 
 @router.post("/import")
-async def import_catalog(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+async def import_catalog(file: UploadFile = File(...), current_user: dict = Depends(require_permission("commodity.manage"))):
     """Bulk import / re-import from the yearly HS Excel. Upsert by HS_CODE.
     On an existing HS code the descriptive fields are refreshed but STORAGE_GROUP_ID is
     left untouched, so an admin's group assignments survive a re-import."""
@@ -427,7 +427,7 @@ async def import_catalog(file: UploadFile = File(...), admin: dict = Depends(req
             VALUES (:hs_code, :description_fa, :description_norm, :unit, :customs_duty,
                     :commercial_profit, 'no', SYSDATE, :actor)
     """
-    binds = [{**r, "actor": admin["id"]} for r in rows]
+    binds = [{**r, "actor": current_user["id"]} for r in rows]
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM FA_COMMODITY_CATALOG")

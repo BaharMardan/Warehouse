@@ -1046,7 +1046,7 @@
 // }
 
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ActionIcon, Button, Center, Group, Loader, Modal, Paper, Popover,
@@ -1055,6 +1055,7 @@ import {
 import { AlertTriangle, ArrowUp, Check, PackageOpen, Plus, X } from 'lucide-react'
 import { IconEdit, IconTrash } from './icons'
 import { apiGet, apiSend } from '../api/client'
+import { usePermissions } from '../auth/usePermissions'
 import { RefSelect } from './RefSelect'
 import { TermValueSelect } from './TermValueSelect'
 import { CommodityPicker, type Commodity } from './CommodityPicker'
@@ -1298,10 +1299,13 @@ function toForm(row: DetailRow): LineForm {
 type Props = {
   /** FA_HEADERS_TALI.ID_TALI — undefined while the header query is still resolving */
   tallyId: number | undefined
+  /** shown next to «افزودن ردیف»: the operator's «ارسال به انباردار» */
+  headerExtra?: ReactNode
 }
 
-export function TallyGoodsGrid({ tallyId }: Props) {
+export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
   const qc = useQueryClient()
+  const canEdit = usePermissions().can('tally.edit')
 
   const {
     data: lines,
@@ -1830,14 +1834,17 @@ export function TallyGoodsGrid({ tallyId }: Props) {
             <Text>اطلاعات کالا، باسکول، محل نگهداری و حامل</Text>
           </div>
         </div>
-        <Button
-          className="tally-detail-add-button"
-          leftSection={<Plus size={18} />}
-          onClick={startAdd}
-          disabled={tallyId == null || draft != null}
-        >
-          افزودن ردیف
-        </Button>
+        {canEdit && (
+          <Button
+            className="tally-detail-add-button"
+            leftSection={<Plus size={18} />}
+            onClick={startAdd}
+            disabled={tallyId == null || draft != null}
+          >
+            افزودن ردیف
+          </Button>
+        )}
+        {headerExtra}
       </div>
       <div className="tally-detail-section-rule" />
 
@@ -1857,7 +1864,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
         <Center className="tally-detail-empty-state">
           <PackageOpen size={28} strokeWidth={1.6} aria-hidden />
           <Text fw={700}>هنوز ردیف کالایی ثبت نشده است.</Text>
-          <Text size="sm">برای شروع، گزینه «افزودن ردیف» را انتخاب کنید.</Text>
+          {canEdit && <Text size="sm">برای شروع، گزینه «افزودن ردیف» را انتخاب کنید.</Text>}
         </Center>
       )}
 
@@ -1890,7 +1897,7 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                       {c.label}
                     </Table.Th>
                   ))}
-                  <Table.Th className="tgg-sticky-actions">عملیات</Table.Th>
+                  <Table.Th className="tgg-sticky-actions">{canEdit ? 'عملیات' : null}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
 
@@ -1925,28 +1932,30 @@ export function TallyGoodsGrid({ tallyId }: Props) {
                         )
                       })}
                       <Table.Td className="tgg-sticky-actions">
-                        <Group gap={4} justify="center" wrap="nowrap">
-                          <Tooltip label="ویرایش" withArrow>
-                            <ActionIcon
-                              className="tally-detail-row-action"
-                              variant="light" color="blue" radius="md" aria-label="ویرایش"
-                              disabled={draft != null}
-                              onClick={() => startEdit(row)}
-                            >
-                              <IconEdit size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="حذف" withArrow>
-                            <ActionIcon
-                              className="tally-detail-row-action"
-                              variant="light" color="red" radius="md" aria-label="حذف"
-                              disabled={draft != null}
-                              onClick={() => confirm('حذف این ردیف؟') && deleteMutation.mutate(row.id_tali_details)}
-                            >
-                              <IconTrash size={18} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
+                        {canEdit && (
+                          <Group gap={4} justify="center" wrap="nowrap">
+                            <Tooltip label="ویرایش" withArrow>
+                              <ActionIcon
+                                className="tally-detail-row-action"
+                                variant="light" color="blue" radius="md" aria-label="ویرایش"
+                                disabled={draft != null}
+                                onClick={() => startEdit(row)}
+                              >
+                                <IconEdit size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="حذف" withArrow>
+                              <ActionIcon
+                                className="tally-detail-row-action"
+                                variant="light" color="red" radius="md" aria-label="حذف"
+                                disabled={draft != null}
+                                onClick={() => confirm('حذف این ردیف؟') && deleteMutation.mutate(row.id_tali_details)}
+                              >
+                                <IconTrash size={18} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        )}
                       </Table.Td>
                     </Table.Tr>
                   )

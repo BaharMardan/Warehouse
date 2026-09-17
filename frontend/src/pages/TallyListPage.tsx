@@ -906,6 +906,7 @@ import { apiGet } from '../api/client'
 import { TallyNumber } from '../components/TallyNumber'
 import { PageHeader } from '../components/PageHeader'
 import { BackButton } from '../components/BackButton'
+import { usePermissions } from '../auth/usePermissions'
 
 /**
  * TallyListPage — the list of tallies (لیست تالی‌ها), the entry point to the
@@ -1032,6 +1033,7 @@ const COLS = 9 // for skeleton width
 
 export function TallyListPage() {
   const navigate = useNavigate()
+  const { can } = usePermissions()
 
   // ---- data flow unchanged ----
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -1110,12 +1112,14 @@ export function TallyListPage() {
         subtitle="نمای کلی و پیگیری تالی‌های انبار"
         actions={
           <>
-            <Button
-              variant="white" radius="md" leftSection={<IconPlus size={18} />}
-              onClick={() => navigate('/tally/new')}
-            >
-              افزودن تالی
-            </Button>
+            {can('tally.edit') && (
+              <Button
+                variant="white" radius="md" leftSection={<IconPlus size={18} />}
+                onClick={() => navigate('/tally/new')}
+              >
+                افزودن تالی
+              </Button>
+            )}
             <Button
               variant="default" radius="md" leftSection={<IconRefresh size={18} />}
               onClick={() => refetch()} loading={isFetching && !isLoading}
@@ -1201,10 +1205,14 @@ export function TallyListPage() {
             <Stack align="center" gap="sm" maw={360} ta="center">
               <ThemeIcon size={72} radius="xl" variant="light" color="blue"><IconInbox size={38} /></ThemeIcon>
               <Text fw={600} size="lg">هنوز تالی‌ای ثبت نشده است</Text>
-              <Text size="sm" c="dimmed">اولین تالی انبار را بسازید تا اینجا نمایش داده شود.</Text>
-              <Button mt="xs" radius="md" leftSection={<IconPlus size={18} />} onClick={() => navigate('/tally/new')}>
-                افزودن تالی
-              </Button>
+              {can('tally.edit') && (
+                <>
+                  <Text size="sm" c="dimmed">اولین تالی انبار را بسازید تا اینجا نمایش داده شود.</Text>
+                  <Button mt="xs" radius="md" leftSection={<IconPlus size={18} />} onClick={() => navigate('/tally/new')}>
+                    افزودن تالی
+                  </Button>
+                </>
+              )}
             </Stack>
           </Center>
         )}

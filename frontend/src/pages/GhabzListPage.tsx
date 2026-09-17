@@ -142,6 +142,7 @@ import { Badge, Button, Table, Paper, Loader, Center, Text } from '@mantine/core
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
 import { TallyNumber } from '../components/TallyNumber'
+import { usePermissions } from '../auth/usePermissions'
 
 type GhabzRow = {
   id_ghabz: number
@@ -172,6 +173,7 @@ function isoToJalali(iso: string | null): string {
 
 export function GhabzListPage() {
   const navigate = useNavigate()
+  const { can } = usePermissions()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ghabz-list'],
     queryFn: () => apiGet<GhabzRow[]>('/ghabz/list'),
@@ -184,7 +186,6 @@ export function GhabzListPage() {
         subtitle="مدیریت قبض‌های انبار"
         actions={
           <>
-            <Button variant="white" radius="md" onClick={() => navigate('/ghabz/new')}>ایجاد قبض جدید</Button>
             <BackButton to="/" />
           </>
         }

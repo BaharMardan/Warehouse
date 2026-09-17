@@ -19,14 +19,62 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** 401: the session is over (expired token, or the user was deactivated). */
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('Unauthorized')
+    this.name = 'UnauthorizedError'
+  }
+}
+
+/** 403: logged in, but no role grants the permission. `message` is the server's Persian text. */
+export class ForbiddenError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ForbiddenError'
+  }
+}
+
+/** Both answer the same on every retry. */
+export function isAuthError(error: unknown): boolean {
+  return error instanceof UnauthorizedError || error instanceof ForbiddenError
+}
+
+/** The server's Persian `detail`, however apiSend wrapped it. */
+export function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ForbiddenError) return error.message
+  const raw = error instanceof Error ? error.message : ''
+  const json = raw.match(/\{[\s\S]*\}$/)
+  if (json) {
+    try {
+      const detail = (JSON.parse(json[0]) as { detail?: unknown }).detail
+      if (typeof detail === 'string' && detail.trim() !== '') return detail
+    } catch {
+      // not JSON: fall back to the generic message
+    }
+  }
+  return fallback
+}
+
+/** Fired on every 401; AuthProvider listens and returns the user to the login page. */
+export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
+
+async function forbiddenError(res: Response): Promise<ForbiddenError> {
+  const fallback = 'دسترسی لازم برای این کار را ندارید'
+  const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
+  return new ForbiddenError(typeof body?.detail === 'string' ? body.detail : fallback)
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { ...authHeaders() },
   })
   if (res.status === 401) {
     clearToken()
-    throw new Error('Unauthorized')
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new UnauthorizedError()
   }
+  if (res.status === 403) throw await forbiddenError(res)
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -56,8 +104,10 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
   })
   if (res.status === 401) {
     clearToken()
-    throw new Error('Unauthorized')
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new UnauthorizedError()
   }
+  if (res.status === 403) throw await forbiddenError(res)
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
     throw new Error(`Upload ${path} failed: ${res.status} ${detail}`)
@@ -77,8 +127,10 @@ export async function apiSend<T>(
   })
   if (res.status === 401) {
     clearToken()
-    throw new Error('Unauthorized')
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new UnauthorizedError()
   }
+  if (res.status === 403) throw await forbiddenError(res)
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
     throw new Error(`${method} ${path} failed: ${res.status} ${detail}`)

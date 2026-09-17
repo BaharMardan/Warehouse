@@ -86,3 +86,5 @@ export const IconInvoice = mk(<><path d="M6.5 3H14l4 4v14H6.5z" /><path d="M14 3
 export const IconKartabl = mk(<><path d="M3.5 8a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /><path d="M8 13.5h8M8 16.5h5" /></>)
 // three-dot trigger for per-row action menus (h.01 segments render as round dots)
 export const IconDots = mk(<path d="M5 12h.01M12 12h.01M19 12h.01" />)
+// two people: users and roles («مدیریت کاربران»)
+export const IconUsers = mk(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8" /></>)

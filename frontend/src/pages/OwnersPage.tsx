@@ -14,6 +14,7 @@ import { apiGet, apiSend } from '../api/client'
 import { DataTable, type Column } from '../components/DataTable'
 import { PageHeader } from '../components/PageHeader'
 import { BackButton } from '../components/BackButton'
+import { usePermissions } from '../auth/usePermissions'
 
 
 type OwnerType = 'حقیقی' | 'حقوقی'
@@ -91,6 +92,7 @@ const ownerTitle = (owner: Owner) => owner.type === 'حقوقی'
 
 export function OwnersPage() {
   const queryClient = useQueryClient()
+  const canEdit = usePermissions().can('base_data.edit')
   const [opened, setOpened] = useState(false)
   const [editing, setEditing] = useState<Owner | null>(null)
   const [form, setForm] = useState<OwnerFormState>(emptyOwner)
@@ -297,10 +299,14 @@ export function OwnersPage() {
       <Stack align="center" gap="sm" ta="center" maw={380}>
         <ThemeIcon size={64} radius="xl" variant="light" color="blue"><Inbox size={34} /></ThemeIcon>
         <Text fw={600} size="lg">هنوز صاحب کالایی ثبت نشده است</Text>
-        <Text size="sm" c="dimmed">صاحب حقیقی یا حقوقی را با هر مقدار اطلاعاتی که در دسترس است ثبت کنید.</Text>
-        <Button mt="xs" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
-          افزودن صاحب کالا
-        </Button>
+        {canEdit && (
+          <>
+            <Text size="sm" c="dimmed">صاحب حقیقی یا حقوقی را با هر مقدار اطلاعاتی که در دسترس است ثبت کنید.</Text>
+            <Button mt="xs" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
+              افزودن صاحب کالا
+            </Button>
+          </>
+        )}
       </Stack>
     </Center>
   ) : (
@@ -320,9 +326,11 @@ export function OwnersPage() {
         subtitle="مدیریت اشخاص حقیقی و شرکت‌های صاحب کالا به همراه نمایندگان شرکت‌ها"
         actions={
           <>
-            <Button variant="white" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
-              افزودن صاحب کالا
-            </Button>
+            {canEdit && (
+              <Button variant="white" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>
+                افزودن صاحب کالا
+              </Button>
+            )}
             <BackButton to="/base-data" />
           </>
         }
@@ -354,7 +362,7 @@ export function OwnersPage() {
       )}
 
       <DataTable
-        columns={columns}
+        columns={canEdit ? columns : columns.filter((column) => column.key !== '__actions')}
         data={ownersQuery.isLoading ? undefined : filteredOwners}
         isLoading={ownersQuery.isLoading}
         error={ownersQuery.error}

@@ -52,6 +52,8 @@ from app.routers.invoice import router as invoice_router
 from app.routers.commodity import router as commodity_router
 from app.routers.owners import router as owners_router
 from app.routers.kartabl import router as kartabl_router
+from app.routers.admin import router as admin_router
+from app.routers.tally_handoff import router as tally_handoff_router
 
 from app.crud.registry import crud_routers
 
@@ -77,6 +79,8 @@ app.include_router(invoice_router)
 app.include_router(commodity_router)
 app.include_router(owners_router)
 app.include_router(kartabl_router)
+app.include_router(admin_router)
+app.include_router(tally_handoff_router)
 
 # app.include_router(items.router)
 # app.include_router(anbar.router)

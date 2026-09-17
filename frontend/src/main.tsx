@@ -34,9 +34,16 @@ import { MantineProvider, DirectionProvider, createTheme } from '@mantine/core'
 import '@mantine/core/styles.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './auth/useAuth'
+import { isAuthError } from './api/client'
 import App from './App'
 
-const queryClient = new QueryClient()
+// A 401 or 403 answers the same on every retry, so fail at once and let the page
+// react. Other failures keep TanStack Query's default of three retries.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: (failureCount, error) => !isAuthError(error) && failureCount < 3 },
+  },
+})
 
 const theme = createTheme({
   fontFamily: 'Vazirmatn, sans-serif',

@@ -162,12 +162,14 @@
  * on the home page AND in the navbar automatically. No other file needs to
  * change except App.tsx (to register the route).
  */
-import type { ComponentType, CSSProperties } from 'react'
+import { useMemo, type ComponentType, type CSSProperties } from 'react'
 import type { CrudConfig } from './components/CrudResource'
 import { resources } from './resources'
 import {
-  IconDatabase, IconClipboardList, IconReceipt, IconInvoice, IconKartabl,
+  IconDatabase, IconClipboardList, IconReceipt, IconInvoice, IconKartabl, IconUsers,
 } from './components/icons'
+import { usePermissions } from './auth/usePermissions'
+import type { PermissionCode } from './auth/permissions'
 
 type IconComponent = ComponentType<{ size?: number; stroke?: number }>
 
@@ -179,6 +181,8 @@ export interface AppModule {
   icon: IconComponent
   color: string           // Mantine color name, drives the tile badge
   enabled?: boolean       // false => tile is visible but greyed out with a "به‌زودی" badge
+  permission?: PermissionCode // shown only to users holding it; omit for every logged-in user
+  adminOnly?: boolean         // shown only to admins (FA_USERS.IS_ADMIN); no permission code grants it
 }
 
 export const modules: AppModule[] = [
@@ -189,6 +193,7 @@ export const modules: AppModule[] = [
     route: '/kartabl',
     icon: IconKartabl,
     color: 'pink',
+    permission: 'kartabl.view',
   },
   {
     key: 'base-data',
@@ -205,6 +210,7 @@ export const modules: AppModule[] = [
     route: '/tally',
     icon: IconClipboardList,
     color: 'blue',
+    permission: 'tally.view',
   },
   {
     key: 'ghabz',
@@ -213,6 +219,7 @@ export const modules: AppModule[] = [
     route: '/ghabz',
     icon: IconReceipt,
     color: 'teal',
+    permission: 'ghabz.view',
   },
   {
     key: 'invoice',
@@ -222,8 +229,27 @@ export const modules: AppModule[] = [
     icon: IconInvoice,
     // color: 'orange',
     color: 'red',
+    permission: 'invoice.view',
+  },
+  {
+    key: 'users',
+    title: 'مدیریت کاربران',
+    description: 'کاربران، نقش‌ها و دسترسی‌ها',
+    route: '/users',
+    icon: IconUsers,
+    color: 'orange',
+    adminOnly: true,
   },
 ]
+
+/** The modules this user may open: the home-page tiles and the sidebar entries. */
+export function useVisibleModules(): AppModule[] {
+  const { can, isAdmin } = usePermissions()
+  return useMemo(
+    () => modules.filter((m) => (!m.adminOnly || isAdmin) && (!m.permission || can(m.permission))),
+    [can, isAdmin],
+  )
+}
 
 /**
  * Which module a URL belongs to. Drives the accent colour of PageHeader and the

@@ -304,7 +304,7 @@ number can be allocated atomically. Detail-line writes still use the generic
 /tally-details router. This router contains read-only enrichment.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from app.auth.deps import get_current_user
+from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services.insurance_check import check_insurance_ceilings
 
@@ -439,12 +439,12 @@ WHERE h."ID_TALI" = :hid
 """
 
 
-@router.get("/list", dependencies=[Depends(get_current_user)])
+@router.get("/list", dependencies=[Depends(require_permission("tally.view"))])
 def list_tallies():
     return fetch_all(LIST_SQL)
 
 
-@router.get("/{header_id}/details", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/details", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_details(header_id: int):
     return fetch_all(DETAILS_SQL, {"hid": header_id})
 
@@ -452,7 +452,7 @@ def list_tally_details(header_id: int):
 @router.get("/{header_id}/print")
 def get_tally_print_data(
     header_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("tally.view")),
 ):
     """Return one print-ready tally with resolved header labels and goods rows."""
     header = fetch_one(PRINT_HEADER_SQL, {"hid": header_id})
@@ -490,7 +490,7 @@ GROUP BY d."ID_HEADERS_TALI"
 """
 
 
-@router.get("/{header_id}/insurance-check", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/insurance-check", dependencies=[Depends(require_permission("tally.view"))])
 def check_tally_insurance(header_id: int):
     """Per insurance of this tally: total customs value vs the policy ceiling.
 
@@ -532,7 +532,7 @@ ORDER BY j."id_tali_kala_diamound"
 """
 
 
-@router.get("/{header_id}/diamound", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/diamound", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_diamound(header_id: int):
     return fetch_all(DIAMOUND_SQL, {"hid": header_id})
 
@@ -602,26 +602,26 @@ ORDER BY j."id_tali_kala_vehicle_enter_price"
 """
 
 
-@router.get("/{header_id}/price", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/price", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_price(header_id: int):
     return fetch_all(PRICE_SQL, {"hid": header_id})
 
-@router.get("/{header_id}/dangerous", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/dangerous", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_dangerous(header_id: int):
     return fetch_all(DANGEROUS_SQL, {"hid": header_id})
 
-@router.get("/{header_id}/other-service", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/other-service", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_other_service(header_id: int):
     return fetch_all(OTHER_SERVICE_SQL, {"hid": header_id})
 
-@router.get("/{header_id}/strip", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/strip", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_strip(header_id: int):
     return fetch_all(STRIP_SQL, {"hid": header_id})
 
-@router.get("/{header_id}/time-stop", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/time-stop", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_time_stop(header_id: int):
     return fetch_all(TIME_STOP_SQL, {"hid": header_id})
 
-@router.get("/{header_id}/vehicle-enter", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/vehicle-enter", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_vehicle_enter(header_id: int):
     return fetch_all(VEHICLE_ENTER_SQL, {"hid": header_id})

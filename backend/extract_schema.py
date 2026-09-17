@@ -60,6 +60,8 @@ APP_TABLES = {
     "fa_owner_representative",
     "fa_product_owner",
     "fa_representative_company",
+    "fa_role_permissions",
+    "fa_roles",
     "fa_sorat_hesab_header",
     "fa_sys_term_categories",
     "fa_sys_terms",
@@ -75,6 +77,7 @@ APP_TABLES = {
     "fa_tali_kala_vehicle_enter_price",
     "fa_tali_number_counter",
     "fa_transport_company",
+    "fa_user_roles",
     "fa_users",
 }
 

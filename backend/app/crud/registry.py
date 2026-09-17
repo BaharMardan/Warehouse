@@ -539,6 +539,7 @@ To add a simple table:
   1. DESC the table (or read the column dump) - note pk + writable columns + their EXACT case.
   2. Add a Pydantic model with the writable columns (lowercase field names = JSON keys).
   3. Add a make_crud_router(...) call below and append the result to `crud_routers`.
+  4. Pass access= to say who may read, create, update and delete (see CrudAccess).
 
 Casing rule: pk and audit names are passed EXACTLY as stored (UPPERCASE for the
 upper-named FA_ tables). For fields, the column defaults to FIELD.upper(); list any
@@ -549,8 +550,9 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from fastapi import HTTPException
 
-from app.crud.factory import make_crud_router, Audit
+from app.crud.factory import make_crud_router, Audit, CrudAccess, LOGGED_IN
 from app.services.base import fetch_one
 
 
@@ -863,14 +865,39 @@ class GhabzDetailInput(BaseModel):
     number_hamel: str | None = None
     id_tagh_anbar: int | None = None
     
+# Who may call each generated endpoint (see CrudAccess in app/crud/factory.py).
+# Lookup tables feed the dropdowns on the tally and receipt forms, so every
+# logged-in user reads them; only base-data editors change them.
+LOOKUP_ACCESS = CrudAccess.read_write(read=LOGGED_IN, write="base_data.edit")
+# Goods lines and service rows are part of the tally they belong to.
+TALLY_PART_ACCESS = CrudAccess.read_write(read="tally.view", write="tally.edit")
+# The five service sections are the warehouse keeper's part of a tally.
+TALLY_SERVICE_ACCESS = CrudAccess.read_write(read="tally.view", write="tally.services")
+# Receipt rows: adding one is issuing; changing or removing one is editing.
+GHABZ_PART_ACCESS = CrudAccess(
+    read="ghabz.view",
+    create="ghabz.issue",
+    update="ghabz.edit",
+    delete="ghabz.edit",
+)
+
+def reject_manual_receipt(params: dict) -> dict:
+    """Receipts are issued from the tally page (POST /ghabz/from-tally/...), which
+    numbers them, draws against the tally's allotments and requires the warehouse
+    keeper to have returned the tally. A bare header created here would skip all
+    three, so the generic create is refused."""
+    raise HTTPException(status_code=409, detail="قبض انبار فقط از صفحه تالی صادر می‌شود")
+
 crud_routers = [
     make_crud_router(
         prefix="/items", table="FA_KALA", pk="ID_KALA",
         model=KalaInput, tag="kala", not_found="کالا یافت نشد",
+        access=LOOKUP_ACCESS,
     ),
     make_crud_router(
         prefix="/anbar", table="FA_ANBAR", pk="ID_ANBAR",
         model=AnbarInput, tag="anbar", not_found="انبار یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={"responsible": "NAME_MASOL"},
         order_by="SORT_ORDER",            # explicit display order, not the pk
     ),
@@ -879,6 +906,7 @@ crud_routers = [
     make_crud_router(
         prefix="/term-categories", table="FA_SYS_TERM_CATEGORIES", pk="SYS_TERM_CATEGORY_ID",
         model=TermCategoryInput, tag="term_categories", not_found="دسته یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={
             "key": "SYS_TERM_CATEGORY_KEY",
             "title": "SYS_TERM_CATEGORY_TITLE",
@@ -897,6 +925,7 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-price", table="fa_kala_price", pk="id_kala_price",
         model=KalaPriceInput, tag="kala_price", not_found="ردیف قیمت یافت نشد",
+        access=LOOKUP_ACCESS,
         order_by="CODE",
         column_overrides={
             # columns the original devs stored lowercase -> quote them exactly as-is
@@ -910,20 +939,24 @@ crud_routers = [
     make_crud_router(
         prefix="/transport-companies", table="FA_TRANSPORT_COMPANY", pk="ID_COMPANY",
         model=TransportCompanyInput, tag="transport_companies", not_found="شرکت حمل و نقل یافت نشد",
+        access=LOOKUP_ACCESS,
         order_by="COMPANY_NAME",
     ),
     make_crud_router(
         prefix="/company-representatives", table="FA_REPRESENTATIVE_COMPANY", pk="ID_REPRE_COMPANY",
         model=CompanyRepresentativeInput, tag="company_representatives", not_found="نماینده شرکت حمل‌ونقل یافت نشد",
+        access=LOOKUP_ACCESS,
         order_by=["ID_COMPANY", "FAMILY", "NAME"],
     ),
     make_crud_router(
         prefix="/tagh", table="FA_TAGH_ANBAR", pk="ID_TAGH",
         model=TaghInput, tag="tagh", not_found="طاق یافت نشد",
+        access=LOOKUP_ACCESS,
     ),
     make_crud_router(
         prefix="/terms", table="FA_SYS_TERMS", pk="SYS_TERM_ID",
         model=TermInput, tag="terms", not_found="ترم یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={
             "category_id": "SYS_TERM_CATEGORY_ID",
             "key": "SYS_TERM_KEY",
@@ -946,6 +979,7 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-dangerous", table="fa_kala_dangerous", pk="id_kala_dangerous",
         model=KalaDangerousInput, tag="kala_dangerous", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={
             "code": "code",
             "storage_price": "storage_price",
@@ -956,6 +990,7 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-diamound", table="fa_kala_diamound", pk="id_kala_diamound",
         model=KalaDiamoundInput, tag="kala_diamound", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={
             "code": "code", "title": "title",
             "price_gher_edari": "price_gher_edari", "price_holiday": "price_holiday",
@@ -964,11 +999,13 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-other-service", table="fa_kala_other_service", pk="id_kala_other_service",
         model=KalaOtherServiceInput, tag="kala_other_service", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={"code": "code", "title": "title", "price": "price"},
     ),
     make_crud_router(
         prefix="/kala-strip", table="fa_kala_strip", pk="id_kala_strip",
         model=KalaStripInput, tag="kala_strip", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={
             "code": "code", "title": "title", "normal": "normal",
             "non_standard": "non_standard", "dangerous": "dangerous",
@@ -977,11 +1014,13 @@ crud_routers = [
     make_crud_router(
         prefix="/kala-time-stop", table="fa_kala_time_stop_vehicle", pk="id_kala_time_stop_vehicle",
         model=KalaTimeStopInput, tag="kala_time_stop", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={"code": "code", "title": "title", "price": "price"},
     ),
     make_crud_router(
         prefix="/kala-vehicle-enter", table="fa_kala_vehicle_enter_price", pk="id_kala_vehicle_enter_price",
         model=KalaVehicleEnterInput, tag="kala_vehicle_enter", not_found="ردیف یافت نشد",
+        access=LOOKUP_ACCESS,
         column_overrides={"code": "code", "title": "title", "price": "price"},
     ),
     # /tally-header has a dedicated router because its business number must be
@@ -989,10 +1028,12 @@ crud_routers = [
     make_crud_router(
         prefix="/tally-details", table="FA_TALI_DETAILES", pk="ID_TALI_DETAILS",
         model=TaliDetailInput, tag="tally_details", not_found="ردیف تالی یافت نشد",
+        access=TALLY_PART_ACCESS,
     ),
     make_crud_router(
         prefix="/tali-kala-diamound", table="fa_tali_kala_diamound", pk="id_tali_kala_diamound",
         model=TaliKalaDiamoundInput, tag="tali_kala_diamound", not_found="ردیف دیماند یافت نشد",
+        access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id",
             "kala_diamound_id": "kala_diamound_id",
@@ -1005,16 +1046,19 @@ crud_routers = [
     make_crud_router(
         prefix="/tali-kala-price", table="fa_tali_kala_price", pk="id_tali_kala_price",
         model=TaliKalaPriceInput, tag="tali_kala_price", not_found="ردیف قیمت یافت نشد",
+        access=TALLY_PART_ACCESS,
         column_overrides={"tali_id": "tali_id", "kala_price_id": "kala_price_id", "code": "code"},
     ),
     make_crud_router(
         prefix="/tali-kala-dangerous", table="fa_tali_kala_dangerous", pk="id_tali_kala_dangerous",
         model=TaliKalaDangerousInput, tag="tali_kala_dangerous", not_found="ردیف خطرناک یافت نشد",
+        access=TALLY_PART_ACCESS,
         column_overrides={"tali_id": "tali_id", "kala_dangerous_id": "kala_dangerous_id", "code": "code"},
     ),
     make_crud_router(
         prefix="/tali-kala-other-service", table="fa_tali_kala_other_service", pk="id_tali_kala_other_service",
         model=TaliKalaOtherServiceInput, tag="tali_kala_other_service", not_found="ردیف خدمات یافت نشد",
+        access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_other_service_id": "kala_other_service_id", "code": "code",
             "number_service": "NUMBER_SERVICE",
@@ -1023,6 +1067,7 @@ crud_routers = [
     make_crud_router(
         prefix="/tali-kala-strip", table="fa_tali_kala_strip", pk="id_tali_kala_strip",
         model=TaliKalaStripInput, tag="tali_kala_strip", not_found="ردیف استریپ یافت نشد",
+        access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_strip_id": "kala_strip_id",
             "code": "code", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type",
@@ -1031,6 +1076,7 @@ crud_routers = [
     make_crud_router(
         prefix="/tali-kala-time-stop", table="fa_tali_kala_time_stop_vehicle", pk="id_tali_kala_time_stop_vehicle",
         model=TaliKalaTimeStopInput, tag="tali_kala_time_stop", not_found="ردیف توقف شبانه یافت نشد",
+        access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_time_stop_vehicle_id": "kala_time_stop_vehicle_id",
             "code": "code", "number_service": "NUMBER_SERVICE",
@@ -1039,6 +1085,7 @@ crud_routers = [
     make_crud_router(
         prefix="/tali-kala-vehicle-enter", table="fa_tali_kala_vehicle_enter_price", pk="id_tali_kala_vehicle_enter_price",
         model=TaliKalaVehicleEnterInput, tag="tali_kala_vehicle_enter", not_found="ردیف ورود خودرو یافت نشد",
+        access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_vehicle_enter_price_id": "kala_vehicle_enter_price_id",
             "code": "code", "number_service": "NUMBER_SERVICE",
@@ -1047,6 +1094,8 @@ crud_routers = [
     make_crud_router(
         prefix="/ghabz-header", table="fa_ghabz_anbar_header", pk="ID_ghabz",
         model=GhabzHeaderInput, tag="ghabz_header", not_found="قبض یافت نشد",
+        access=GHABZ_PART_ACCESS,
+        prepare_create=reject_manual_receipt,
         column_overrides={
             "number_ghabz": "number_ghabz", "number_ghabz_uniqe": "number_ghabz_uniqe",
             "number_tali": "NUMBER_tali", "number_royea": "number_royea",
@@ -1062,6 +1111,7 @@ crud_routers = [
     make_crud_router(
         prefix="/ghabz-details", table="FA_ghabz_anbar_DETAILES", pk="ID_ghabz_anbar_DETAILS",
         model=GhabzDetailInput, tag="ghabz_details", not_found="ردیف قبض یافت نشد",
+        access=GHABZ_PART_ACCESS,
         column_overrides={
             "code_kala": "code_kala", "code_kala_kantiner": "code_kala_kantiner",
             "type_basteh": "TYPE_BASTEh", "number_kantiner": "NUMBER_KAntiner",

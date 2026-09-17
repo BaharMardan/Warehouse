@@ -11,3 +11,4 @@ class UserOut(BaseModel):
     username: str
     full_name: str | None = None
     is_admin: str
+    permissions: list[str] = []

@@ -27,6 +27,10 @@ SQL*Plus or it will be mangled:
 
     $env:NLS_LANG = ".AL32UTF8"
 
+Password hashes are never captured (see SECRET_COLUMNS), because sql/data/ is
+committed to git. Restored users therefore have no password: create a new admin
+with create_user.py, then set the other users' passwords again.
+
 ## Identity and sequence counters
 
 Two tables in this schema have *two* independent generators on the same primary
@@ -56,6 +60,13 @@ from app.core.db import get_connection
 
 
 OUTPUT_DIR = os.path.join("sql", "data")
+
+# Columns left out of the capture. sql/data/ is committed to git, and a password
+# hash there can be attacked offline by anyone who can read the repository.
+# Every listed column must be nullable so the INSERTs still load as NULL.
+SECRET_COLUMNS = {
+    "FA_USERS": {"PASSWORD_HASH"},
+}
 
 # Standalone sequences the application calls, and the key each one feeds.
 # Confirmed against app/routers/tally_header.py and app/routers/owners.py.
@@ -212,6 +223,8 @@ def _wrap(parts: list[str], indent: str = "    ") -> str:
 
 def _dump_table(cursor, table: str) -> tuple[str, int]:
     columns = _insertable_columns(cursor, table)
+    secret = SECRET_COLUMNS.get(table, set())
+    columns = [(name, kind) for name, kind in columns if name not in secret]
     if not columns:
         return f"-- {table}: no insertable columns\n", 0
 

@@ -438,6 +438,7 @@ import {
 } from '@mantine/core'
 import { apiGet, apiSend } from '../api/client'
 import { IconPrint } from '../components/icons'
+import { usePermissions } from '../auth/usePermissions'
 
 type DetailRow = {
   id_ghabz_anbar_details: number
@@ -478,6 +479,7 @@ export function GhabzDetailPage() {
   const { id } = useParams<{ id: string }>()
   const headerId = Number(id)
   const qc = useQueryClient()
+  const canEdit = usePermissions().can('ghabz.edit')
   const [selectedLine, setSelectedLine] = useState<DetailRow | null>(null)
 
   const { data: summary } = useQuery({
@@ -566,6 +568,7 @@ export function GhabzDetailPage() {
               size="md"
               radius="md"
               value={uniqeId}
+              readOnly={!canEdit}
               styles={{ input: { minHeight: 72 } }}
               onChange={(e) => { setUniqeId(e.currentTarget.value); saveExtras.reset() }} />
           </Grid.Col>
@@ -576,20 +579,23 @@ export function GhabzDetailPage() {
               size="md"
               radius="md"
               value={description}
+              readOnly={!canEdit}
               styles={{ input: { minHeight: 72, resize: 'vertical' } }}
               onChange={(e) => { setDescription(e.currentTarget.value); saveExtras.reset() }} />
           </Grid.Col>
         </Grid>
-        <Group justify="flex-start" mt="md">
-          <Button
-            radius="md"
-            loading={saveExtras.isPending}
-            disabled={!extrasChanged}
-            onClick={() => saveExtras.mutate()}
-          >
-            ذخیره اطلاعات
-          </Button>
-        </Group>
+        {canEdit && (
+          <Group justify="flex-start" mt="md">
+            <Button
+              radius="md"
+              loading={saveExtras.isPending}
+              disabled={!extrasChanged}
+              onClick={() => saveExtras.mutate()}
+            >
+              ذخیره اطلاعات
+            </Button>
+          </Group>
+        )}
       </Paper>
       <Paper shadow="xs" p="md">
         <Text fw={600} mb="sm">ردیف‌های کالا</Text>
@@ -620,15 +626,17 @@ export function GhabzDetailPage() {
                       <Button size="xs" variant="light" onClick={() => setSelectedLine(r)}>
                         مشاهده جزئیات
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="red"
-                        loading={deleteMutation.isPending && deleteMutation.variables === r.id_ghabz_anbar_details}
-                        onClick={() => deleteMutation.mutate(r.id_ghabz_anbar_details)}
-                      >
-                        حذف
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          loading={deleteMutation.isPending && deleteMutation.variables === r.id_ghabz_anbar_details}
+                          onClick={() => deleteMutation.mutate(r.id_ghabz_anbar_details)}
+                        >
+                          حذف
+                        </Button>
+                      )}
                     </Group>
                   </Table.Td>
                 </Table.Tr>

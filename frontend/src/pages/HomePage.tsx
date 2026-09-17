@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { SimpleGrid, UnstyledButton, Text, Title, Stack, Box } from '@mantine/core'
 import { Link } from 'react-router-dom'
-import { modules, type AppModule } from '../modules'
+import { useVisibleModules, type AppModule } from '../modules'
 import './HomePage.css'
 
 /**
@@ -63,6 +63,8 @@ function ModuleTile({ module: m }: { module: AppModule }) {
 }
 
 export function HomePage() {
+  const visibleModules = useVisibleModules()
+
   return (
     <div className="hp-hero">
       <Box className="hp-hero-inner" maw={1000} mx="auto">
@@ -74,7 +76,7 @@ export function HomePage() {
         </Stack>
 
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="lg" verticalSpacing="lg">
-          {modules.map((m) => (
+          {visibleModules.map((m) => (
             <ModuleTile key={m.key} module={m} />
           ))}
         </SimpleGrid>

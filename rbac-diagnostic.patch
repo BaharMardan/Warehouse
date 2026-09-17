@@ -1,0 +1,379 @@
+diff --git a/backend/.gitignore b/backend/.gitignore
+index fc36f7d..5fefa16 100644
+--- a/backend/.gitignore
++++ b/backend/.gitignore
+@@ -2,3 +2,4 @@
+ __pycache__/
+ *.pyc
+ .venv/
++rbac_diagnostic.txt
+diff --git a/backend/diagnose_rbac.py b/backend/diagnose_rbac.py
+new file mode 100644
+index 0000000..4bc6881
+--- /dev/null
++++ b/backend/diagnose_rbac.py
+@@ -0,0 +1,364 @@
++"""Read-only diagnostic to run before adding users, roles and permissions.
++
++It answers, with evidence from the live database:
++
++  1. Are the planned table names FA_ROLES, FA_ROLE_PERMISSIONS and
++     FA_USER_ROLES still free?
++  2. What do FA_USERS, its constraints and its rows look like today?
++  3. Does the schema already hold other login or access-control objects?
++  4. Did the legacy APEX application define users, roles or authorization
++     schemes, and which pages, menu entries, regions, buttons and items did
++     those schemes protect?
++
++Only SELECT statements run; nothing is changed. A check that fails (for
++example an APEX view this schema cannot see) is reported and the run
++continues, so one pass shows everything. From backend/, with the same .env
++the API uses:
++
++    python diagnose_rbac.py
++
++The report is printed and also written as UTF-8 to rbac_diagnostic.txt next to
++this script (git-ignored). The script writes that file itself because shell
++redirection is not safe here: Windows PowerShell's `>` re-encodes a native
++program's output and mangles Persian text.
++"""
++
++import datetime
++import re
++import sys
++from pathlib import Path
++
++import oracledb
++
++from app.core.db import get_connection
++
++
++MAX_ROWS = 200    # rows printed per check; the total row count is always shown
++MAX_CELL = 1500   # characters per value; long PL/SQL bodies are cut here
++REPORT_FILE = Path(__file__).resolve().with_name("rbac_diagnostic.txt")
++
++# What to do when a query fails with ORA-00904 (invalid identifier). APEX
++# dictionary views gain and rename columns between releases:
++#   ROWS    -> SELECT * from the view, so the data still arrives
++#   COLUMNS -> list the view's real column names (the view is too wide and
++#              too long for SELECT * to be readable)
++ROWS = "rows"
++COLUMNS = "columns"
++
++# (title, source view/table, sql, fallback)
++CHECKS: list[tuple[str, str, str, str | None]] = [
++    (
++        "Planned RBAC table names already in use (expect no rows)",
++        "USER_TABLES",
++        """
++        SELECT TABLE_NAME
++          FROM USER_TABLES
++         WHERE UPPER(TABLE_NAME) IN ('FA_ROLES', 'FA_ROLE_PERMISSIONS', 'FA_USER_ROLES')
++        """,
++        None,
++    ),
++    (
++        "FA_USERS columns",
++        "USER_TAB_COLUMNS",
++        """
++        SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, CHAR_USED, NULLABLE
++          FROM USER_TAB_COLUMNS
++         WHERE TABLE_NAME = 'FA_USERS'
++         ORDER BY COLUMN_ID
++        """,
++        None,
++    ),
++    (
++        "FA_USERS constraints",
++        "USER_CONSTRAINTS",
++        """
++        SELECT c.CONSTRAINT_NAME, c.CONSTRAINT_TYPE, cc.COLUMN_NAME
++          FROM USER_CONSTRAINTS c
++          JOIN USER_CONS_COLUMNS cc ON cc.CONSTRAINT_NAME = c.CONSTRAINT_NAME
++         WHERE c.TABLE_NAME = 'FA_USERS'
++         ORDER BY c.CONSTRAINT_TYPE, c.CONSTRAINT_NAME, cc.POSITION
++        """,
++        None,
++    ),
++    (
++        "FA_USERS rows (password hashes are not selected)",
++        "FA_USERS",
++        """
++        SELECT "ID", "USERNAME", "FULL_NAME", "IS_ADMIN", "IS_ACTIVE", "CREATE_AT"
++          FROM "FA_USERS"
++         ORDER BY "ID"
++        """,
++        None,
++    ),
++    (
++        "Stored PL/SQL and views that look like login or access logic",
++        "USER_OBJECTS",
++        """
++        SELECT OBJECT_TYPE, OBJECT_NAME, STATUS
++          FROM USER_OBJECTS
++         WHERE OBJECT_TYPE IN ('FUNCTION', 'PROCEDURE', 'PACKAGE', 'VIEW')
++           AND REGEXP_LIKE(OBJECT_NAME, 'AUTH|LOGIN|USER|ROLE|PERM|PRIV|ACCESS|ACL', 'i')
++         ORDER BY OBJECT_TYPE, OBJECT_NAME
++        """,
++        None,
++    ),
++    (
++        "APEX applications visible to this schema",
++        "APEX_APPLICATIONS",
++        """
++        SELECT APPLICATION_ID, APPLICATION_NAME, AUTHENTICATION_SCHEME, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATIONS
++         ORDER BY APPLICATION_ID
++        """,
++        ROWS,
++    ),
++    (
++        "APEX authentication schemes",
++        "APEX_APPLICATION_AUTH",
++        """
++        SELECT APPLICATION_ID, AUTHENTICATION_SCHEME_NAME, SCHEME_TYPE
++          FROM APEX_APPLICATION_AUTH
++         ORDER BY APPLICATION_ID, AUTHENTICATION_SCHEME_NAME
++        """,
++        ROWS,
++    ),
++    (
++        "APEX authorization schemes (the legacy role rules)",
++        "APEX_APPLICATION_AUTHORIZATION",
++        """
++        SELECT APPLICATION_ID, AUTHORIZATION_SCHEME_NAME, SCHEME_TYPE,
++               ATTRIBUTE_01, ATTRIBUTE_02, ERROR_MESSAGE
++          FROM APEX_APPLICATION_AUTHORIZATION
++         ORDER BY APPLICATION_ID, AUTHORIZATION_SCHEME_NAME
++        """,
++        ROWS,
++    ),
++    (
++        "APEX access control roles",
++        "APEX_APPL_ACL_ROLES",
++        """
++        SELECT APPLICATION_ID, ROLE_STATIC_ID, ROLE_NAME, ROLE_DESC
++          FROM APEX_APPL_ACL_ROLES
++         ORDER BY APPLICATION_ID, ROLE_NAME
++        """,
++        ROWS,
++    ),
++    (
++        "APEX access control user-to-role assignments",
++        "APEX_APPL_ACL_USER_ROLES",
++        """
++        SELECT APPLICATION_ID, USER_NAME, ROLE_NAME
++          FROM APEX_APPL_ACL_USER_ROLES
++         ORDER BY APPLICATION_ID, USER_NAME, ROLE_NAME
++        """,
++        ROWS,
++    ),
++    (
++        "APEX workspace user accounts",
++        "APEX_WORKSPACE_APEX_USERS",
++        """
++        SELECT USER_NAME, FIRST_NAME, LAST_NAME, EMAIL, IS_ADMIN,
++               IS_APPLICATION_DEVELOPER, ACCOUNT_LOCKED
++          FROM APEX_WORKSPACE_APEX_USERS
++         ORDER BY USER_NAME
++        """,
++        ROWS,
++    ),
++    (
++        "APEX pages protected by an authorization scheme",
++        "APEX_APPLICATION_PAGES",
++        """
++        SELECT APPLICATION_ID, PAGE_ID, PAGE_NAME, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATION_PAGES
++         WHERE AUTHORIZATION_SCHEME IS NOT NULL
++         ORDER BY APPLICATION_ID, PAGE_ID
++        """,
++        COLUMNS,
++    ),
++    (
++        "APEX menu entries protected by an authorization scheme",
++        "APEX_APPLICATION_LIST_ENTRIES",
++        """
++        SELECT APPLICATION_ID, LIST_NAME, ENTRY_TEXT, ENTRY_TARGET, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATION_LIST_ENTRIES
++         WHERE AUTHORIZATION_SCHEME IS NOT NULL
++         ORDER BY APPLICATION_ID, LIST_NAME, ENTRY_TEXT
++        """,
++        COLUMNS,
++    ),
++    (
++        "APEX regions protected by an authorization scheme",
++        "APEX_APPLICATION_PAGE_REGIONS",
++        """
++        SELECT APPLICATION_ID, PAGE_ID, REGION_NAME, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATION_PAGE_REGIONS
++         WHERE AUTHORIZATION_SCHEME IS NOT NULL
++         ORDER BY APPLICATION_ID, PAGE_ID, REGION_NAME
++        """,
++        COLUMNS,
++    ),
++    (
++        "APEX buttons protected by an authorization scheme",
++        "APEX_APPLICATION_PAGE_BUTTONS",
++        """
++        SELECT APPLICATION_ID, PAGE_ID, BUTTON_NAME, LABEL, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATION_PAGE_BUTTONS
++         WHERE AUTHORIZATION_SCHEME IS NOT NULL
++         ORDER BY APPLICATION_ID, PAGE_ID, BUTTON_NAME
++        """,
++        COLUMNS,
++    ),
++    (
++        "APEX page items protected by an authorization scheme",
++        "APEX_APPLICATION_PAGE_ITEMS",
++        """
++        SELECT APPLICATION_ID, PAGE_ID, ITEM_NAME, LABEL, AUTHORIZATION_SCHEME
++          FROM APEX_APPLICATION_PAGE_ITEMS
++         WHERE AUTHORIZATION_SCHEME IS NOT NULL
++         ORDER BY APPLICATION_ID, PAGE_ID, ITEM_NAME
++        """,
++        COLUMNS,
++    ),
++]
++
++_report: list[str] = []
++
++
++def _out(line: str = "") -> None:
++    """Print one report line and keep it for REPORT_FILE."""
++    _report.append(line)
++    print(line)
++
++
++def _ora_code(exc: BaseException) -> str:
++    match = re.search(r"ORA-\d{5}", str(exc))
++    return match.group(0) if match else "unknown"
++
++
++def _first_line(exc: BaseException) -> str:
++    lines = str(exc).strip().splitlines()
++    return lines[0] if lines else repr(exc)
++
++
++def _cell(value) -> str:
++    if value is None:
++        return "NULL"
++    if isinstance(value, datetime.datetime):
++        return value.isoformat(sep=" ")
++    if isinstance(value, datetime.date):
++        return value.isoformat()
++    text = str(value).replace("\r\n", "\n").replace("\n", " \\n ").strip()
++    if len(text) > MAX_CELL:
++        text = f"{text[:MAX_CELL]} ...[{len(text) - MAX_CELL} more chars]"
++    return text
++
++
++def _query(cursor, sql: str, params: dict | None = None) -> tuple[list[str], list[tuple]]:
++    cursor.execute(sql, params or {})
++    columns = [str(description[0]) for description in cursor.description]
++    return columns, cursor.fetchall()
++
++
++def _print_rows(columns: list[str], rows: list[tuple]) -> None:
++    _out("  " + " | ".join(columns))
++    if not rows:
++        _out("  (no rows)")
++        return
++    for row in rows[:MAX_ROWS]:
++        _out("  " + " | ".join(_cell(value) for value in row))
++    if len(rows) > MAX_ROWS:
++        _out(f"  ... {len(rows) - MAX_ROWS} more row(s) not printed")
++    _out(f"  ({len(rows)} row(s))")
++
++
++def _fallback(cursor, source: str, mode: str) -> None:
++    if mode == ROWS:
++        _out(f"  fallback: SELECT * FROM {source}")
++        columns, rows = _query(cursor, f"SELECT * FROM {source}")
++        _print_rows(columns, rows)
++        return
++
++    _out(f"  fallback: real column names of {source}")
++    # APEX views are reached through PUBLIC synonyms. Following the synonym picks
++    # the installed release, not a leftover schema from an older APEX upgrade.
++    _, rows = _query(
++        cursor,
++        """
++        SELECT c.OWNER, c.COLUMN_NAME
++          FROM ALL_SYNONYMS s
++          JOIN ALL_TAB_COLUMNS c
++            ON c.OWNER = s.TABLE_OWNER
++           AND c.TABLE_NAME = s.TABLE_NAME
++         WHERE s.OWNER = 'PUBLIC'
++           AND s.SYNONYM_NAME = :source
++         ORDER BY c.COLUMN_ID
++        """,
++        {"source": source},
++    )
++    if not rows:
++        _, rows = _query(
++            cursor,
++            """
++            SELECT OWNER, COLUMN_NAME
++              FROM ALL_TAB_COLUMNS
++             WHERE TABLE_NAME = :source
++             ORDER BY OWNER, COLUMN_ID
++            """,
++            {"source": source},
++        )
++    if not rows:
++        _out("  (no columns visible)")
++        return
++    owners = sorted({str(row[0]) for row in rows})
++    _out(f"  owner: {', '.join(owners)}")
++    _out("  " + ", ".join(str(row[1]) for row in rows))
++
++
++def _run_checks() -> int:
++    failed = 0
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            cursor.execute("SELECT USER, SYS_CONTEXT('USERENV', 'CON_NAME') FROM DUAL")
++            user, container = cursor.fetchone()
++            _out(f"Connected as {user} in {container}")
++            _out(f"Run at {datetime.datetime.now().isoformat(sep=' ', timespec='seconds')}")
++
++            for number, (title, source, sql, fallback) in enumerate(CHECKS, start=1):
++                _out()
++                _out(f"[{number}] {title}")
++                try:
++                    columns, rows = _query(cursor, sql)
++                    _print_rows(columns, rows)
++                except oracledb.DatabaseError as exc:
++                    code = _ora_code(exc)
++                    if code == "ORA-00942":
++                        _out(f"  not visible to this schema ({code})")
++                        continue
++                    _out(f"  ! {_first_line(exc)}")
++                    if code == "ORA-00904" and fallback:
++                        try:
++                            _fallback(cursor, source, fallback)
++                            continue
++                        except oracledb.DatabaseError as fallback_exc:
++                            _out(f"  ! fallback failed: {_first_line(fallback_exc)}")
++                    failed += 1
++
++    _out()
++    _out(f"Done: {len(CHECKS)} check(s), {failed} failed.")
++    return failed
++
++
++def main() -> None:
++    # A console that cannot show a Persian character must not abort the run.
++    if hasattr(sys.stdout, "reconfigure"):
++        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
++    try:
++        _run_checks()
++    finally:
++        # Written even when a check crashes midway, so partial evidence survives.
++        REPORT_FILE.write_text("\n".join(_report) + "\n", encoding="utf-8")
++        print(f"\nReport written to {REPORT_FILE}")
++
++
++if __name__ == "__main__":
++    main()

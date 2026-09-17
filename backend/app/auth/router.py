@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.security import verify_password, create_access_token
 from app.services.base import fetch_one
-from app.auth.deps import get_current_user
+from app.auth.deps import require_login
 from app.auth.schemas import Token, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -25,5 +25,6 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 
 @router.get("/me", response_model=UserOut)
-def me(current_user: dict = Depends(get_current_user)):
-    return current_user
+def me(current_user: dict = Depends(require_login)):
+    # Sorted so the payload is stable; the frontend reads it to show or hide screens.
+    return {**current_user, "permissions": sorted(current_user["permissions"])}

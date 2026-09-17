@@ -714,9 +714,10 @@ import oracledb
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.services.base import execute, fetch_all
+from app.services import tally_handoff as handoff_rules
 from app.services.ghabz_allotment import (
     GhabzFromTallyInput,
     annotate,
@@ -956,7 +957,7 @@ SELECT "ID_TALI", "NUMBER_KARANEH", "TALI_NUMBER", "DATE_UNLOADING",
        "DATE_ENTER_MARZE", "ID_MARZE", "ID_COUNTRY", "ID_COMPANY",
        "ID_PRODUCT_OWNEAR", "NAME_ARZYAB", "NAME_ANBARDAR", "IS_BIMEH",
        "NUMBER_BIMEH", "COMPANY_BIMEH", "RADEF_MARZE", "TRACKING_NUMBER",
-       "CUSTOMS_PROCEDURE"
+       "CUSTOMS_PROCEDURE", "HANDOFF_STEP"
 FROM "FA_TALI_HEADER" WHERE "ID_TALI" = :tid AND "IS_DELETED" = 'no'
 """
 
@@ -1083,12 +1084,12 @@ def _oracle_code(exc: BaseException) -> str:
     return " / ".join(parts)
 
 
-@router.get("/list", dependencies=[Depends(get_current_user)])
+@router.get("/list", dependencies=[Depends(require_permission("ghabz.view"))])
 def list_ghabz():
     return fetch_all(LIST_SQL)
 
 
-@router.get("/from-tally/{tali_id}/allotments", dependencies=[Depends(get_current_user)])
+@router.get("/from-tally/{tali_id}/allotments", dependencies=[Depends(require_permission("ghabz.view"))])
 def list_ghabz_allotments(tali_id: int):
     """Per HS Code: tally allotment, already issued, and what remains."""
     return annotate(fetch_all(ALLOTMENTS_SQL, {"tid": tali_id}))
@@ -1098,7 +1099,7 @@ def list_ghabz_allotments(tali_id: int):
 def update_ghabz_extras(
     header_id: int,
     payload: GhabzExtrasInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("ghabz.edit")),
 ):
     """Save the two operator-entered fields used by the receipt printout."""
     affected = execute(
@@ -1127,7 +1128,7 @@ def update_ghabz_extras(
     return rows[0]
 
 
-@router.get("/{header_id}/summary", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/summary", dependencies=[Depends(require_permission("ghabz.view"))])
 def get_ghabz_summary(header_id: int):
     """One receipt's header with FK names resolved, for the detail and print screens."""
     rows = fetch_all(SUMMARY_SQL, {"hid": header_id})
@@ -1136,7 +1137,7 @@ def get_ghabz_summary(header_id: int):
     return rows[0]
 
 
-@router.get("/{header_id}/details", dependencies=[Depends(get_current_user)])
+@router.get("/{header_id}/details", dependencies=[Depends(require_permission("ghabz.view"))])
 def list_ghabz_details(header_id: int):
     return fetch_all(DETAILS_SQL, {"hid": header_id})
 
@@ -1144,7 +1145,7 @@ def list_ghabz_details(header_id: int):
 @router.post("/from-tally/{tali_id}/master", status_code=201)
 def create_master_ghabz(
     tali_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("ghabz.issue")),
 ):
     """Issue the tally's master receipt: every HS Code at its full total.
 
@@ -1162,6 +1163,9 @@ def create_master_ghabz(
                 if not tally_rows:
                     raise HTTPException(status_code=404, detail="تالی یافت نشد")
                 tally = tally_rows[0]
+                blocked = handoff_rules.issue_receipt_error(tally.get("handoff_step"))
+                if blocked:
+                    raise HTTPException(status_code=409, detail=blocked)
 
                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
                 allotments = _rows_with_columns(cursor)
@@ -1295,7 +1299,7 @@ def create_master_ghabz(
 def create_ghabz_from_tally(
     tali_id: int,
     selection: GhabzFromTallyInput | None = None,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("ghabz.issue")),
 ):
     """Issue one receipt, drawing quantities per HS Code against the tally."""
     requested = selection.lines if selection is not None else None
@@ -1308,6 +1312,9 @@ def create_ghabz_from_tally(
                 if not tally_rows:
                     raise HTTPException(status_code=404, detail="تالی یافت نشد")
                 tally = tally_rows[0]
+                blocked = handoff_rules.issue_receipt_error(tally.get("handoff_step"))
+                if blocked:
+                    raise HTTPException(status_code=409, detail=blocked)
 
                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
                 allotments = _rows_with_columns(cursor)

@@ -118,18 +118,50 @@
 
 #     return router
 
+from dataclasses import dataclass
 from typing import Any, Callable, Type
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_login, require_permission
 from app.services.base import fetch_all, fetch_one, execute, insert_returning_id
 from app.crud.sql import Audit, plan
 from datetime import date, datetime
 
 # Re-export so callers can `from app.crud.factory import make_crud_router, Audit`
-__all__ = ["make_crud_router", "Audit"]
+__all__ = ["make_crud_router", "Audit", "CrudAccess", "LOGGED_IN"]
+
+
+# CrudAccess value for endpoints every logged-in user may call.
+LOGGED_IN = "logged_in"
+
+
+@dataclass(frozen=True)
+class CrudAccess:
+    """Who may call each endpoint a CRUD router generates.
+
+    Each field is a permission code from app/auth/permissions.py, or LOGGED_IN for
+    any logged-in user. There are no defaults: every table states its access, so a
+    new table cannot end up open by omission."""
+
+    read: str
+    create: str
+    update: str
+    delete: str
+
+    @classmethod
+    def read_write(cls, *, read: str, write: str) -> "CrudAccess":
+        """The common case: one requirement for reading, one for every change."""
+        return cls(read=read, create=write, update=write, delete=write)
+
+
+def _guard(requirement: str):
+    """The dependency behind one CrudAccess field. A permission code is looked up
+    right away, so a typo fails when the registry is imported."""
+    if requirement == LOGGED_IN:
+        return require_login
+    return require_permission(requirement)
 
 
 def make_crud_router(
@@ -139,6 +171,7 @@ def make_crud_router(
     pk: str,
     model: Type[BaseModel],
     tag: str,
+    access: CrudAccess,
     not_found: str = "رکورد یافت نشد",
     column_overrides: dict[str, str] | None = None,
     audit: Audit | None = Audit(),
@@ -172,6 +205,10 @@ def make_crud_router(
     prepare_create: optional server-side payload preparation used immediately before
     INSERT. It is useful for technical values that should never be entered by an
     operator, such as generated lookup codes and display order.
+
+    access: required. Who may call the generated endpoints: the list and single-row
+    GETs use access.read, POST access.create, PUT access.update and DELETE
+    access.delete. See CrudAccess.
     """
     p = plan(
         table=table,
@@ -182,12 +219,16 @@ def make_crud_router(
         order_by=order_by,
     )
     router = APIRouter(prefix=prefix, tags=[tag])
+    read_guard = _guard(access.read)
+    create_guard = _guard(access.create)
+    update_guard = _guard(access.update)
+    delete_guard = _guard(access.delete)
 
-    @router.get("", dependencies=[Depends(get_current_user)])
+    @router.get("", dependencies=[Depends(read_guard)])
     def list_rows():
         return fetch_all(p["list"])
     
-    @router.get("/{row_id}", dependencies=[Depends(get_current_user)])
+    @router.get("/{row_id}", dependencies=[Depends(read_guard)])
     def get_row(row_id: int):
         row = fetch_one(p["one"], {"id": row_id})
         if row is None:
@@ -195,7 +236,7 @@ def make_crud_router(
         return row
 
     @router.post("", status_code=201)
-    def create_row(item: model, current_user: dict = Depends(get_current_user)):  # type: ignore[valid-type]
+    def create_row(item: model, current_user: dict = Depends(create_guard)):  # type: ignore[valid-type]
         params = {**item.model_dump()}
         if prepare_create:
             params = prepare_create(params)
@@ -220,7 +261,7 @@ def make_crud_router(
     #         raise HTTPException(status_code=404, detail=not_found)
     #     return fetch_one(p["one"], {"id": row_id})
     @router.put("/{row_id}")
-    def update_row(row_id: int, item: model, current_user: dict = Depends(get_current_user)):  # type: ignore[valid-type]
+    def update_row(row_id: int, item: model, current_user: dict = Depends(update_guard)):  # type: ignore[valid-type]
         # Only update columns the client actually sent. Fields omitted from the request
         # keep their stored value, so a partial form never nulls a NOT NULL column it
         # doesn't manage (e.g. TALI_ID -> ORA-01407).
@@ -244,7 +285,7 @@ def make_crud_router(
         return fetch_one(p["one"], {"id": row_id})
 
     @router.delete("/{row_id}", status_code=204)
-    def delete_row(row_id: int, current_user: dict = Depends(get_current_user)):
+    def delete_row(row_id: int, current_user: dict = Depends(delete_guard)):
         params = {"id": row_id}
         if p["stamps_modify_by"] and p["soft_delete"]:
             params["actor_id"] = current_user["id"]

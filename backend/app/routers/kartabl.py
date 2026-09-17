@@ -4,6 +4,7 @@ One row per active tally, joined across the three modules so the worklist can
 jump straight to that tally's own تالی / قبض انبار / صورتحساب:
 
   GET /kartabl/list
+  GET /kartabl/keeper-queue   tallies waiting for the warehouse keeper (tally.services)
 
 Each row carries what the table shows (tally number, aggregated goods
 description, owner, transport company, its representative, unloading date)
@@ -13,7 +14,7 @@ receipts, and the active invoice id when one exists.
 """
 from fastapi import APIRouter, Depends
 
-from app.auth.deps import get_current_user
+from app.auth.deps import require_permission
 from app.services.base import fetch_all
 
 router = APIRouter(prefix="/kartabl", tags=["kartabl"])
@@ -69,6 +70,8 @@ SELECT
         ) THEN 'pending'
         ELSE 'open'
     END                                 AS workflow_status,
+    h."HANDOFF_STEP"                    AS handoff_step,
+    h."SENT_TO_KEEPER_AT"               AS sent_to_keeper_at,
     (
         SELECT LISTAGG(
                    g."ID_ghabz" || '|' ||
@@ -103,6 +106,20 @@ ORDER BY h."ID_TALI" DESC
 """
 
 
-@router.get("/list", dependencies=[Depends(get_current_user)])
+@router.get("/list", dependencies=[Depends(require_permission("kartabl.view"))])
 def list_kartabl():
     return fetch_all(LIST_SQL)
+
+
+# Polled every few seconds by keepers' browsers, so it stays a single COUNT.
+KEEPER_QUEUE_SQL = """
+SELECT COUNT(*) AS waiting
+  FROM "FA_TALI_HEADER"
+ WHERE "IS_DELETED" = 'no'
+   AND "HANDOFF_STEP" = 'keeper'
+"""
+
+
+@router.get("/keeper-queue", dependencies=[Depends(require_permission("tally.services"))])
+def keeper_queue():
+    return {"waiting": int(fetch_all(KEEPER_QUEUE_SQL)[0]["waiting"])}

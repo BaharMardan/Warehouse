@@ -1,0 +1,1683 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index de72da4..7396e43 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -52,6 +52,7 @@ from app.routers.invoice import router as invoice_router
+ from app.routers.commodity import router as commodity_router
+ from app.routers.owners import router as owners_router
+ from app.routers.kartabl import router as kartabl_router
++from app.routers.admin import router as admin_router
+ 
+ from app.crud.registry import crud_routers
+ 
+@@ -77,6 +78,7 @@ app.include_router(invoice_router)
+ app.include_router(commodity_router)
+ app.include_router(owners_router)
+ app.include_router(kartabl_router)
++app.include_router(admin_router)
+ 
+ # app.include_router(items.router)
+ # app.include_router(anbar.router)
+diff --git a/backend/app/routers/admin.py b/backend/app/routers/admin.py
+new file mode 100644
+index 0000000..7e02037
+--- /dev/null
++++ b/backend/app/routers/admin.py
+@@ -0,0 +1,459 @@
++"""مدیریت کاربران: users, roles and the permissions each role grants.
++
++Every endpoint is admin-only (FA_USERS.IS_ADMIN = 'yes'). Anyone who can edit
++roles can grant themselves any permission, so this is never delegated through
++a permission code.
++
++    GET    /admin/permissions           the catalog, for the role editor
++    GET    /admin/roles                 active roles with their codes and user counts
++    POST   /admin/roles                 create a role
++    PUT    /admin/roles/{id}            rename, describe, replace its permissions
++    DELETE /admin/roles/{id}            soft-delete; its user assignments are removed
++    GET    /admin/users                 users with their roles, never password hashes
++    POST   /admin/users                 create a user with a password and roles
++    PUT    /admin/users/{id}            name, admin and active flags, replace roles
++    PUT    /admin/users/{id}/password   set a new password
++
++Users are deactivated, never deleted: other tables keep their ids in CREATE_BY
++and MODIFY_BY. Usernames never change, because the login token carries the
++username. Changes take effect on the affected user's next request, since
++get_current_user reads the user and their permissions fresh every time.
++
++The SQL is kept in module constants so verify_user_admin_sql.py runs the exact
++same statements against the real schema.
++"""
++
++from typing import Literal
++
++import oracledb
++from fastapi import APIRouter, Depends, HTTPException, Response
++from pydantic import BaseModel
++
++from app.auth import permissions
++from app.auth.deps import require_admin
++from app.core.db import get_connection
++from app.core.security import hash_password
++from app.services import user_admin as rules
++
++router = APIRouter(prefix="/admin", tags=["admin"])
++
++YesNo = Literal["yes", "no"]
++
++
++class RoleInput(BaseModel):
++    title: str
++    description: str | None = None
++    permissions: list[str] = []
++
++
++class UserCreateInput(BaseModel):
++    username: str
++    password: str
++    full_name: str | None = None
++    is_admin: YesNo = "no"
++    is_active: YesNo = "yes"
++    role_ids: list[int] = []
++
++
++class UserUpdateInput(BaseModel):
++    full_name: str | None = None
++    is_admin: YesNo
++    is_active: YesNo
++    role_ids: list[int] = []
++
++
++class PasswordInput(BaseModel):
++    password: str
++
++
++# ------------------------------------------------------------------ roles SQL
++ROLES_SQL = """
++SELECT r."ID" AS id,
++       r."TITLE" AS title,
++       r."DESCRIPTION" AS description,
++       (SELECT COUNT(*) FROM "FA_USER_ROLES" ur WHERE ur."ROLE_ID" = r."ID") AS user_count
++  FROM "FA_ROLES" r
++ WHERE r."IS_DELETED" = 'no'
++ ORDER BY r."TITLE", r."ID"
++"""
++
++ROLE_PERMISSIONS_SQL = """
++SELECT rp."ROLE_ID" AS role_id,
++       rp."PERMISSION_CODE" AS permission_code
++  FROM "FA_ROLE_PERMISSIONS" rp
++  JOIN "FA_ROLES" r
++    ON r."ID" = rp."ROLE_ID"
++   AND r."IS_DELETED" = 'no'
++"""
++
++# :role_id is the role being edited, or -1 when creating (identity ids start at 1).
++ROLE_TITLE_TAKEN_SQL = """
++SELECT COUNT(*) AS taken
++  FROM "FA_ROLES"
++ WHERE "IS_DELETED" = 'no'
++   AND LOWER("TITLE") = LOWER(:title)
++   AND "ID" <> :role_id
++"""
++
++INSERT_ROLE_SQL = """
++INSERT INTO "FA_ROLES" ("TITLE", "DESCRIPTION", "CREATE_AT", "CREATE_BY")
++VALUES (:title, :description, SYSDATE, :actor_id)
++RETURNING "ID" INTO :new_id
++"""
++
++UPDATE_ROLE_SQL = """
++UPDATE "FA_ROLES"
++   SET "TITLE" = :title,
++       "DESCRIPTION" = :description,
++       "MODIFY_AT" = SYSDATE,
++       "MODIFY_BY" = :actor_id
++ WHERE "ID" = :role_id
++   AND "IS_DELETED" = 'no'
++"""
++
++DELETE_ROLE_PERMISSIONS_SQL = 'DELETE FROM "FA_ROLE_PERMISSIONS" WHERE "ROLE_ID" = :role_id'
++
++INSERT_ROLE_PERMISSION_SQL = """
++INSERT INTO "FA_ROLE_PERMISSIONS" ("ROLE_ID", "PERMISSION_CODE", "CREATE_AT", "CREATE_BY")
++VALUES (:role_id, :code, SYSDATE, :actor_id)
++"""
++
++SOFT_DELETE_ROLE_SQL = """
++UPDATE "FA_ROLES"
++   SET "IS_DELETED" = 'yes',
++       "MODIFY_AT" = SYSDATE,
++       "MODIFY_BY" = :actor_id
++ WHERE "ID" = :role_id
++   AND "IS_DELETED" = 'no'
++"""
++
++DELETE_ROLE_ASSIGNMENTS_SQL = 'DELETE FROM "FA_USER_ROLES" WHERE "ROLE_ID" = :role_id'
++
++# Filled with one bind per id: ACTIVE_ROLE_IDS_SQL.format(placeholders=":r0, :r1").
++ACTIVE_ROLE_IDS_SQL = """
++SELECT "ID"
++  FROM "FA_ROLES"
++ WHERE "IS_DELETED" = 'no'
++   AND "ID" IN ({placeholders})
++"""
++
++# ------------------------------------------------------------------ users SQL
++USERS_SQL = """
++SELECT "ID" AS id,
++       "USERNAME" AS username,
++       "FULL_NAME" AS full_name,
++       "IS_ADMIN" AS is_admin,
++       "IS_ACTIVE" AS is_active
++  FROM "FA_USERS"
++ ORDER BY LOWER("USERNAME"), "ID"
++"""
++
++USER_ROLES_SQL = """
++SELECT ur."USER_ID" AS user_id,
++       r."ID" AS id,
++       r."TITLE" AS title
++  FROM "FA_USER_ROLES" ur
++  JOIN "FA_ROLES" r
++    ON r."ID" = ur."ROLE_ID"
++   AND r."IS_DELETED" = 'no'
++ ORDER BY r."TITLE", r."ID"
++"""
++
++# The unique constraint on USERNAME is case-sensitive; "Ali" and "ali" as two
++# accounts would only confuse people, so the check here ignores case.
++USERNAME_TAKEN_SQL = """
++SELECT COUNT(*) AS taken
++  FROM "FA_USERS"
++ WHERE LOWER("USERNAME") = LOWER(:username)
++"""
++
++# FA_USERS.CREATE_BY and MODIFY_BY are VARCHAR2, unlike the NUMBER columns on
++# other tables, so they record the acting admin's username.
++INSERT_USER_SQL = """
++INSERT INTO "FA_USERS" (
++    "USERNAME", "PASSWORD_HASH", "FULL_NAME", "IS_ADMIN", "IS_ACTIVE", "CREATE_AT", "CREATE_BY"
++) VALUES (
++    :username, :password_hash, :full_name, :is_admin, :is_active, SYSDATE, :actor_username
++)
++RETURNING "ID" INTO :new_id
++"""
++
++UPDATE_USER_SQL = """
++UPDATE "FA_USERS"
++   SET "FULL_NAME" = :full_name,
++       "IS_ADMIN" = :is_admin,
++       "IS_ACTIVE" = :is_active,
++       "MODIFY_AT" = SYSDATE,
++       "MODIFY_BY" = :actor_username
++ WHERE "ID" = :user_id
++"""
++
++DELETE_USER_ROLES_SQL = 'DELETE FROM "FA_USER_ROLES" WHERE "USER_ID" = :user_id'
++
++INSERT_USER_ROLE_SQL = """
++INSERT INTO "FA_USER_ROLES" ("USER_ID", "ROLE_ID", "CREATE_AT", "CREATE_BY")
++VALUES (:user_id, :role_id, SYSDATE, :actor_id)
++"""
++
++SET_PASSWORD_SQL = """
++UPDATE "FA_USERS"
++   SET "PASSWORD_HASH" = :password_hash,
++       "MODIFY_AT" = SYSDATE,
++       "MODIFY_BY" = :actor_username
++ WHERE "ID" = :user_id
++"""
++
++
++# ------------------------------------------------------------------ helpers
++def _rows(cursor) -> list[dict]:
++    columns = [column[0].lower() for column in cursor.description]
++    return [dict(zip(columns, row)) for row in cursor.fetchall()]
++
++
++def _returned_int(value) -> int:
++    result = value.getvalue()
++    if isinstance(result, (list, tuple)):
++        result = result[0]
++    return int(result)
++
++
++def _reject(message: str | None, status_code: int = 400) -> None:
++    if message:
++        raise HTTPException(status_code=status_code, detail=message)
++
++
++def load_roles(cursor, role_id: int | None = None) -> list[dict]:
++    cursor.execute(ROLES_SQL)
++    roles = _rows(cursor)
++    cursor.execute(ROLE_PERMISSIONS_SQL)
++    granted: dict[int, set[str]] = {}
++    for row in _rows(cursor):
++        granted.setdefault(int(row["role_id"]), set()).add(row["permission_code"])
++    for role in roles:
++        codes = granted.get(int(role["id"]), set())
++        # Catalog order; codes no longer in the catalog grant nothing and are hidden.
++        role["permissions"] = [p.code for p in permissions.PERMISSIONS if p.code in codes]
++        role["user_count"] = int(role["user_count"])
++    if role_id is not None:
++        roles = [role for role in roles if int(role["id"]) == role_id]
++    return roles
++
++
++def load_users(cursor, user_id: int | None = None) -> list[dict]:
++    cursor.execute(USERS_SQL)
++    users = _rows(cursor)
++    cursor.execute(USER_ROLES_SQL)
++    roles_by_user: dict[int, list[dict]] = {}
++    for row in _rows(cursor):
++        roles_by_user.setdefault(int(row["user_id"]), []).append(
++            {"id": int(row["id"]), "title": row["title"]}
++        )
++    for user in users:
++        user["roles"] = roles_by_user.get(int(user["id"]), [])
++    if user_id is not None:
++        users = [user for user in users if int(user["id"]) == user_id]
++    return users
++
++
++def active_role_ids(cursor, role_ids: list[int]) -> list[int]:
++    """The requested ids without duplicates; 400 if any is missing or deleted."""
++    wanted = list(dict.fromkeys(int(role_id) for role_id in role_ids))
++    if not wanted:
++        return []
++    binds = {f"r{index}": role_id for index, role_id in enumerate(wanted)}
++    cursor.execute(
++        ACTIVE_ROLE_IDS_SQL.format(placeholders=", ".join(f":{name}" for name in binds)),
++        binds,
++    )
++    found = {int(row[0]) for row in cursor.fetchall()}
++    if any(role_id not in found for role_id in wanted):
++        raise HTTPException(status_code=400, detail="یکی از نقش‌های انتخاب‌شده وجود ندارد یا حذف شده است")
++    return wanted
++
++
++def replace_role_permissions(cursor, role_id: int, codes: list[str], actor_id: int) -> None:
++    cursor.execute(DELETE_ROLE_PERMISSIONS_SQL, {"role_id": role_id})
++    if codes:
++        cursor.executemany(
++            INSERT_ROLE_PERMISSION_SQL,
++            [{"role_id": role_id, "code": code, "actor_id": actor_id} for code in codes],
++        )
++
++
++def replace_user_roles(cursor, user_id: int, role_ids: list[int], actor_id: int) -> None:
++    cursor.execute(DELETE_USER_ROLES_SQL, {"user_id": user_id})
++    if role_ids:
++        cursor.executemany(
++            INSERT_USER_ROLE_SQL,
++            [{"user_id": user_id, "role_id": role_id, "actor_id": actor_id} for role_id in role_ids],
++        )
++
++
++def _validated_role(item: RoleInput) -> tuple[str, str | None, list[str]]:
++    title = rules.clean_text(item.title)
++    description = rules.clean_text(item.description)
++    _reject(rules.role_title_error(title) or rules.role_description_error(description))
++    codes, unknown = rules.split_permission_codes(item.permissions)
++    _reject(f"دسترسی ناشناخته: {', '.join(unknown)}" if unknown else None)
++    return title, description, codes  # type: ignore[return-value]
++
++
++def _ensure_title_free(cursor, title: str, role_id: int) -> None:
++    cursor.execute(ROLE_TITLE_TAKEN_SQL, {"title": title, "role_id": role_id})
++    _reject("نقشی با همین عنوان وجود دارد" if int(cursor.fetchone()[0]) else None, status_code=409)
++
++
++# ------------------------------------------------------------------ endpoints
++@router.get("/permissions", dependencies=[Depends(require_admin)])
++def list_permissions():
++    return [
++        {"code": p.code, "label": p.label, "module": p.module, "implies": list(p.implies)}
++        for p in permissions.PERMISSIONS
++    ]
++
++
++@router.get("/roles", dependencies=[Depends(require_admin)])
++def list_roles():
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            return load_roles(cursor)
++
++
++@router.post("/roles", status_code=201)
++def create_role(item: RoleInput, admin: dict = Depends(require_admin)):
++    title, description, codes = _validated_role(item)
++    actor_id = int(admin["id"])
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            _ensure_title_free(cursor, title, role_id=-1)
++            new_id = cursor.var(int)
++            cursor.execute(
++                INSERT_ROLE_SQL,
++                {"title": title, "description": description, "actor_id": actor_id, "new_id": new_id},
++            )
++            role_id = _returned_int(new_id)
++            replace_role_permissions(cursor, role_id, codes, actor_id)
++            connection.commit()
++            return load_roles(cursor, role_id)[0]
++
++
++@router.put("/roles/{role_id}")
++def update_role(role_id: int, item: RoleInput, admin: dict = Depends(require_admin)):
++    title, description, codes = _validated_role(item)
++    actor_id = int(admin["id"])
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            _ensure_title_free(cursor, title, role_id=role_id)
++            cursor.execute(
++                UPDATE_ROLE_SQL,
++                {"title": title, "description": description, "actor_id": actor_id, "role_id": role_id},
++            )
++            _reject("نقش یافت نشد" if cursor.rowcount == 0 else None, status_code=404)
++            replace_role_permissions(cursor, role_id, codes, actor_id)
++            connection.commit()
++            return load_roles(cursor, role_id)[0]
++
++
++@router.delete("/roles/{role_id}", status_code=204)
++def delete_role(role_id: int, admin: dict = Depends(require_admin)):
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            cursor.execute(SOFT_DELETE_ROLE_SQL, {"role_id": role_id, "actor_id": int(admin["id"])})
++            _reject("نقش یافت نشد" if cursor.rowcount == 0 else None, status_code=404)
++            # A deleted role grants nothing already; dropping its assignments keeps
++            # the user list honest and stops a later restore from re-granting silently.
++            cursor.execute(DELETE_ROLE_ASSIGNMENTS_SQL, {"role_id": role_id})
++            connection.commit()
++    return Response(status_code=204)
++
++
++@router.get("/users", dependencies=[Depends(require_admin)])
++def list_users():
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            return load_users(cursor)
++
++
++@router.post("/users", status_code=201)
++def create_user(item: UserCreateInput, admin: dict = Depends(require_admin)):
++    username = item.username.strip()
++    full_name = rules.clean_text(item.full_name)
++    _reject(
++        rules.username_error(username)
++        or rules.password_error(item.password)
++        or rules.full_name_error(full_name)
++    )
++    # Hash before borrowing a pooled connection: argon2 is deliberately slow.
++    password_hash = hash_password(item.password)
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            cursor.execute(USERNAME_TAKEN_SQL, {"username": username})
++            _reject("این نام کاربری قبلاً ثبت شده است" if int(cursor.fetchone()[0]) else None, status_code=409)
++            role_ids = active_role_ids(cursor, item.role_ids)
++            new_id = cursor.var(int)
++            try:
++                cursor.execute(
++                    INSERT_USER_SQL,
++                    {
++                        "username": username,
++                        "password_hash": password_hash,
++                        "full_name": full_name,
++                        "is_admin": item.is_admin,
++                        "is_active": item.is_active,
++                        "actor_username": admin["username"],
++                        "new_id": new_id,
++                    },
++                )
++            except oracledb.IntegrityError as exc:
++                # Two admins creating the same name at the same moment.
++                if "ORA-00001" in str(exc):
++                    raise HTTPException(status_code=409, detail="این نام کاربری قبلاً ثبت شده است") from exc
++                raise
++            user_id = _returned_int(new_id)
++            replace_user_roles(cursor, user_id, role_ids, int(admin["id"]))
++            connection.commit()
++            return load_users(cursor, user_id)[0]
++
++
++@router.put("/users/{user_id}")
++def update_user(user_id: int, item: UserUpdateInput, admin: dict = Depends(require_admin)):
++    full_name = rules.clean_text(item.full_name)
++    _reject(
++        rules.full_name_error(full_name)
++        or rules.self_lockout_error(
++            actor_id=int(admin["id"]), target_id=user_id,
++            is_admin=item.is_admin, is_active=item.is_active,
++        )
++    )
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            role_ids = active_role_ids(cursor, item.role_ids)
++            cursor.execute(
++                UPDATE_USER_SQL,
++                {
++                    "full_name": full_name,
++                    "is_admin": item.is_admin,
++                    "is_active": item.is_active,
++                    "actor_username": admin["username"],
++                    "user_id": user_id,
++                },
++            )
++            _reject("کاربر یافت نشد" if cursor.rowcount == 0 else None, status_code=404)
++            replace_user_roles(cursor, user_id, role_ids, int(admin["id"]))
++            connection.commit()
++            return load_users(cursor, user_id)[0]
++
++
++@router.put("/users/{user_id}/password", status_code=204)
++def set_password(user_id: int, item: PasswordInput, admin: dict = Depends(require_admin)):
++    _reject(rules.password_error(item.password))
++    password_hash = hash_password(item.password)
++    with get_connection() as connection:
++        with connection.cursor() as cursor:
++            cursor.execute(
++                SET_PASSWORD_SQL,
++                {"password_hash": password_hash, "actor_username": admin["username"], "user_id": user_id},
++            )
++            _reject("کاربر یافت نشد" if cursor.rowcount == 0 else None, status_code=404)
++            connection.commit()
++    return Response(status_code=204)
+diff --git a/backend/app/services/user_admin.py b/backend/app/services/user_admin.py
+new file mode 100644
+index 0000000..6e41990
+--- /dev/null
++++ b/backend/app/services/user_admin.py
+@@ -0,0 +1,84 @@
++"""Rules for user and role management, kept free of database and FastAPI imports
++so they are unit-tested without Oracle (tests/test_user_admin.py).
++
++Each *_error function returns a Persian message for the admin, or None when the
++value is acceptable. Byte limits matter here: FA_USERS.USERNAME and FULL_NAME
++are VARCHAR2 with BYTE semantics, and a Persian letter takes two bytes in
++AL32UTF8, so a 200-byte column holds only about 100 Persian letters.
++"""
++
++import re
++from collections.abc import Iterable
++
++from app.auth import permissions
++
++# ASCII only: usernames are typed on the login page, often on shared machines,
++# and look-alike Persian or Arabic letters would make two names seem identical.
++USERNAME_PATTERN = re.compile(r"[A-Za-z0-9._@-]{3,50}")
++PASSWORD_MIN = 8
++PASSWORD_MAX = 128               # argon2 accepts more; the cap keeps hashing cheap
++FULL_NAME_MAX_BYTES = 200        # FA_USERS.FULL_NAME VARCHAR2(200 BYTE)
++ROLE_TITLE_MAX = 200             # FA_ROLES.TITLE VARCHAR2(200 CHAR)
++ROLE_DESCRIPTION_MAX = 1000      # FA_ROLES.DESCRIPTION VARCHAR2(1000 CHAR)
++
++
++def clean_text(value: str | None) -> str | None:
++    """Trim and collapse inner whitespace; an empty result becomes None."""
++    if value is None:
++        return None
++    collapsed = " ".join(value.split())
++    return collapsed or None
++
++
++def username_error(username: str) -> str | None:
++    if not USERNAME_PATTERN.fullmatch(username):
++        return "نام کاربری باید ۳ تا ۵۰ نویسه و فقط شامل حروف انگلیسی، عدد و . _ @ - باشد"
++    return None
++
++
++def password_error(password: str) -> str | None:
++    if len(password) < PASSWORD_MIN:
++        return "رمز عبور باید دست‌کم ۸ نویسه باشد"
++    if len(password) > PASSWORD_MAX:
++        return "رمز عبور حداکثر می‌تواند ۱۲۸ نویسه باشد"
++    return None
++
++
++def full_name_error(full_name: str | None) -> str | None:
++    if full_name is not None and len(full_name.encode("utf-8")) > FULL_NAME_MAX_BYTES:
++        return "نام کامل طولانی‌تر از حد مجاز است"
++    return None
++
++
++def role_title_error(title: str | None) -> str | None:
++    if not title:
++        return "عنوان نقش را وارد کنید"
++    if len(title) > ROLE_TITLE_MAX:
++        return "عنوان نقش طولانی‌تر از حد مجاز است"
++    return None
++
++
++def role_description_error(description: str | None) -> str | None:
++    if description is not None and len(description) > ROLE_DESCRIPTION_MAX:
++        return "توضیحات نقش طولانی‌تر از حد مجاز است"
++    return None
++
++
++def split_permission_codes(codes: Iterable[str]) -> tuple[list[str], list[str]]:
++    """(known codes in catalog order without duplicates, unknown codes in the order sent)."""
++    requested = list(dict.fromkeys(codes))
++    unknown = [code for code in requested if code not in permissions.ALL_CODES]
++    wanted = set(requested)
++    known = [p.code for p in permissions.PERMISSIONS if p.code in wanted]
++    return known, unknown
++
++
++def self_lockout_error(*, actor_id: int, target_id: int, is_admin: str, is_active: str) -> str | None:
++    """An admin may not remove their own admin flag or deactivate their own account.
++
++    This one rule also keeps at least one active admin in the system: whoever
++    makes a change is an active admin, and stays one after it.
++    """
++    if actor_id == target_id and (is_admin != "yes" or is_active != "yes"):
++        return "دسترسی مدیر یا فعال بودن حساب خودتان را نمی‌توانید بردارید"
++    return None
+diff --git a/backend/tests/test_user_admin.py b/backend/tests/test_user_admin.py
+new file mode 100644
+index 0000000..85d34a5
+--- /dev/null
++++ b/backend/tests/test_user_admin.py
+@@ -0,0 +1,69 @@
++"""User and role management rules. Pure Python: no Oracle connection."""
++
++import pytest
++
++from app.services import user_admin as rules
++
++
++@pytest.mark.parametrize("username", ["bahar", "ali.rezaei", "anbar_6", "a@b-c", "abc", "x" * 50])
++def test_accepted_usernames(username):
++    assert rules.username_error(username) is None
++
++
++@pytest.mark.parametrize(
++    "username",
++    ["ab", "x" * 51, "علی", "ali rezaei", "ali;drop", "", "bahar\n"],
++)
++def test_rejected_usernames(username):
++    assert rules.username_error(username) is not None
++
++
++def test_password_length_limits():
++    assert rules.password_error("1234567") is not None
++    assert rules.password_error("12345678") is None
++    assert rules.password_error("x" * 128) is None
++    assert rules.password_error("x" * 129) is not None
++
++
++def test_full_name_limit_counts_bytes_not_letters():
++    """FULL_NAME is VARCHAR2(200 BYTE): 100 Persian letters fit, 101 do not."""
++    assert rules.full_name_error("ب" * 100) is None
++    assert rules.full_name_error("ب" * 101) is not None
++    assert rules.full_name_error("b" * 200) is None
++    assert rules.full_name_error(None) is None
++
++
++def test_clean_text_trims_and_collapses_whitespace():
++    assert rules.clean_text("  مسئول   انبار \n") == "مسئول انبار"
++    assert rules.clean_text("   ") is None
++    assert rules.clean_text(None) is None
++
++
++def test_role_title_is_required_and_limited():
++    assert rules.role_title_error(None) is not None
++    assert rules.role_title_error("انباردار") is None
++    assert rules.role_title_error("ن" * 200) is None
++    assert rules.role_title_error("ن" * 201) is not None
++
++
++def test_permission_codes_keep_catalog_order_and_report_unknown():
++    known, unknown = rules.split_permission_codes(
++        ["ghabz.issue", "tally.view", "retired.code", "ghabz.issue"]
++    )
++
++    assert known == ["tally.view", "ghabz.issue"]
++    assert unknown == ["retired.code"]
++
++
++@pytest.mark.parametrize(
++    ("is_admin", "is_active", "blocked"),
++    [("yes", "yes", False), ("no", "yes", True), ("yes", "no", True), ("no", "no", True)],
++)
++def test_admin_cannot_lock_themselves_out(is_admin, is_active, blocked):
++    error = rules.self_lockout_error(actor_id=1, target_id=1, is_admin=is_admin, is_active=is_active)
++
++    assert (error is not None) == blocked
++
++
++def test_admin_may_demote_or_deactivate_someone_else():
++    assert rules.self_lockout_error(actor_id=1, target_id=2, is_admin="no", is_active="no") is None
+diff --git a/backend/verify_user_admin_sql.py b/backend/verify_user_admin_sql.py
+new file mode 100644
+index 0000000..06f6c48
+--- /dev/null
++++ b/backend/verify_user_admin_sql.py
+@@ -0,0 +1,153 @@
++"""Run every SQL statement behind the user-management screens, then roll back.
++
++The admin endpoints are tested without Oracle, so this script is the check
++against the real schema. On one connection it creates a throwaway role and
++user with the exact statements and helpers in app/routers/admin.py, reads them
++back through the queries the screens use, edits, reassigns, deactivates,
++resets the password and soft-deletes, checking each result. Then it rolls the
++whole transaction back, so nothing is kept.
++
++The two INSERTs each consume one identity value, which leaves a gap in the ids;
++Oracle's identity cache already leaves gaps like that after every restart.
++
++    python verify_user_admin_sql.py
++"""
++
++from contextlib import contextmanager
++
++from fastapi import HTTPException
++
++from app.auth import permissions
++from app.auth.deps import GRANTED_PERMISSIONS_SQL
++from app.core.db import get_connection
++from app.core.security import hash_password
++from app.routers import admin as A
++
++NAME = "__verify_user_admin__"
++ACTOR_ID = 0
++ACTOR_USERNAME = "verify_user_admin_sql"
++
++failures: list[str] = []
++
++
++def check(label: str, ok: bool, detail: object = "") -> None:
++    print(f"OK  : {label}" if ok else f"FAIL: {label} (got {detail!r})")
++    if not ok:
++        failures.append(label)
++
++
++@contextmanager
++def step(name: str):
++    try:
++        yield
++    except Exception as exc:  # stop at the first statement Oracle rejects
++        print(f"FAIL: {name}: {exc}")
++        failures.append(name)
++        raise
++
++
++def granted(cursor, user_id: int) -> set[str]:
++    cursor.execute(GRANTED_PERMISSIONS_SQL, {"user_id": user_id})
++    codes = [row[0] for row in cursor.fetchall()]
++    return set(permissions.effective_permissions(is_admin=False, granted=codes))
++
++
++def run(connection) -> None:
++    with connection.cursor() as cursor:
++        with step("username check"):
++            cursor.execute(A.USERNAME_TAKEN_SQL, {"username": NAME})
++            check("throwaway username is free", int(cursor.fetchone()[0]) == 0)
++
++        with step("create role"):
++            A._ensure_title_free(cursor, NAME, role_id=-1)
++            new_id = cursor.var(int)
++            cursor.execute(A.INSERT_ROLE_SQL, {
++                "title": NAME, "description": "verify", "actor_id": ACTOR_ID, "new_id": new_id,
++            })
++            role_id = A._returned_int(new_id)
++            A.replace_role_permissions(cursor, role_id, ["tally.view", "ghabz.issue"], ACTOR_ID)
++            role = A.load_roles(cursor, role_id)
++            check("role reads back with catalog-ordered permissions",
++                  len(role) == 1 and role[0]["permissions"] == ["tally.view", "ghabz.issue"], role)
++
++        with step("title uniqueness"):
++            cursor.execute(A.ROLE_TITLE_TAKEN_SQL, {"title": NAME.upper(), "role_id": -1})
++            check("same title in other letter case is taken", int(cursor.fetchone()[0]) == 1)
++            cursor.execute(A.ROLE_TITLE_TAKEN_SQL, {"title": NAME, "role_id": role_id})
++            check("a role does not collide with itself", int(cursor.fetchone()[0]) == 0)
++
++        with step("role id validation"):
++            check("active role id accepted", A.active_role_ids(cursor, [role_id, role_id]) == [role_id])
++            try:
++                A.active_role_ids(cursor, [role_id, -5])
++                check("unknown role id rejected", False, "no error")
++            except HTTPException as exc:
++                check("unknown role id rejected", exc.status_code == 400, exc.status_code)
++
++        with step("create user"):
++            new_id = cursor.var(int)
++            cursor.execute(A.INSERT_USER_SQL, {
++                "username": NAME, "password_hash": hash_password("verify-pass-1"), "full_name": "کاربر آزمایشی",
++                "is_admin": "no", "is_active": "yes", "actor_username": ACTOR_USERNAME, "new_id": new_id,
++            })
++            user_id = A._returned_int(new_id)
++            A.replace_user_roles(cursor, user_id, [role_id], ACTOR_ID)
++            user = A.load_users(cursor, user_id)
++            check("user reads back with the role, Persian name intact",
++                  len(user) == 1 and user[0]["roles"] == [{"id": role_id, "title": NAME}]
++                  and user[0]["full_name"] == "کاربر آزمایشی", user)
++            check("role counts its user", A.load_roles(cursor, role_id)[0]["user_count"] == 1)
++            check("login-time permissions include implied codes",
++                  granted(cursor, user_id) == {"tally.view", "ghabz.issue", "ghabz.view"}, granted(cursor, user_id))
++
++        with step("edit role"):
++            cursor.execute(A.UPDATE_ROLE_SQL, {
++                "title": NAME, "description": None, "actor_id": ACTOR_ID, "role_id": role_id,
++            })
++            check("role update touched one row", cursor.rowcount == 1, cursor.rowcount)
++            A.replace_role_permissions(cursor, role_id, ["invoice.view"], ACTOR_ID)
++            check("user's permissions follow the role at once", granted(cursor, user_id) == {"invoice.view"})
++
++        with step("edit user and password"):
++            cursor.execute(A.UPDATE_USER_SQL, {
++                "full_name": None, "is_admin": "no", "is_active": "no",
++                "actor_username": ACTOR_USERNAME, "user_id": user_id,
++            })
++            check("user update touched one row", cursor.rowcount == 1, cursor.rowcount)
++            check("deactivation reads back", A.load_users(cursor, user_id)[0]["is_active"] == "no")
++            cursor.execute(A.SET_PASSWORD_SQL, {
++                "password_hash": hash_password("verify-pass-2"), "actor_username": ACTOR_USERNAME, "user_id": user_id,
++            })
++            check("password update touched one row", cursor.rowcount == 1, cursor.rowcount)
++
++        with step("delete role"):
++            cursor.execute(A.SOFT_DELETE_ROLE_SQL, {"role_id": role_id, "actor_id": ACTOR_ID})
++            check("soft delete touched one row", cursor.rowcount == 1, cursor.rowcount)
++            cursor.execute(A.DELETE_ROLE_ASSIGNMENTS_SQL, {"role_id": role_id})
++            check("its assignment was removed", cursor.rowcount == 1, cursor.rowcount)
++            check("deleted role is hidden", A.load_roles(cursor, role_id) == [])
++            check("user no longer lists it", A.load_users(cursor, user_id)[0]["roles"] == [])
++            check("user lost its permissions", granted(cursor, user_id) == set())
++            cursor.execute(A.SOFT_DELETE_ROLE_SQL, {"role_id": role_id, "actor_id": ACTOR_ID})
++            check("deleting again touches nothing", cursor.rowcount == 0, cursor.rowcount)
++
++
++def main() -> None:
++    with get_connection() as connection:
++        try:
++            run(connection)
++        except Exception:
++            pass  # already reported by step()
++        finally:
++            connection.rollback()
++        with connection.cursor() as cursor:
++            cursor.execute(A.USERNAME_TAKEN_SQL, {"username": NAME})
++            check("everything was rolled back", int(cursor.fetchone()[0]) == 0)
++
++    print(f"Summary: failed={len(failures)}")
++    if failures:
++        raise SystemExit(1)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index 6cc7469..c1f5b1c 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -85,7 +85,8 @@ import { BaseDataPage } from './pages/BaseDataPage'
+ import { InvoiceListPage } from './pages/InvoiceListPage'
+ import { InvoiceDetailPage } from './pages/InvoiceDetailPage'
+ import { InvoicePrintPage } from './pages/InvoicePrintPage'
+-import { CurrentUserGate, RequirePermission } from './auth/PermissionGate'
++import { CurrentUserGate, RequireAdmin, RequirePermission } from './auth/PermissionGate'
++import { UserManagementPage } from './pages/UserManagementPage'
+ 
+ // import ScratchTest from './pages/ScratchTest'
+ 
+@@ -139,6 +140,7 @@ function AppRoutes() {
+           <Route path="/kartabl" element={<RequirePermission code="kartabl.view"><KartablPage /></RequirePermission>} />
+           <Route path="/invoice" element={<RequirePermission code="invoice.view"><InvoiceListPage /></RequirePermission>} />
+           <Route path="/invoice/:id" element={<RequirePermission code="invoice.view"><InvoiceDetailPage /></RequirePermission>} />
++          <Route path="/users" element={<RequireAdmin><UserManagementPage /></RequireAdmin>} />
+         </Route>
+       </Routes>
+     </BrowserRouter>
+diff --git a/frontend/src/api/admin.ts b/frontend/src/api/admin.ts
+new file mode 100644
+index 0000000..e868df4
+--- /dev/null
++++ b/frontend/src/api/admin.ts
+@@ -0,0 +1,83 @@
++import { ForbiddenError, apiGet, apiSend } from './client'
++import type { PermissionCode } from '../auth/permissions'
++
++/** Calls behind «مدیریت کاربران». Every endpoint is admin-only on the server. */
++
++export type YesNo = 'yes' | 'no'
++
++export interface PermissionInfo {
++  code: PermissionCode
++  label: string
++  module: string // key of the owning module in modules.tsx
++  implies: PermissionCode[]
++}
++
++export interface RoleRow {
++  id: number
++  title: string
++  description: string | null
++  permissions: PermissionCode[]
++  user_count: number
++}
++
++export interface RoleInput {
++  title: string
++  description: string | null
++  permissions: PermissionCode[]
++}
++
++export interface UserRow {
++  id: number
++  username: string
++  full_name: string | null
++  is_admin: YesNo
++  is_active: YesNo
++  roles: { id: number; title: string }[]
++}
++
++export interface UserUpdateInput {
++  full_name: string | null
++  is_admin: YesNo
++  is_active: YesNo
++  role_ids: number[]
++}
++
++export interface UserCreateInput extends UserUpdateInput {
++  username: string
++  password: string
++}
++
++export const adminKeys = {
++  permissions: ['admin-permissions'],
++  roles: ['admin-roles'],
++  users: ['admin-users'],
++} as const
++
++export const adminApi = {
++  permissions: () => apiGet<PermissionInfo[]>('/admin/permissions'),
++  roles: () => apiGet<RoleRow[]>('/admin/roles'),
++  createRole: (body: RoleInput) => apiSend<RoleRow>('/admin/roles', 'POST', body),
++  updateRole: (id: number, body: RoleInput) => apiSend<RoleRow>(`/admin/roles/${id}`, 'PUT', body),
++  deleteRole: (id: number) => apiSend<void>(`/admin/roles/${id}`, 'DELETE'),
++  users: () => apiGet<UserRow[]>('/admin/users'),
++  createUser: (body: UserCreateInput) => apiSend<UserRow>('/admin/users', 'POST', body),
++  updateUser: (id: number, body: UserUpdateInput) => apiSend<UserRow>(`/admin/users/${id}`, 'PUT', body),
++  setPassword: (id: number, password: string) =>
++    apiSend<void>(`/admin/users/${id}/password`, 'PUT', { password }),
++}
++
++/** The server's Persian `detail`, which apiSend embeds as JSON at the end of its message. */
++export function errorMessage(error: unknown, fallback: string): string {
++  if (error instanceof ForbiddenError) return error.message
++  const raw = error instanceof Error ? error.message : ''
++  const json = raw.match(/\{[\s\S]*\}$/)
++  if (json) {
++    try {
++      const detail = (JSON.parse(json[0]) as { detail?: unknown }).detail
++      if (typeof detail === 'string' && detail.trim() !== '') return detail
++    } catch {
++      // not JSON: fall back to the generic message
++    }
++  }
++  return fallback
++}
+diff --git a/frontend/src/auth/PermissionGate.tsx b/frontend/src/auth/PermissionGate.tsx
+index 161b9f4..19f090b 100644
+--- a/frontend/src/auth/PermissionGate.tsx
++++ b/frontend/src/auth/PermissionGate.tsx
+@@ -47,9 +47,16 @@ export function CurrentUserGate({ children }: { children: ReactNode }) {
+  */
+ export function RequirePermission({ code, children }: { code: PermissionCode; children: ReactNode }) {
+   const { can } = usePermissions()
++  return can(code) ? <>{children}</> : <NoAccess />
++}
+ 
+-  if (can(code)) return <>{children}</>
++/** Route guard for admin-only pages such as user management, which no permission code grants. */
++export function RequireAdmin({ children }: { children: ReactNode }) {
++  const { isAdmin } = usePermissions()
++  return isAdmin ? <>{children}</> : <NoAccess />
++}
+ 
++function NoAccess() {
+   return (
+     <Center py={96} dir="rtl">
+       <Stack align="center" gap="sm" ta="center" maw={420}>
+diff --git a/frontend/src/auth/usePermissions.ts b/frontend/src/auth/usePermissions.ts
+index accfeac..8670885 100644
+--- a/frontend/src/auth/usePermissions.ts
++++ b/frontend/src/auth/usePermissions.ts
+@@ -33,5 +33,7 @@ export function usePermissions() {
+   const { data: user } = useCurrentUser()
+   const granted = useMemo(() => new Set(user?.permissions ?? []), [user])
+   const can = useCallback((code: PermissionCode) => granted.has(code), [granted])
+-  return { user, can }
++  // Admins already hold every code; this flag gates what no code grants: user management.
++  const isAdmin = user?.is_admin === 'yes'
++  return { user, can, isAdmin }
+ }
+diff --git a/frontend/src/components/PermissionChecklist.tsx b/frontend/src/components/PermissionChecklist.tsx
+new file mode 100644
+index 0000000..8982426
+--- /dev/null
++++ b/frontend/src/components/PermissionChecklist.tsx
+@@ -0,0 +1,82 @@
++import { Checkbox, Group, SimpleGrid, Stack, Text } from '@mantine/core'
++import type { PermissionInfo } from '../api/admin'
++import type { PermissionCode } from '../auth/permissions'
++import { modules } from '../modules'
++
++/**
++ * Codes that `selected` brings in through `implies`, each mapped to the label of
++ * a selected permission that brings it. The backend grants these at request
++ * time, so they are shown ticked and locked rather than stored on the role.
++ */
++export function impliedBy(selected: ReadonlySet<string>, catalog: PermissionInfo[]): Map<string, string> {
++  const byCode = new Map(catalog.map((p) => [p.code, p]))
++  const implied = new Map<string, string>()
++  for (const code of selected) {
++    const source = byCode.get(code as PermissionCode)
++    if (!source) continue
++    const pending = [...source.implies]
++    while (pending.length > 0) {
++      const next = pending.pop()!
++      if (selected.has(next) || implied.has(next)) continue
++      implied.set(next, source.label)
++      pending.push(...(byCode.get(next)?.implies ?? []))
++    }
++  }
++  return implied
++}
++
++interface PermissionChecklistProps {
++  catalog: PermissionInfo[]
++  value: PermissionCode[]
++  onChange: (codes: PermissionCode[]) => void
++}
++
++/** One group per launcher module, in launcher order, using the module's name and colour. */
++export function PermissionChecklist({ catalog, value, onChange }: PermissionChecklistProps) {
++  const selected = new Set<string>(value)
++  const implied = impliedBy(selected, catalog)
++  const groups = modules
++    .map((module) => ({ module, items: catalog.filter((p) => p.module === module.key) }))
++    .filter((group) => group.items.length > 0)
++
++  const toggle = (code: PermissionCode, checked: boolean) => {
++    const next = new Set(selected)
++    if (checked) next.add(code)
++    else next.delete(code)
++    onChange(catalog.map((p) => p.code).filter((c) => next.has(c)))
++  }
++
++  return (
++    <Stack gap="md">
++      {groups.map(({ module, items }) => (
++        <Stack key={module.key} gap={8}>
++          <Group gap={8}>
++            <span
++              aria-hidden
++              style={{
++                width: 10, height: 10, borderRadius: 999,
++                background: `var(--mantine-color-${module.color}-6)`,
++              }}
++            />
++            <Text fw={700} size="sm">{module.title}</Text>
++          </Group>
++          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm" verticalSpacing="xs" ps="lg">
++            {items.map((p) => {
++              const via = selected.has(p.code) ? undefined : implied.get(p.code)
++              return (
++                <Checkbox
++                  key={p.code}
++                  label={p.label}
++                  description={via ? `همراه با «${via}»` : undefined}
++                  checked={selected.has(p.code) || via != null}
++                  disabled={via != null}
++                  onChange={(event) => toggle(p.code, event.currentTarget.checked)}
++                />
++              )
++            })}
++          </SimpleGrid>
++        </Stack>
++      ))}
++    </Stack>
++  )
++}
+diff --git a/frontend/src/components/RolesPanel.tsx b/frontend/src/components/RolesPanel.tsx
+new file mode 100644
+index 0000000..f57a512
+--- /dev/null
++++ b/frontend/src/components/RolesPanel.tsx
+@@ -0,0 +1,200 @@
++import { useMemo, useState } from 'react'
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import {
++  ActionIcon, Alert, Badge, Button, Center, Group, Modal, Paper, Stack, Text, TextInput, Textarea,
++  ThemeIcon, Tooltip,
++} from '@mantine/core'
++import { Inbox, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
++import { adminApi, adminKeys, errorMessage, type RoleInput, type RoleRow } from '../api/admin'
++import { DataTable, type Column } from './DataTable'
++import { PermissionChecklist } from './PermissionChecklist'
++
++const EMPTY_ROLE: RoleInput = { title: '', description: null, permissions: [] }
++
++export function RolesPanel() {
++  const queryClient = useQueryClient()
++  const catalogQuery = useQuery({ queryKey: adminKeys.permissions, queryFn: adminApi.permissions, staleTime: Infinity })
++  const rolesQuery = useQuery({ queryKey: adminKeys.roles, queryFn: adminApi.roles })
++
++  const [opened, setOpened] = useState(false)
++  const [editing, setEditing] = useState<RoleRow | null>(null)
++  const [form, setForm] = useState<RoleInput>(EMPTY_ROLE)
++
++  const labels = useMemo(
++    () => new Map((catalogQuery.data ?? []).map((p) => [p.code, p.label])),
++    [catalogQuery.data],
++  )
++
++  const refresh = () => {
++    queryClient.invalidateQueries({ queryKey: adminKeys.roles })
++    queryClient.invalidateQueries({ queryKey: adminKeys.users }) // users show role titles
++  }
++
++  const save = useMutation({
++    mutationFn: () => {
++      const body = { ...form, description: form.description?.trim() || null }
++      return editing ? adminApi.updateRole(editing.id, body) : adminApi.createRole(body)
++    },
++    onSuccess: () => {
++      refresh()
++      setOpened(false)
++    },
++  })
++  const remove = useMutation({ mutationFn: (id: number) => adminApi.deleteRole(id), onSuccess: refresh })
++
++  const openAdd = () => {
++    save.reset()
++    setEditing(null)
++    setForm(EMPTY_ROLE)
++    setOpened(true)
++  }
++  const openEdit = (role: RoleRow) => {
++    save.reset()
++    setEditing(role)
++    setForm({ title: role.title, description: role.description, permissions: role.permissions })
++    setOpened(true)
++  }
++  const confirmDelete = (role: RoleRow) => {
++    const holders = role.user_count > 0
++      ? `\nاین نقش از ${role.user_count.toLocaleString('fa-IR')} کاربر گرفته می‌شود.`
++      : ''
++    if (confirm(`حذف نقش «${role.title}»؟${holders}`)) remove.mutate(role.id)
++  }
++
++  const columns: Column<RoleRow>[] = [
++    { key: 'title', label: 'عنوان نقش', render: (role) => <Text fw={600}>{role.title}</Text> },
++    { key: 'description', label: 'توضیحات', render: (role) => role.description ?? '—' },
++    {
++      key: 'permissions', label: 'دسترسی‌ها', render: (role) => role.permissions.length === 0
++        ? <Text size="sm" c="dimmed">بدون دسترسی</Text>
++        : (
++          <Group gap={4}>
++            {role.permissions.map((code) => (
++              <Badge key={code} variant="light" radius="sm" size="sm">{labels.get(code) ?? code}</Badge>
++            ))}
++          </Group>
++        ),
++    },
++    { key: 'users', label: 'کاربران', render: (role) => role.user_count.toLocaleString('fa-IR') },
++    {
++      key: '__actions', label: 'عملیات', render: (role) => (
++        <Group gap={4} justify="center" wrap="nowrap">
++          <Tooltip label="ویرایش نقش" withArrow>
++            <ActionIcon variant="subtle" color="blue" radius="md" aria-label="ویرایش نقش" onClick={() => openEdit(role)}>
++              <Pencil size={18} />
++            </ActionIcon>
++          </Tooltip>
++          <Tooltip label="حذف نقش" withArrow>
++            <ActionIcon
++              variant="subtle" color="red" radius="md" aria-label="حذف نقش"
++              loading={remove.isPending && remove.variables === role.id}
++              onClick={() => confirmDelete(role)}
++            >
++              <Trash2 size={18} />
++            </ActionIcon>
++          </Tooltip>
++        </Group>
++      ),
++    },
++  ]
++
++  const emptyContent = (
++    <Center py={64}>
++      <Stack align="center" gap="sm" ta="center" maw={400}>
++        <ThemeIcon size={64} radius="xl" variant="light" color="orange"><Inbox size={34} /></ThemeIcon>
++        <Text fw={600} size="lg">هنوز نقشی تعریف نشده است</Text>
++        <Text size="sm" c="dimmed">
++          هر نقش مجموعه‌ای از دسترسی‌هاست، مثل «انباردار» یا «حسابدار». بعد از ساختن نقش، آن را به کاربران بدهید.
++        </Text>
++        <Button mt="xs" radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>افزودن نقش</Button>
++      </Stack>
++    </Center>
++  )
++
++  return (
++    <>
++      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
++        <Group justify="space-between" wrap="wrap" gap="sm">
++          <Group gap="xs" wrap="nowrap">
++            <ShieldCheck size={18} />
++            <Text size="sm" c="dimmed">مدیر سیستم بدون هیچ نقشی به همه بخش‌ها دسترسی دارد.</Text>
++          </Group>
++          <Group gap="xs">
++            <Button
++              variant="default" radius="md" leftSection={<RefreshCw size={16} />}
++              onClick={refresh} loading={rolesQuery.isFetching && !rolesQuery.isLoading}
++            >
++              بروزرسانی
++            </Button>
++            <Button radius="md" leftSection={<Plus size={18} />} onClick={openAdd}>افزودن نقش</Button>
++          </Group>
++        </Group>
++      </Paper>
++
++      {remove.isError && (
++        <Alert color="red" radius="md" mb="md" withCloseButton onClose={() => remove.reset()}>
++          {errorMessage(remove.error, 'حذف نقش انجام نشد.')}
++        </Alert>
++      )}
++
++      <DataTable
++        columns={columns}
++        data={rolesQuery.data}
++        isLoading={rolesQuery.isLoading}
++        error={rolesQuery.error}
++        getRowKey={(role) => role.id}
++        emptyContent={emptyContent}
++      />
++
++      <Modal
++        opened={opened}
++        onClose={() => setOpened(false)}
++        title={editing ? `ویرایش نقش «${editing.title}»` : 'افزودن نقش'}
++        size="lg"
++        radius="lg"
++        centered
++      >
++        <Stack gap="md" dir="rtl">
++          <TextInput
++            label="عنوان نقش"
++            placeholder="مثلاً انباردار"
++            required
++            value={form.title}
++            onChange={(event) => setForm({ ...form, title: event.currentTarget.value })}
++          />
++          <Textarea
++            label="توضیحات"
++            autosize
++            minRows={2}
++            value={form.description ?? ''}
++            onChange={(event) => setForm({ ...form, description: event.currentTarget.value })}
++          />
++          <Stack gap={4}>
++            <Text fw={600} size="sm">دسترسی‌ها</Text>
++            <Text size="xs" c="dimmed">
++              بعضی دسترسی‌ها برای کار کردن به دسترسی دیگری نیاز دارند؛ آن‌ها خودکار تیک می‌خورند.
++            </Text>
++          </Stack>
++          {catalogQuery.data
++            ? (
++              <PermissionChecklist
++                catalog={catalogQuery.data}
++                value={form.permissions}
++                onChange={(permissions) => setForm({ ...form, permissions })}
++              />
++            )
++            : <Text size="sm" c="dimmed">در حال بارگذاری فهرست دسترسی‌ها…</Text>}
++          {save.isError && (
++            <Alert color="red" radius="md">{errorMessage(save.error, 'ذخیره نقش انجام نشد.')}</Alert>
++          )}
++          <Group justify="flex-start" gap="sm">
++            <Button radius="md" loading={save.isPending} disabled={form.title.trim() === ''} onClick={() => save.mutate()}>
++              ذخیره
++            </Button>
++            <Button variant="default" radius="md" onClick={() => setOpened(false)}>لغو</Button>
++          </Group>
++        </Stack>
++      </Modal>
++    </>
++  )
++}
+diff --git a/frontend/src/components/UsersPanel.tsx b/frontend/src/components/UsersPanel.tsx
+new file mode 100644
+index 0000000..ae3f322
+--- /dev/null
++++ b/frontend/src/components/UsersPanel.tsx
+@@ -0,0 +1,325 @@
++import { useMemo, useState } from 'react'
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import {
++  ActionIcon, Alert, Badge, Button, Center, Group, Modal, MultiSelect, Paper, PasswordInput, Stack,
++  Switch, Text, TextInput, ThemeIcon, Tooltip,
++} from '@mantine/core'
++import { Inbox, KeyRound, Pencil, RefreshCw, Search, UserPlus } from 'lucide-react'
++import { adminApi, adminKeys, errorMessage, type UserRow } from '../api/admin'
++import { usePermissions } from '../auth/usePermissions'
++import { DataTable, type Column } from './DataTable'
++
++interface UserForm {
++  username: string
++  password: string
++  full_name: string
++  is_admin: boolean
++  is_active: boolean
++  role_ids: string[] // MultiSelect works with strings
++}
++
++const EMPTY_USER: UserForm = {
++  username: '', password: '', full_name: '', is_admin: false, is_active: true, role_ids: [],
++}
++const PASSWORD_MIN = 8
++
++// Persian/Arabic-Indic digits -> Latin so a search matches either script.
++const normalizeDigits = (s: string) =>
++  s.replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
++    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
++
++export function UsersPanel() {
++  const queryClient = useQueryClient()
++  const { user: me } = usePermissions()
++  const usersQuery = useQuery({ queryKey: adminKeys.users, queryFn: adminApi.users })
++  const rolesQuery = useQuery({ queryKey: adminKeys.roles, queryFn: adminApi.roles })
++
++  const [search, setSearch] = useState('')
++  const [formOpened, setFormOpened] = useState(false)
++  const [editing, setEditing] = useState<UserRow | null>(null)
++  const [form, setForm] = useState<UserForm>(EMPTY_USER)
++  const [passwordUser, setPasswordUser] = useState<UserRow | null>(null)
++  const [password, setPassword] = useState('')
++  const [passwordAgain, setPasswordAgain] = useState('')
++  const [notice, setNotice] = useState<string | null>(null)
++
++  const editingSelf = editing != null && editing.id === me?.id
++
++  const refresh = () => {
++    queryClient.invalidateQueries({ queryKey: adminKeys.users })
++    queryClient.invalidateQueries({ queryKey: adminKeys.roles }) // user counts per role
++    queryClient.invalidateQueries({ queryKey: ['current-user'] }) // the header shows my own name
++  }
++
++  const save = useMutation({
++    mutationFn: () => {
++      const common = {
++        full_name: form.full_name.trim() || null,
++        is_admin: form.is_admin ? 'yes' as const : 'no' as const,
++        is_active: form.is_active ? 'yes' as const : 'no' as const,
++        role_ids: form.role_ids.map(Number),
++      }
++      return editing
++        ? adminApi.updateUser(editing.id, common)
++        : adminApi.createUser({ ...common, username: form.username.trim(), password: form.password })
++    },
++    onSuccess: (saved) => {
++      refresh()
++      setFormOpened(false)
++      setNotice(editing ? `تغییرات «${saved.username}» ذخیره شد.` : `کاربر «${saved.username}» ساخته شد.`)
++    },
++  })
++
++  const savePassword = useMutation({
++    mutationFn: () => adminApi.setPassword(passwordUser!.id, password),
++    onSuccess: () => {
++      setNotice(`رمز عبور «${passwordUser!.username}» تغییر کرد.`)
++      setPasswordUser(null)
++    },
++  })
++
++  const openAdd = () => {
++    save.reset()
++    setEditing(null)
++    setForm(EMPTY_USER)
++    setFormOpened(true)
++  }
++  const openEdit = (user: UserRow) => {
++    save.reset()
++    setEditing(user)
++    setForm({
++      username: user.username,
++      password: '',
++      full_name: user.full_name ?? '',
++      is_admin: user.is_admin === 'yes',
++      is_active: user.is_active === 'yes',
++      role_ids: user.roles.map((role) => String(role.id)),
++    })
++    setFormOpened(true)
++  }
++  const openPassword = (user: UserRow) => {
++    savePassword.reset()
++    setPassword('')
++    setPasswordAgain('')
++    setPasswordUser(user)
++  }
++
++  const users = usersQuery.data
++  const filtered = useMemo(() => {
++    const q = normalizeDigits(search.trim().toLowerCase())
++    if (!users || !q) return users
++    return users.filter((user) =>
++      normalizeDigits([user.username, user.full_name ?? '', ...user.roles.map((r) => r.title)].join(' ').toLowerCase())
++        .includes(q),
++    )
++  }, [users, search])
++
++  const roleOptions = (rolesQuery.data ?? []).map((role) => ({ value: String(role.id), label: role.title }))
++
++  const columns: Column<UserRow>[] = [
++    {
++      key: 'username', label: 'نام کاربری', render: (user) => (
++        <Group gap={6} wrap="nowrap">
++          <Text fw={600}><bdi dir="ltr">{user.username}</bdi></Text>
++          {user.id === me?.id && <Badge size="xs" variant="light" color="gray">شما</Badge>}
++        </Group>
++      ),
++    },
++    { key: 'full_name', label: 'نام کامل', render: (user) => user.full_name ?? '—' },
++    {
++      key: 'roles', label: 'نقش‌ها', render: (user) => (
++        <Group gap={4}>
++          {user.is_admin === 'yes' && <Badge color="orange" variant="filled" radius="sm" size="sm">مدیر سیستم</Badge>}
++          {user.roles.map((role) => <Badge key={role.id} variant="light" radius="sm" size="sm">{role.title}</Badge>)}
++          {user.is_admin !== 'yes' && user.roles.length === 0 && <Text size="sm" c="dimmed">بدون نقش</Text>}
++        </Group>
++      ),
++    },
++    {
++      key: 'status', label: 'وضعیت', render: (user) => user.is_active === 'yes'
++        ? <Badge color="teal" variant="light" radius="sm">فعال</Badge>
++        : <Badge color="gray" variant="light" radius="sm">غیرفعال</Badge>,
++    },
++    {
++      key: '__actions', label: 'عملیات', render: (user) => (
++        <Group gap={4} justify="center" wrap="nowrap">
++          <Tooltip label="ویرایش کاربر" withArrow>
++            <ActionIcon variant="subtle" color="blue" radius="md" aria-label="ویرایش کاربر" onClick={() => openEdit(user)}>
++              <Pencil size={18} />
++            </ActionIcon>
++          </Tooltip>
++          <Tooltip label="تغییر رمز عبور" withArrow>
++            <ActionIcon variant="subtle" color="orange" radius="md" aria-label="تغییر رمز عبور" onClick={() => openPassword(user)}>
++              <KeyRound size={18} />
++            </ActionIcon>
++          </Tooltip>
++        </Group>
++      ),
++    },
++  ]
++
++  const emptyContent = (
++    <Center py={64}>
++      <Stack align="center" gap="xs">
++        <ThemeIcon size={44} radius="xl" variant="light" color="gray"><Inbox size={24} /></ThemeIcon>
++        <Text fw={600}>کاربری با این جستجو یافت نشد</Text>
++        <Button variant="subtle" radius="md" onClick={() => setSearch('')}>پاک کردن جستجو</Button>
++      </Stack>
++    </Center>
++  )
++
++  const passwordTooShort = password.length > 0 && password.length < PASSWORD_MIN
++  const passwordsDiffer = passwordAgain.length > 0 && password !== passwordAgain
++  const canSubmitUser = editing != null
++    || (form.username.trim() !== '' && form.password.length >= PASSWORD_MIN)
++
++  return (
++    <>
++      <Paper radius="md" p="sm" withBorder shadow="xs" mb="md">
++        <Group gap="sm" wrap="wrap">
++          <TextInput
++            radius="md"
++            placeholder="جستجو در نام کاربری، نام یا نقش…"
++            leftSection={<Search size={16} />}
++            value={search}
++            onChange={(event) => setSearch(event.currentTarget.value)}
++            style={{ flex: '1 1 260px', minWidth: 200 }}
++          />
++          <Button
++            variant="default" radius="md" leftSection={<RefreshCw size={16} />}
++            onClick={refresh} loading={usersQuery.isFetching && !usersQuery.isLoading}
++          >
++            بروزرسانی
++          </Button>
++          <Button radius="md" leftSection={<UserPlus size={18} />} onClick={openAdd}>افزودن کاربر</Button>
++        </Group>
++      </Paper>
++
++      {notice && (
++        <Alert color="teal" radius="md" mb="md" withCloseButton onClose={() => setNotice(null)}>{notice}</Alert>
++      )}
++
++      <DataTable
++        columns={columns}
++        data={filtered}
++        isLoading={usersQuery.isLoading}
++        error={usersQuery.error}
++        getRowKey={(user) => user.id}
++        emptyContent={emptyContent}
++      />
++
++      <Modal
++        opened={formOpened}
++        onClose={() => setFormOpened(false)}
++        title={editing ? `ویرایش کاربر «${editing.username}»` : 'افزودن کاربر'}
++        radius="lg"
++        centered
++      >
++        <Stack gap="sm" dir="rtl">
++          <TextInput
++            label="نام کاربری"
++            description={editing ? 'نام کاربری بعد از ساخت تغییر نمی‌کند.' : 'حروف انگلیسی، عدد و . _ @ -'}
++            required={!editing}
++            disabled={editing != null}
++            dir="ltr"
++            autoComplete="off"
++            value={form.username}
++            onChange={(event) => setForm({ ...form, username: event.currentTarget.value })}
++          />
++          {!editing && (
++            <PasswordInput
++              label="رمز عبور"
++              description="دست‌کم ۸ نویسه"
++              required
++              autoComplete="new-password"
++              value={form.password}
++              onChange={(event) => setForm({ ...form, password: event.currentTarget.value })}
++            />
++          )}
++          <TextInput
++            label="نام کامل"
++            value={form.full_name}
++            onChange={(event) => setForm({ ...form, full_name: event.currentTarget.value })}
++          />
++          <MultiSelect
++            label="نقش‌ها"
++            placeholder={roleOptions.length ? 'انتخاب نقش' : undefined}
++            description={roleOptions.length === 0 ? 'هنوز نقشی نیست؛ ابتدا در زبانه «نقش‌ها» نقش بسازید.' : undefined}
++            data={roleOptions}
++            value={form.role_ids}
++            onChange={(role_ids) => setForm({ ...form, role_ids })}
++            searchable
++            clearable
++            nothingFoundMessage="نقشی یافت نشد"
++          />
++          <Switch
++            label="مدیر سیستم"
++            description="دسترسی کامل به همه بخش‌ها، از جمله مدیریت کاربران"
++            checked={form.is_admin}
++            disabled={editingSelf}
++            onChange={(event) => setForm({ ...form, is_admin: event.currentTarget.checked })}
++          />
++          <Switch
++            label="حساب فعال"
++            description="کاربر غیرفعال نمی‌تواند وارد شود و درخواست‌های بعدی‌اش رد می‌شود"
++            checked={form.is_active}
++            disabled={editingSelf}
++            onChange={(event) => setForm({ ...form, is_active: event.currentTarget.checked })}
++          />
++          {editingSelf && (
++            <Text size="xs" c="dimmed">
++              برای جلوگیری از قفل شدن سامانه، مدیر بودن و فعال بودن حساب خودتان را نمی‌توانید تغییر دهید.
++            </Text>
++          )}
++          {save.isError && <Alert color="red" radius="md">{errorMessage(save.error, 'ذخیره کاربر انجام نشد.')}</Alert>}
++          <Group justify="flex-start" gap="sm" mt="xs">
++            <Button radius="md" loading={save.isPending} disabled={!canSubmitUser} onClick={() => save.mutate()}>
++              ذخیره
++            </Button>
++            <Button variant="default" radius="md" onClick={() => setFormOpened(false)}>لغو</Button>
++          </Group>
++        </Stack>
++      </Modal>
++
++      <Modal
++        opened={passwordUser != null}
++        onClose={() => setPasswordUser(null)}
++        title={passwordUser ? `تغییر رمز عبور «${passwordUser.username}»` : ''}
++        radius="lg"
++        centered
++      >
++        <Stack gap="sm" dir="rtl">
++          <PasswordInput
++            label="رمز عبور جدید"
++            description="دست‌کم ۸ نویسه"
++            autoComplete="new-password"
++            value={password}
++            error={passwordTooShort ? 'رمز عبور باید دست‌کم ۸ نویسه باشد' : undefined}
++            onChange={(event) => setPassword(event.currentTarget.value)}
++          />
++          <PasswordInput
++            label="تکرار رمز عبور جدید"
++            autoComplete="new-password"
++            value={passwordAgain}
++            error={passwordsDiffer ? 'دو رمز عبور یکسان نیستند' : undefined}
++            onChange={(event) => setPasswordAgain(event.currentTarget.value)}
++          />
++          {savePassword.isError && (
++            <Alert color="red" radius="md">{errorMessage(savePassword.error, 'تغییر رمز عبور انجام نشد.')}</Alert>
++          )}
++          <Group justify="flex-start" gap="sm" mt="xs">
++            <Button
++              radius="md"
++              loading={savePassword.isPending}
++              disabled={password.length < PASSWORD_MIN || password !== passwordAgain}
++              onClick={() => savePassword.mutate()}
++            >
++              ذخیره رمز جدید
++            </Button>
++            <Button variant="default" radius="md" onClick={() => setPasswordUser(null)}>لغو</Button>
++          </Group>
++        </Stack>
++      </Modal>
++    </>
++  )
++}
+diff --git a/frontend/src/components/icons.tsx b/frontend/src/components/icons.tsx
+index 43b33c9..6d2029e 100644
+--- a/frontend/src/components/icons.tsx
++++ b/frontend/src/components/icons.tsx
+@@ -86,3 +86,5 @@ export const IconInvoice = mk(<><path d="M6.5 3H14l4 4v14H6.5z" /><path d="M14 3
+ export const IconKartabl = mk(<><path d="M3.5 8a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /><path d="M8 13.5h8M8 16.5h5" /></>)
+ // three-dot trigger for per-row action menus (h.01 segments render as round dots)
+ export const IconDots = mk(<path d="M5 12h.01M12 12h.01M19 12h.01" />)
++// two people: users and roles («مدیریت کاربران»)
++export const IconUsers = mk(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8" /><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8" /></>)
+diff --git a/frontend/src/modules.tsx b/frontend/src/modules.tsx
+index 29a473b..d32ba10 100644
+--- a/frontend/src/modules.tsx
++++ b/frontend/src/modules.tsx
+@@ -166,7 +166,7 @@ import { useMemo, type ComponentType, type CSSProperties } from 'react'
+ import type { CrudConfig } from './components/CrudResource'
+ import { resources } from './resources'
+ import {
+-  IconDatabase, IconClipboardList, IconReceipt, IconInvoice, IconKartabl,
++  IconDatabase, IconClipboardList, IconReceipt, IconInvoice, IconKartabl, IconUsers,
+ } from './components/icons'
+ import { usePermissions } from './auth/usePermissions'
+ import type { PermissionCode } from './auth/permissions'
+@@ -182,6 +182,7 @@ export interface AppModule {
+   color: string           // Mantine color name, drives the tile badge
+   enabled?: boolean       // false => tile is visible but greyed out with a "به‌زودی" badge
+   permission?: PermissionCode // shown only to users holding it; omit for every logged-in user
++  adminOnly?: boolean         // shown only to admins (FA_USERS.IS_ADMIN); no permission code grants it
+ }
+ 
+ export const modules: AppModule[] = [
+@@ -230,12 +231,24 @@ export const modules: AppModule[] = [
+     color: 'red',
+     permission: 'invoice.view',
+   },
++  {
++    key: 'users',
++    title: 'مدیریت کاربران',
++    description: 'کاربران، نقش‌ها و دسترسی‌ها',
++    route: '/users',
++    icon: IconUsers,
++    color: 'orange',
++    adminOnly: true,
++  },
+ ]
+ 
+ /** The modules this user may open: the home-page tiles and the sidebar entries. */
+ export function useVisibleModules(): AppModule[] {
+-  const { can } = usePermissions()
+-  return useMemo(() => modules.filter((m) => !m.permission || can(m.permission)), [can])
++  const { can, isAdmin } = usePermissions()
++  return useMemo(
++    () => modules.filter((m) => (!m.adminOnly || isAdmin) && (!m.permission || can(m.permission))),
++    [can, isAdmin],
++  )
+ }
+ 
+ /**
+diff --git a/frontend/src/pages/UserManagementPage.tsx b/frontend/src/pages/UserManagementPage.tsx
+new file mode 100644
+index 0000000..32b3ab5
+--- /dev/null
++++ b/frontend/src/pages/UserManagementPage.tsx
+@@ -0,0 +1,39 @@
++import { Box, Tabs } from '@mantine/core'
++import { useSearchParams } from 'react-router-dom'
++import { BackButton } from '../components/BackButton'
++import { PageHeader } from '../components/PageHeader'
++import { RolesPanel } from '../components/RolesPanel'
++import { UsersPanel } from '../components/UsersPanel'
++
++/**
++ * «مدیریت کاربران»: admin-only. Users get roles; roles are sets of permissions.
++ * The open tab lives in the URL (?tab=roles) so it survives a refresh.
++ */
++export function UserManagementPage() {
++  const [params, setParams] = useSearchParams()
++  const tab = params.get('tab') === 'roles' ? 'roles' : 'users'
++
++  return (
++    <Box dir="rtl" style={{ maxWidth: 1280, margin: '0 auto' }}>
++      <PageHeader
++        title="مدیریت کاربران"
++        subtitle="کاربران سامانه، نقش‌ها و دسترسی هر نقش"
++        actions={<BackButton to="/" />}
++      />
++      <Tabs
++        value={tab}
++        onChange={(value) => setParams(value === 'roles' ? { tab: 'roles' } : {}, { replace: true })}
++        keepMounted={false}
++      >
++        <Tabs.List mb="md">
++          <Tabs.Tab value="users">کاربران</Tabs.Tab>
++          <Tabs.Tab value="roles">نقش‌ها</Tabs.Tab>
++        </Tabs.List>
++        <Tabs.Panel value="users"><UsersPanel /></Tabs.Panel>
++        <Tabs.Panel value="roles"><RolesPanel /></Tabs.Panel>
++      </Tabs>
++    </Box>
++  )
++}
++
++export default UserManagementPage

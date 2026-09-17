@@ -11,6 +11,7 @@ import { PageHeader } from '../components/PageHeader'
 import { BackButton } from '../components/BackButton'
 import type { Commodity } from '../components/CommoditySelect'
 import { IconSearch, IconUpload, IconEdit, IconInbox, IconAlert } from '../components/icons'
+import { usePermissions } from '../auth/usePermissions'
 
 /**
  * CommodityCatalogPage — the «کالاها» page, backed by FA_COMMODITY_CATALOG.
@@ -29,6 +30,7 @@ type SearchResponse = { items: Commodity[]; total: number }
 
 export function CommodityCatalogPage() {
   const qc = useQueryClient()
+  const canManage = usePermissions().can('commodity.manage')
   const [search, setSearch] = useState('')
   const [debounced] = useDebouncedValue(search, 300)
   const [page, setPage] = useState(1)
@@ -88,18 +90,20 @@ export function CommodityCatalogPage() {
         subtitle="جستجو، ایمپورت و تعیین گروه قیمت کالاها"
         actions={
           <>
-            <FileButton
-              resetRef={resetRef}
-              accept=".xlsx,.xlsm"
-              onChange={(f) => { if (f) importMutation.mutate(f); resetRef.current?.() }}
-            >
-              {(props) => (
-                <Button {...props} radius="md" variant="white" leftSection={<IconUpload size={18} />}
-                  loading={importMutation.isPending}>
-                  ایمپورت اکسل
-                </Button>
-              )}
-            </FileButton>
+            {canManage && (
+              <FileButton
+                resetRef={resetRef}
+                accept=".xlsx,.xlsm"
+                onChange={(f) => { if (f) importMutation.mutate(f); resetRef.current?.() }}
+              >
+                {(props) => (
+                  <Button {...props} radius="md" variant="white" leftSection={<IconUpload size={18} />}
+                    loading={importMutation.isPending}>
+                    ایمپورت اکسل
+                  </Button>
+                )}
+              </FileButton>
+            )}
             <BackButton to="/base-data" />
           </>
         }
@@ -208,9 +212,11 @@ export function CommodityCatalogPage() {
                   <Table.Th>حقوق گمرکی</Table.Th>
                   <Table.Th>سود بازرگانی</Table.Th>
                   <Table.Th>گروه قیمت انبار</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>
-                    عملیات
-                  </Table.Th>
+                  {canManage && (
+                    <Table.Th style={{ textAlign: 'center' }}>
+                      عملیات
+                    </Table.Th>
+                  )}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -226,14 +232,16 @@ export function CommodityCatalogPage() {
                         ? <Badge variant="light" radius="sm">{c.storage_group_code}</Badge>
                         : <Text c="dimmed" size="sm">تعیین نشده</Text>}
                     </Table.Td>
-                    <Table.Td style={{ textAlign: 'center' }}>
-                      <Tooltip label="تعیین گروه قیمت انبار" withArrow>
-                        <ActionIcon variant="subtle" color="blue" radius="md" aria-label="تعیین گروه قیمت"
-                          onClick={() => openEdit(c)}>
-                          <IconEdit size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Table.Td>
+                    {canManage && (
+                      <Table.Td style={{ textAlign: 'center' }}>
+                        <Tooltip label="تعیین گروه قیمت انبار" withArrow>
+                          <ActionIcon variant="subtle" color="blue" radius="md" aria-label="تعیین گروه قیمت"
+                            onClick={() => openEdit(c)}>
+                            <IconEdit size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Table.Td>
+                    )}
                   </Table.Tr>
                 ))}
               </Table.Tbody>

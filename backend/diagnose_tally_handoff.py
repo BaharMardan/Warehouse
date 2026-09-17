@@ -1,0 +1,161 @@
+"""Read-only diagnostic before adding the operator / warehouse-keeper handoff.
+
+It answers, with evidence from the live database:
+
+  1. Are the planned FA_TALI_HEADER column and constraint names still free?
+  2. What columns does FA_TALI_HEADER have today (the git capture is older)?
+  3. Does any trigger fire on FA_TALI_HEADER?
+  4. How many tallies are open, pending (receipt issued) and closed (invoiced),
+     and how many of each already have goods rows and service rows? This
+     decides what existing tallies should start as when the handoff arrives.
+  5. What do the 15 newest tallies look like?
+
+Only SELECT statements run; nothing is changed. From backend/:
+
+    python diagnose_tally_handoff.py
+
+The report is printed and also written as UTF-8 to tally_handoff_diagnostic.txt
+next to this script (git-ignored).
+"""
+
+import datetime
+import sys
+from pathlib import Path
+
+import oracledb
+
+from app.core.db import get_connection
+
+REPORT_FILE = Path(__file__).resolve().with_name("tally_handoff_diagnostic.txt")
+PLANNED_COLUMNS = (
+    "HANDOFF_STEP", "SENT_TO_KEEPER_AT", "SENT_TO_KEEPER_BY",
+    "RETURNED_AT", "RETURNED_BY", "IS_VOLUMETRIC", "VOLUMETRIC_PALLETS",
+)
+PLANNED_CONSTRAINTS = (
+    "CK_FA_TALI_HANDOFF_STEP", "CK_FA_TALI_IS_VOLUMETRIC", "CK_FA_TALI_VOLUMETRIC_PALLETS",
+)
+SERVICE_TABLES = (
+    "fa_tali_kala_diamound", "fa_tali_kala_strip", "fa_tali_kala_other_service",
+    "fa_tali_kala_time_stop_vehicle", "fa_tali_kala_vehicle_enter_price",
+)
+
+# One row per active tally with the status /tally/list derives and row counts.
+TALLIES = """
+SELECT h."ID_TALI" AS id_tali,
+       h."TALI_NUMBER" AS tali_number,
+       h."CREATE_AT" AS create_at,
+       CASE
+           WHEN EXISTS (SELECT 1 FROM "FA_SORAT_HESAB_HEADER" i
+                         WHERE i."TALI_ID_HEADER" = h."ID_TALI" AND i."SORAT_IS_DELETED" = 'no') THEN 'closed'
+           WHEN EXISTS (SELECT 1 FROM "fa_ghabz_anbar_header" g
+                         WHERE g."TALI_ID" = h."ID_TALI" AND g."IS_DELETED" = 'no') THEN 'pending'
+           ELSE 'open'
+       END AS status,
+       (SELECT COUNT(*) FROM "FA_TALI_DETAILES" d
+         WHERE d."ID_HEADERS_TALI" = h."ID_TALI" AND d."IS_DELETED" = 'no') AS goods_rows,
+       {service_counts} AS service_rows
+  FROM "FA_TALI_HEADER" h
+ WHERE h."IS_DELETED" = 'no'
+""".format(service_counts="\n     + ".join(
+    f'(SELECT COUNT(*) FROM "{table}" s WHERE s."tali_id" = h."ID_TALI" AND s."IS_DELETED" = \'no\')'
+    for table in SERVICE_TABLES
+))
+
+CHECKS: list[tuple[str, str]] = [
+    (
+        "Planned FA_TALI_HEADER columns already in use (expect no rows)",
+        "SELECT COLUMN_NAME FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'FA_TALI_HEADER' "
+        f"AND COLUMN_NAME IN ({', '.join(repr(c) for c in PLANNED_COLUMNS)})",
+    ),
+    (
+        "Planned constraint names already in use (expect no rows)",
+        "SELECT CONSTRAINT_NAME, TABLE_NAME FROM USER_CONSTRAINTS "
+        f"WHERE CONSTRAINT_NAME IN ({', '.join(repr(c) for c in PLANNED_CONSTRAINTS)})",
+    ),
+    (
+        "FA_TALI_HEADER columns today",
+        "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, CHAR_USED, NULLABLE FROM USER_TAB_COLUMNS "
+        "WHERE TABLE_NAME = 'FA_TALI_HEADER' ORDER BY COLUMN_ID",
+    ),
+    (
+        "Triggers on FA_TALI_HEADER (expect no rows)",
+        "SELECT TRIGGER_NAME, TRIGGERING_EVENT, STATUS FROM USER_TRIGGERS WHERE TABLE_NAME = 'FA_TALI_HEADER'",
+    ),
+    (
+        "Active tallies by status, with goods rows and with service rows",
+        f"""
+        SELECT status, COUNT(*) AS tallies,
+               SUM(CASE WHEN goods_rows > 0 THEN 1 ELSE 0 END) AS with_goods_rows,
+               SUM(CASE WHEN service_rows > 0 THEN 1 ELSE 0 END) AS with_service_rows
+          FROM ({TALLIES})
+         GROUP BY status
+         ORDER BY status
+        """,
+    ),
+    (
+        "Newest 15 active tallies",
+        f"""
+        SELECT id_tali, tali_number, create_at, status, goods_rows, service_rows
+          FROM ({TALLIES})
+         ORDER BY id_tali DESC
+         FETCH FIRST 15 ROWS ONLY
+        """,
+    ),
+]
+
+_report: list[str] = []
+
+
+def _out(line: str = "") -> None:
+    _report.append(line)
+    print(line)
+
+
+def _cell(value) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, datetime.datetime):
+        return value.isoformat(sep=" ")
+    return str(value)
+
+
+def _run_checks() -> int:
+    failed = 0
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT USER, SYS_CONTEXT('USERENV', 'CON_NAME') FROM DUAL")
+            user, container = cursor.fetchone()
+            _out(f"Connected as {user} in {container}")
+            _out(f"Run at {datetime.datetime.now().isoformat(sep=' ', timespec='seconds')}")
+            for number, (title, sql) in enumerate(CHECKS, start=1):
+                _out()
+                _out(f"[{number}] {title}")
+                try:
+                    cursor.execute(sql)
+                    columns = [str(d[0]) for d in cursor.description]
+                    rows = cursor.fetchall()
+                except oracledb.DatabaseError as exc:
+                    _out(f"  ! {str(exc).strip().splitlines()[0]}")
+                    failed += 1
+                    continue
+                _out("  " + " | ".join(columns))
+                for row in rows:
+                    _out("  " + " | ".join(_cell(v) for v in row))
+                _out(f"  ({len(rows)} row(s))" if rows else "  (no rows)")
+    _out()
+    _out(f"Done: {len(CHECKS)} check(s), {failed} failed.")
+    return failed
+
+
+def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    try:
+        _run_checks()
+    finally:
+        REPORT_FILE.write_text("\n".join(_report) + "\n", encoding="utf-8")
+        print(f"\nReport written to {REPORT_FILE}")
+
+
+if __name__ == "__main__":
+    main()
