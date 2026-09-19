@@ -224,8 +224,8 @@ export function GhabzListPage() {
                   onClick={() => navigate(`/ghabz/${row.id_ghabz}`)}>
                   <Table.Td>
                     <bdi dir="ltr">{row.ghabz_number ?? row.number_ghabz ?? '—'}</bdi>
-                    {row.is_master === 'yes' && (
-                      <Badge ml="xs" size="xs" color="indigo" variant="light">مادر</Badge>
+                    {row.is_master !== 'yes' && (
+                      <Badge ml="xs" size="xs" color="indigo" variant="light">تفکیکی</Badge>
                     )}
                   </Table.Td>
                   <Table.Td><TallyNumber value={row.number_tali} /></Table.Td>

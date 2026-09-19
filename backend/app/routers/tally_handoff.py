@@ -34,8 +34,18 @@ HANDOFF_SQL = """
 SELECT h."ID_TALI" AS id_tali,
        h."HANDOFF_STEP" AS step,
        h."SENT_TO_KEEPER_AT" AS sent_to_keeper_at,
+       TO_CHAR(
+         FROM_TZ(CAST(h."SENT_TO_KEEPER_AT" AS TIMESTAMP), 'UTC') AT TIME ZONE 'Asia/Tehran',
+         'YYYY/MM/DD "ساعت" HH24:MI',
+         'NLS_CALENDAR = Persian'
+       ) AS sent_to_keeper_at_display,
        NVL(TRIM(sender."FULL_NAME"), sender."USERNAME") AS sent_to_keeper_by,
        h."RETURNED_AT" AS returned_at,
+       TO_CHAR(
+         FROM_TZ(CAST(h."RETURNED_AT" AS TIMESTAMP), 'UTC') AT TIME ZONE 'Asia/Tehran',
+         'YYYY/MM/DD "ساعت" HH24:MI',
+         'NLS_CALENDAR = Persian'
+       ) AS returned_at_display,
        NVL(TRIM(returner."FULL_NAME"), returner."USERNAME") AS returned_by,
        h."IS_VOLUMETRIC" AS is_volumetric,
        h."VOLUMETRIC_PALLETS" AS volumetric_pallets,
@@ -70,7 +80,7 @@ SELECT COUNT(*)
 SEND_TO_KEEPER_SQL = """
 UPDATE "FA_TALI_HEADER"
    SET "HANDOFF_STEP" = 'keeper',
-       "SENT_TO_KEEPER_AT" = SYSDATE,
+       "SENT_TO_KEEPER_AT" = CAST(SYS_EXTRACT_UTC(SYSTIMESTAMP) AS DATE),
        "SENT_TO_KEEPER_BY" = :actor_id,
        "MODIFY_AT" = SYSDATE,
        "MODIFY_BY" = :actor_id
@@ -91,7 +101,7 @@ UPDATE "FA_TALI_HEADER"
 RETURN_TO_OPERATOR_SQL = """
 UPDATE "FA_TALI_HEADER"
    SET "HANDOFF_STEP" = 'returned',
-       "RETURNED_AT" = SYSDATE,
+       "RETURNED_AT" = CAST(SYS_EXTRACT_UTC(SYSTIMESTAMP) AS DATE),
        "RETURNED_BY" = :actor_id,
        "MODIFY_AT" = SYSDATE,
        "MODIFY_BY" = :actor_id

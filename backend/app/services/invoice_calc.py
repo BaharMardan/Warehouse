@@ -32,7 +32,7 @@ def storage_label(kala_code) -> str:
 
 SERVICE_LABELS = {
     "other_service": "هزینه کل سایر خدمات",
-    "strip": "هزینه کل استریپ و استافینگ",
+    "strip": "هزینه کل استریپ یا استافینگ",
     "night_stop": "هزینه کل توقف شبانه",
     "diamound": "هزینه کل دیماند",
     "vehicle_enter": "هزینه کل حق ورودی (حق محوطه)",

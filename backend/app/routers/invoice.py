@@ -231,6 +231,15 @@ SELECT COUNT(*) AS cnt FROM "fa_ghabz_anbar_header"
 WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no'
 """
 
+# System-wide settings are kept outside the individual service price catalogs.
+# They are edited by users with settings permission in /settings and applied consistently to
+# every newly calculated invoice preview.
+INVOICE_SETTINGS_SQL = """
+SELECT "SETTING_KEY" AS setting_key, "VALUE_NUMBER" AS value_number
+  FROM "FA_APP_SETTINGS"
+ WHERE "SETTING_KEY" IN ('tax_rate', 'freight_rate')
+"""
+
 # --- the five service junctions, each joined to its rate catalog (raw values; summed in Python) ---
 OTHER_SERVICE_SQL = """
 SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
@@ -345,6 +354,10 @@ def preview_from_tally(tali_id: int):
 
     all_rows = storage_rows + service_rows
     grand_total = sum((r.price for r in all_rows if r.price is not None), Decimal(0))
+    configured = {row["setting_key"]: Decimal(str(row["value_number"])) for row in fetch_all(INVOICE_SETTINGS_SQL)}
+    tax_rate = configured.get("tax_rate", Decimal(0))
+    freight_rate = configured.get("freight_rate", Decimal(0))
+    tax_amount = grand_total * tax_rate / Decimal(100)
 
     return {
         "tali_id": tali_id,
@@ -354,6 +367,10 @@ def preview_from_tally(tali_id: int):
         "storage_rows": [_row_json(r) for r in storage_rows],
         "service_rows": [_row_json(r) for r in service_rows],
         "grand_total": str(grand_total),
+        "tax_rate": str(tax_rate),
+        "tax_amount": str(tax_amount),
+        "freight_rate": str(freight_rate),
+        "total_with_tax": str(grand_total + tax_amount),
         "provisional": {
             "services": "Each service amount is its selected rate multiplied by its optional quantity; blank quantity defaults to one",
             "strip": "column chosen per junction via pricing_type (normal|non_standard|dangerous); NULL -> normal, so prior data is unchanged",

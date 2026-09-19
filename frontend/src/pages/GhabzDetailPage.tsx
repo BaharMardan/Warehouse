@@ -527,8 +527,8 @@ export function GhabzDetailPage() {
         <Group gap="sm" align="baseline">
           <Title order={2}>
             قبض انبار <bdi dir="ltr">{receiptNumber ?? '—'}</bdi>
-            {summary?.is_master === 'yes' && (
-              <Badge ml="xs" color="indigo" variant="light">مادر</Badge>
+            {summary?.is_master !== 'yes' && (
+              <Badge ml="xs" color="indigo" variant="light">تفکیکی</Badge>
             )}
           </Title>
           {summary?.number_tali && (

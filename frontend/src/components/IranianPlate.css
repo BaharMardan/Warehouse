@@ -1,0 +1,64 @@
+.iranian-plate {
+  display: inline-grid;
+  box-sizing: border-box;
+  overflow: hidden;
+  align-items: stretch;
+  grid-template-columns: 11% 17% 13% 26% 33%;
+  border: 1px solid #7f8b99;
+  border-radius: 5px;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.iranian-plate-print {
+  width: 27mm;
+  max-width: 100%;
+  height: 6.5mm;
+  border-width: 0.5px;
+  border-radius: 0.9mm;
+  font-size: 6.3pt;
+}
+
+.iranian-plate-select {
+  width: 154px;
+  height: 36px;
+  font-size: 13px;
+}
+
+.iranian-plate > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.iranian-plate-blue {
+  flex-direction: column;
+  gap: 1px;
+  background: #17479e;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+.iranian-plate-blue > span { font-size: 9px; line-height: 1; }
+.iranian-plate-blue small { font-size: 6px; line-height: 1; }
+.iranian-plate-letter { font-size: 1.1em; }
+
+.iranian-plate-region {
+  flex-direction: column;
+  gap: 1px;
+  border-right: 1px solid #111;
+}
+
+.iranian-plate-region small { font-size: 0.56em; font-weight: 500; }
+.iranian-plate-region strong { font-size: 0.94em; }
+
+.iranian-plate-fallback {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}

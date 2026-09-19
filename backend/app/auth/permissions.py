@@ -55,6 +55,7 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("ghabz.edit", "ویرایش قبض انبار", "ghabz", implies=("ghabz.view",)),
 
     Permission("invoice.view", "مشاهده صورتحساب", "invoice"),
+    Permission("settings.manage", "مدیریت تنظیمات سامانه", "settings"),
 )
 
 _CODE_PATTERN = re.compile(r"^[a-z][a-z_]*\.[a-z][a-z_]*$")

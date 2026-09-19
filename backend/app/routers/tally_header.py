@@ -240,6 +240,21 @@ def list_tally_headers():
     return fetch_all(_PLAN["list"])
 
 
+@router.get("/today", dependencies=[Depends(require_permission("tally.edit"))])
+def tally_server_today():
+    """Authoritative current date for new tally defaults.
+
+    Read the server clock in the application's Asia/Tehran timezone rather than
+    trusting an operator workstation's clock. The browser displays this ISO
+    date as Jalali, but submits the same ISO value.
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE) FROM DUAL")
+            database_now = cursor.fetchone()[0]
+    return {"date": database_now.date().isoformat()}
+
+
 @router.get("/by-number/{tali_number}", dependencies=[Depends(require_permission("tally.view"))])
 def get_tally_header_by_number(tali_number: str):
     """Resolve the public tally number to its header and internal relational ID."""

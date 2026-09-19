@@ -1,0 +1,49 @@
+.settings-page {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.settings-panel {
+  background: var(--mantine-color-white);
+  border-color: var(--mantine-color-gray-3);
+}
+
+/* The settings screen uses its own violet-to-steel-blue spectrum while still
+   retaining the shared PageHeader dimensions and frame. */
+.settings-page .ph-band {
+  background: linear-gradient(112deg, #5b2ee6 0%, #652cdd 48%, #3c789e 100%);
+  box-shadow: 0 12px 26px -18px rgba(65, 48, 175, 0.62);
+}
+
+.settings-page .ph-band::before { background: rgba(255, 255, 255, 0.11); }
+.settings-page .ph-band::after { background: rgba(255, 255, 255, 0.06); }
+
+.settings-cog {
+  color: #4338ca;
+  background: linear-gradient(135deg, #fff 0%, #dbeafe 48%, #c4b5fd 100%);
+  box-shadow: 0 7px 14px -10px rgba(49, 46, 129, 0.7);
+}
+
+.settings-section-title { font-size: 1.06rem; font-weight: 800; color: var(--mantine-color-dark-8); }
+.settings-section-description { margin-top: 3px; color: var(--mantine-color-gray-6); font-size: 0.88rem; }
+
+.settings-rate-card {
+  min-height: 92px;
+  border: 1px solid #dfe4ff;
+  background: #fafbff;
+}
+
+.settings-rate-title { font-size: 1rem; font-weight: 800; color: var(--mantine-color-dark-8); }
+.settings-rate-description { margin-top: 5px; color: #64748b; line-height: 1.6; font-size: 0.88rem; }
+.settings-rate-input { min-width: 210px; }
+.settings-rate-input input { height: 42px; font-weight: 750; font-size: 0.98rem; border-color: #c7d2fe; background: #f8f9ff; color: #312e81; }
+.settings-rate-input input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+
+.settings-save-row { gap: 16px; padding: 8px 4px 0; }
+.settings-save-button { min-width: 154px; height: 40px; font-weight: 750; background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+
+@media (max-width: 600px) {
+  .settings-rate-input { width: 100%; min-width: 0; }
+  .settings-save-row { align-items: stretch; }
+  .settings-save-button { width: 100%; }
+}

@@ -808,14 +808,14 @@ export function GhabzIssueModal({
               disabled={selected.length === 0 || tallyId == null || busy}
               onClick={() => { setError(null); issue.mutate() }}
             >
-              صدور قبض انبار
+              صدور قبض انبار تفکیکی
             </Button>
             <Button variant="subtle" onClick={onClose} disabled={busy}>انصراف</Button>
           </Group>
           <Tooltip
             multiline
             w={280}
-            label="یک قبض شامل همه کدهای کالای تالی با مقدار کامل، برای بایگانی داخلی. مقدار قابل صدور قبض‌های مشتری را کم نمی‌کند و شماره‌اش همیشه با پسوند صفر ثبت می‌شود."
+            label="یک قبض شامل همه کدهای کالای تالی با مقدار کامل، برای بایگانی داخلی. مقدار قابل صدور قبض‌های مشتری را کم نمی‌کند."
           >
             <Button
               color="violet"
@@ -824,7 +824,7 @@ export function GhabzIssueModal({
               disabled={rows.length === 0 || tallyId == null || busy}
               onClick={() => { setError(null); issueMaster.mutate() }}
             >
-              صدور قبض انبار مادر
+              صدور قبض انبار
             </Button>
           </Tooltip>
         </Group>

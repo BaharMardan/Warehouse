@@ -379,6 +379,7 @@ import {
 import { apiGet, apiSend } from '../api/client'
 import { usePermissions } from '../auth/usePermissions'
 import { RefSelect } from './RefSelect'
+import { IranianPlate } from './IranianPlate'
 import { IconEdit, IconTrash } from './icons'
 
 /**
@@ -401,6 +402,8 @@ export type JunctionConfig = {
   catalogValueKey: string
   catalogLabel: (r: Record<string, any>) => string
   extraField?: { key: string; label: string }
+  // A service can be tied to one of the carrier numbers entered in the tally's goods rows.
+  carrierField?: { key: string; label: string }
   // Optional per-row dropdown (e.g. strip's «نوع قیمت»). Generic: any junction can
   // declare one. `defaultValue` is pre-selected on add so the stored value is explicit.
   selectField?: {
@@ -421,6 +424,7 @@ type JunctionRow = {
   rate_code: string | null
   rate_title: string | null
   number_service?: number | null
+  number_hamel?: string | null
   pricing_type?: string | null
   selected_price?: string | number | null
 }
@@ -441,6 +445,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
   const [snapCode, setSnapCode] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [extraVal, setExtraVal] = useState('')
+  const [carrierNumber, setCarrierNumber] = useState<string | null>(null)
   const [selectVal, setSelectVal] = useState<string | null>(config.selectField?.defaultValue ?? null)
 
   const queryKey = ['tally-junction', config.key, tallyId]
@@ -450,9 +455,22 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
     queryFn: () => apiGet<JunctionRow[]>(`/tally/${tallyId}/${config.readPath}`),
   })
 
+  const { data: tallyDetails = [] } = useQuery({
+    queryKey: ['tally-details', tallyId],
+    queryFn: () => apiGet<Array<{ number_hamel?: string | null }>>(`/tally/${tallyId}/details`),
+    enabled: Boolean(config.carrierField),
+  })
+
+  const carrierOptions = [...new Set(
+    tallyDetails
+      .map((row) => row.number_hamel?.trim())
+      .filter((value): value is string => Boolean(value)),
+  )].map((value) => ({ value, label: value }))
+
   function resetForm() {
     setEditingId(null)
     setRateId(null); setSnapCode(null); setDescription(''); setExtraVal('')
+    setCarrierNumber(null)
     setSelectVal(config.selectField?.defaultValue ?? null)
   }
 
@@ -467,6 +485,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
     setSnapCode(row.code)
     setDescription(row.description ?? '')
     setExtraVal(row.number_service != null ? String(row.number_service) : '')
+    setCarrierNumber(row.number_hamel ?? null)
     setSelectVal(
       config.selectField
         ? ((row as Record<string, any>)[config.selectField.key] ?? config.selectField.defaultValue ?? null)
@@ -486,6 +505,9 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
       if (config.extraField) {
         payload[config.extraField.key] =
           extraVal.trim() === '' ? null : Number(normalizeDigits(extraVal))
+      }
+      if (config.carrierField) {
+        payload[config.carrierField.key] = carrierNumber
       }
       if (config.selectField) {
         payload[config.selectField.key] = selectVal
@@ -576,6 +598,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                 <Table.Tr>
                   <Table.Th>کد</Table.Th>
                   <Table.Th>عنوان</Table.Th>
+                  {config.carrierField && <Table.Th>{config.carrierField.label}</Table.Th>}
                   {config.extraField && <Table.Th>{config.extraField.label}</Table.Th>}
                   {config.selectField && <Table.Th>{config.selectField.label}</Table.Th>}
                   {config.selectField?.inlineWithCatalog && <Table.Th>مبلغ</Table.Th>}
@@ -588,6 +611,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                   <Table.Tr key={row.id}>
                     <Table.Td>{row.code ?? row.rate_code ?? '—'}</Table.Td>
                     <Table.Td className="tally-detail-primary-cell">{row.rate_title ?? '—'}</Table.Td>
+                    {config.carrierField && <Table.Td><IranianPlate value={row.number_hamel} /></Table.Td>}
                     {config.extraField && <Table.Td>{row.number_service ?? '—'}</Table.Td>}
                     {config.selectField && (
                       <Table.Td>
@@ -651,6 +675,20 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
           title: 'tally-detail-modal-title',
         }}>
         <Stack>
+          {config.carrierField && (
+            <Select
+              label={config.carrierField.label}
+              placeholder="از شماره‌حامل‌های ثبت‌شده انتخاب کنید"
+              data={carrierOptions}
+              value={carrierNumber}
+              onChange={setCarrierNumber}
+              renderOption={({ option }) => <IranianPlate value={option.value} />}
+              styles={{ input: { direction: 'ltr', textAlign: 'left' } }}
+              searchable
+              clearable
+              nothingFoundMessage="شماره حاملی در ردیف‌های کالا ثبت نشده است"
+            />
+          )}
           <RefSelect
             label={`انتخاب ${config.title}`}
             path={config.catalogPath}
@@ -695,7 +733,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
           />
           <Group justify="flex-start" mt="sm">
             <Button className="tally-detail-save-button" onClick={() => saveMutation.mutate()}
-              loading={saveMutation.isPending}>
+              loading={saveMutation.isPending} disabled={rateId == null || (config.carrierField != null && carrierNumber == null)}>
               ذخیره
             </Button>
             <Button variant="default" onClick={() => setModalOpen(false)}>لغو</Button>

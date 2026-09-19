@@ -706,6 +706,14 @@ class KalaVehicleEnterInput(BaseModel):
     description: str | None = None
 
 
+# ----- FA_INSURANCE_COMPANY : insurance-company lookup used by tally headers -----
+class InsuranceCompanyInput(BaseModel):
+    name: str | None = None
+    logo_url: str | None = None
+    website_url: str | None = None
+    description: str | None = None
+
+
 # ----- FA_TALI_HEADER : tally shipment header -----
 # UPLOAD_DOCUMENT remains deferred. DESCRIPTION is exposed as plain text because
 # the Oracle connection is configured with fetch_lobs=False.
@@ -794,6 +802,7 @@ class TaliKalaStripInput(BaseModel):
     tali_id: int
     kala_strip_id: int | None = None
     code: str | None = None
+    number_hamel: str | None = None
     number_service: int | None = None
     pricing_type: str | None = None   # normal | non_standard | dangerous (which rate column to bill)
     description: str | None = None
@@ -1023,6 +1032,12 @@ crud_routers = [
         access=LOOKUP_ACCESS,
         column_overrides={"code": "code", "title": "title", "price": "price"},
     ),
+    make_crud_router(
+        prefix="/insurance-companies", table="FA_INSURANCE_COMPANY", pk="ID_INSURANCE_COMPANY",
+        model=InsuranceCompanyInput, tag="insurance_companies", not_found="شرکت بیمه یافت نشد",
+        access=LOOKUP_ACCESS,
+        order_by="NAME",
+    ),
     # /tally-header has a dedicated router because its business number must be
     # allocated atomically by the backend. See app/routers/tally_header.py.
     make_crud_router(
@@ -1070,7 +1085,7 @@ crud_routers = [
         access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_strip_id": "kala_strip_id",
-            "code": "code", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type",
+            "code": "code", "number_hamel": "number_hamel", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type",
         },
     ),
     make_crud_router(

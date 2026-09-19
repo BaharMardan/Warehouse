@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Group, Paper, Radio, Stack, Text, TextInput, Tooltip } from '@mantine/core'
-import { toJalaali } from 'jalaali-js'
 import { Send, Undo2 } from 'lucide-react'
 import { errorMessage } from '../api/client'
 import { KEEPER_QUEUE_KEY, handoffApi, handoffKey, type HandoffState, type VolumetricAnswer } from '../api/handoff'
@@ -23,14 +22,9 @@ const latinDigits = (value: string) =>
   value.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
 
-function jalaliMoment(iso: string | null): string {
-  if (!iso) return ''
-  const moment = new Date(iso)
-  if (Number.isNaN(moment.getTime())) return ''
-  const { jy, jm, jd } = toJalaali(moment)
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return faDigits(`${jy}/${pad(jm)}/${pad(jd)} ساعت ${pad(moment.getHours())}:${pad(moment.getMinutes())}`)
-}
+/** The database already formats this value in the Persian calendar.
+ * Keeping it as text avoids applying the operator's browser timezone. */
+const serverMoment = (value: string | null | undefined) => value ? faDigits(value) : ''
 
 export function useHandoff(tallyId: number | null | undefined) {
   return useQuery({
@@ -72,10 +66,10 @@ export function HandoffBanner({ state }: { state: HandoffState | undefined }) {
 
   let detail = 'پس از ثبت ردیف‌های کالا، تالی را برای انباردار بفرستید.'
   if (state.step === 'keeper') {
-    detail = `ارسال‌شده توسط ${state.sent_to_keeper_by ?? 'اپراتور'} در ${jalaliMoment(state.sent_to_keeper_at)}`
+    detail = `ارسال‌شده توسط ${state.sent_to_keeper_by ?? 'اپراتور'} در ${serverMoment(state.sent_to_keeper_at_display)}`
   } else if (state.step === 'returned') {
     detail = state.returned_at
-      ? `برگردانده‌شده توسط ${state.returned_by ?? 'انباردار'} در ${jalaliMoment(state.returned_at)}`
+      ? `برگردانده‌شده توسط ${state.returned_by ?? 'انباردار'} در ${serverMoment(state.returned_at_display)}`
       : 'پیش از راه‌اندازی این گردش کار تکمیل شده است.'
   }
 

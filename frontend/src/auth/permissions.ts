@@ -17,6 +17,7 @@ export const PERMISSION_CODES = [
   'ghabz.issue',
   'ghabz.edit',
   'invoice.view',
+  'settings.manage',
 ] as const
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number]

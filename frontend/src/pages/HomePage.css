@@ -208,3 +208,15 @@
   font-weight: 500;
   color: #212529;
 }
+
+/* Keep the tile neutral, but use a silver iOS-like app-icon surface for its cog. */
+.hp-tile--settings .hp-tile-icon {
+  color: #fff;
+  background: linear-gradient(145deg, #e7ebf0 0%, #a8b1bc 52%, #858f9c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow: 0 11px 20px -10px rgba(15, 23, 42, 0.8), inset 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.hp-tile--settings .hp-tile-icon svg {
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.22));
+}

@@ -163,6 +163,7 @@
  * change except App.tsx (to register the route).
  */
 import { useMemo, type ComponentType, type CSSProperties } from 'react'
+import { Cog } from 'lucide-react'
 import type { CrudConfig } from './components/CrudResource'
 import { resources } from './resources'
 import {
@@ -172,6 +173,11 @@ import { usePermissions } from './auth/usePermissions'
 import type { PermissionCode } from './auth/permissions'
 
 type IconComponent = ComponentType<{ size?: number; stroke?: number }>
+
+/** Rounded cog, visually closer to the familiar iOS settings symbol. */
+const IconSettingsIOS: IconComponent = ({ size = 20, stroke = 1.8 }) => (
+  <Cog size={size} strokeWidth={stroke} />
+)
 
 export interface AppModule {
   key: string
@@ -239,6 +245,15 @@ export const modules: AppModule[] = [
     icon: IconUsers,
     color: 'orange',
     adminOnly: true,
+  },
+  {
+    key: 'settings',
+    title: 'تنظیمات',
+    description: 'نرخ‌ها و مقادیر ثابت سامانه',
+    route: '/settings',
+    icon: IconSettingsIOS,
+    color: 'gray',
+    permission: 'settings.manage',
   },
 ]
 
@@ -333,7 +348,7 @@ const BASE_DATA_GROUPS: { title: string; routes: string[] }[] = [
   },
   {
     title: 'اطلاعات عمومی',
-    routes: ['/borders', '/countries', '/packaging-types'],
+    routes: ['/borders', '/countries', '/packaging-types', '/insurance-companies'],
   },
 ]
 

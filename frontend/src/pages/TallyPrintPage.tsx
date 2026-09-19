@@ -543,6 +543,7 @@ import {
 } from 'lucide-react'
 import { apiGet } from '../api/client'
 import { IconPrint } from '../components/icons'
+import { IranianPlate } from '../components/IranianPlate'
 import './TallyPrintPage.css'
 
 type PrintDetail = {
@@ -711,57 +712,6 @@ function containerLabel(row: PrintDetail): string {
   return structured || valueOf(row.type_number_kantiner)
 }
 
-type PlateParts = {
-  leading: string
-  letter: string
-  serial: string
-  region: string
-}
-
-function parsePlate(value: string | null | undefined): PlateParts | null {
-  const normalized = toLatinDigits(String(value ?? '').trim())
-  const parts = normalized.split('-').map((part) => part.trim())
-  if (parts.length !== 4) return null
-
-  const [leading, letter, serial, region] = parts
-  if (
-    !/^\d{1,2}$/.test(leading)
-    || !/^[\u0600-\u06FF]+$/.test(letter)
-    || !/^\d{1,3}$/.test(serial)
-    || !/^\d{1,2}$/.test(region)
-  ) {
-    return null
-  }
-
-  return { leading, letter, serial, region }
-}
-
-function IranianPlate({ value }: { value: string | null | undefined }) {
-  const parts = parsePlate(value)
-  if (!parts) {
-    return <span className="tally-print-ltr">{valueOf(value)}</span>
-  }
-
-  return (
-    <span
-      className="tally-print-plate"
-      dir="ltr"
-      aria-label={`پلاک ${parts.leading} ${parts.letter} ${parts.serial} ایران ${parts.region}`}
-    >
-      <span className="tally-print-plate-blue">
-        <span>🇮🇷</span>
-        <small>I.R.</small>
-      </span>
-      <span>{toPersianDigits(parts.leading)}</span>
-      <span className="tally-print-plate-letter" dir="rtl">{parts.letter}</span>
-      <span>{toPersianDigits(parts.serial)}</span>
-      <span className="tally-print-plate-region" dir="rtl">
-        <small>ایران</small>
-        <strong>{toPersianDigits(parts.region)}</strong>
-      </span>
-    </span>
-  )
-}
 
 function TallySheet({
   data,
@@ -888,7 +838,7 @@ function TallySheet({
                   <td>{valueOf(row.type_bastem)}</td>
                   <td className="tally-print-ltr">{valueOf(row.number_kala)}</td>
                   <td className="tally-print-ltr">{valueOf(row.weighte)}</td>
-                  <td><IranianPlate value={row.number_hamel} /></td>
+                  <td><IranianPlate value={row.number_hamel} size="print" /></td>
                   <td className="tally-print-ltr">{containerLabel(row)}</td>
                   <td className="tally-print-ltr">{valueOf(row.number_ghabze_bskol)}</td>
                   <td className="tally-print-ltr">{valueOf(row.weighte_baskol)}</td>

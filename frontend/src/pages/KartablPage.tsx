@@ -523,7 +523,8 @@ export function KartablPage() {
           <>
             {waiting.length > 0 && (
               <Button
-                variant={onlyWaiting ? "filled" : "light"} color="orange" radius="md"
+                variant="filled" color="orange" radius="md" fw={800}
+                style={{ boxShadow: '0 3px 8px rgba(229, 115, 0, 0.28)' }}
                 onClick={() => setParams(onlyWaiting ? {} : { waiting: '1' }, { replace: true })}
               >
                 {onlyWaiting

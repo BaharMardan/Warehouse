@@ -40,7 +40,7 @@ function ModuleTile({ module: m }: { module: AppModule }) {
     return (
       <UnstyledButton
         component="div"
-        className="hp-tile hp-tile--disabled"
+        className={`hp-tile hp-tile--${m.key} hp-tile--disabled`}
         style={accentVars(m.color)}
         aria-disabled
         title="این بخش هنوز آماده نشده است"
@@ -54,7 +54,7 @@ function ModuleTile({ module: m }: { module: AppModule }) {
     <UnstyledButton
       component={Link}
       to={m.route}
-      className="hp-tile"
+      className={`hp-tile hp-tile--${m.key}`}
       style={accentVars(m.color)}
     >
       {body}

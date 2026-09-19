@@ -260,6 +260,35 @@ const packagingTypes = termResource(
   TERM_CATEGORY.packagingType,
 )
 
+// ---- شرکت‌های بیمه ----
+interface InsuranceCompany {
+  id_insurance_company: number
+  name: string
+  logo_url: string | null
+  website_url: string | null
+  description: string | null
+}
+const insuranceCompanies: CrudConfig<InsuranceCompany> = {
+  route: '/insurance-companies', path: '/insurance-companies', queryKey: 'insurance_companies',
+  title: 'شرکت‌های بیمه', entity: 'شرکت بیمه', pkField: 'id_insurance_company',
+  columns: [
+    {
+      key: 'logo', label: 'آرم', render: (row) => row.logo_url
+        ? <img src={row.logo_url} alt={`آرم ${row.name}`} width={38} height={38}
+            style={{ objectFit: 'contain', borderRadius: 6, verticalAlign: 'middle' }} />
+        : <span style={{ display: 'inline-grid', width: 38, height: 38, placeItems: 'center', borderRadius: 6, background: '#e7f5ff', color: '#1971c2', fontWeight: 700 }}>
+            {row.name?.trim().slice(0, 1) || 'ب'}
+          </span>,
+    },
+    { key: 'name', label: 'نام شرکت', field: 'name' },
+  ],
+  fields: [
+    { key: 'name', label: 'نام شرکت بیمه' },
+    { key: 'website_url', label: 'نشانی وب‌سایت' },
+    { key: 'description', label: 'توضیحات' },
+  ],
+}
+
 // ---- دیماند ----
 interface KalaDiamound {
   id_kala_diamound: number; code: string | null; title: string | null
@@ -312,7 +341,7 @@ interface KalaStrip {
 }
 const kalaStrip: CrudConfig<KalaStrip> = {
   route: '/kala-strip', path: '/kala-strip', queryKey: 'kala_strip',
-  title: 'استریپ و استافینگ', entity: 'ردیف', pkField: 'id_kala_strip',
+  title: 'استریپ یا استافینگ', entity: 'ردیف', pkField: 'id_kala_strip',
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
@@ -373,6 +402,6 @@ const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
 }
 export const resources: CrudConfig<any>[] = [
   kala, anbar, owners, kalaPrice,
-  transportCompanies, companyRepresentatives, tagh, borders, countries, packagingTypes,
+  transportCompanies, companyRepresentatives, tagh, borders, countries, packagingTypes, insuranceCompanies,
   kalaDiamound, kalaOtherService, kalaStrip, kalaTimeStop, kalaVehicleEnter,
 ]

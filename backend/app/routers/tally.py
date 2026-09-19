@@ -570,6 +570,7 @@ ORDER BY j."id_tali_kala_other_service"
 STRIP_SQL = """
 SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
        j."kala_strip_id" AS rate_id, j."code" AS code,
+       j."number_hamel" AS number_hamel,
        j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
        j."pricing_type" AS pricing_type,
        k."code" AS rate_code, k."title" AS rate_title

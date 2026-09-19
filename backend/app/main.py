@@ -54,6 +54,7 @@ from app.routers.owners import router as owners_router
 from app.routers.kartabl import router as kartabl_router
 from app.routers.admin import router as admin_router
 from app.routers.tally_handoff import router as tally_handoff_router
+from app.routers.settings import router as settings_router
 
 from app.crud.registry import crud_routers
 
@@ -81,6 +82,7 @@ app.include_router(owners_router)
 app.include_router(kartabl_router)
 app.include_router(admin_router)
 app.include_router(tally_handoff_router)
+app.include_router(settings_router)
 
 # app.include_router(items.router)
 # app.include_router(anbar.router)

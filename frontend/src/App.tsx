@@ -87,6 +87,7 @@ import { InvoiceDetailPage } from './pages/InvoiceDetailPage'
 import { InvoicePrintPage } from './pages/InvoicePrintPage'
 import { CurrentUserGate, RequireAdmin, RequirePermission } from './auth/PermissionGate'
 import { UserManagementPage } from './pages/UserManagementPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 // import ScratchTest from './pages/ScratchTest'
 
@@ -142,6 +143,7 @@ function AppRoutes() {
           <Route path="/invoice" element={<RequirePermission code="invoice.view"><InvoiceListPage /></RequirePermission>} />
           <Route path="/invoice/:id" element={<RequirePermission code="invoice.view"><InvoiceDetailPage /></RequirePermission>} />
           <Route path="/users" element={<RequireAdmin><UserManagementPage /></RequireAdmin>} />
+          <Route path="/settings" element={<RequirePermission code="settings.manage"><SettingsPage /></RequirePermission>} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -8,8 +8,12 @@ export interface HandoffState {
   id_tali: number
   step: HandoffStep
   sent_to_keeper_at: string | null
+  /** Persian calendar date/time formatted by the database server. */
+  sent_to_keeper_at_display: string | null
   sent_to_keeper_by: string | null
   returned_at: string | null
+  /** Persian calendar date/time formatted by the database server. */
+  returned_at_display: string | null
   returned_by: string | null
   is_volumetric: 'yes' | 'no' | null
   volumetric_pallets: number | null

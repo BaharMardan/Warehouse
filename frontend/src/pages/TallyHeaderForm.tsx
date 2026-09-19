@@ -8,6 +8,7 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { RefSelect } from '../components/RefSelect'
 import { JalaliDate } from '../components/JalaliDate'
+import { InsuranceCompanySelect } from '../components/InsuranceCompanySelect'
 import { apiSend, apiGet } from '../api/client'
 
 
@@ -231,12 +232,30 @@ export function TallyHeaderForm() {
   })
   const editId = existing?.id_tali == null ? null : Number(existing.id_tali)
 
+  const { data: serverToday } = useQuery({
+    queryKey: ['tally-server-today'],
+    queryFn: () => apiGet<{ date: string }>('/tally-header/today'),
+    enabled: !isEdit,
+    staleTime: 60 * 1000,
+  })
+
   useEffect(() => {
     if (existing) setForm(rowToState(existing))
   }, [existing])
   const [form, setForm] = useState<TallyHeaderState>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // New tally dates always come from Oracle's SYSDATE.  Do not replace an
+  // operator's selection if they have already edited either field.
+  useEffect(() => {
+    if (isEdit || !serverToday?.date) return
+    setForm((current) => ({
+      ...current,
+      date_enter_marze: current.date_enter_marze ?? serverToday.date,
+      date_unloading: current.date_unloading ?? serverToday.date,
+    }))
+  }, [isEdit, serverToday?.date])
 
   // one helper to update any field by key
   const set = <K extends keyof TallyHeaderState>(key: K, value: TallyHeaderState[K]) =>
@@ -499,10 +518,9 @@ export function TallyHeaderForm() {
             </Stack>
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput
-              label="شرکت بیمه گر"
+            <InsuranceCompanySelect
               value={form.company_bimeh}
-              onChange={(e) => set('company_bimeh', e.currentTarget.value)}
+              onChange={(value) => set('company_bimeh', value)}
             />
           </Grid.Col>
 
