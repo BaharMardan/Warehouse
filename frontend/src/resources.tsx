@@ -102,23 +102,25 @@ const owners: CrudConfig<Owner> = {
 interface KalaPrice {
   id_kala_price: number; id_kala: number | null; code: string | null
   goods_group: string | null; storage_price: number | null
-  price_unloding: number | null; description: string | null
+  price_unloding: number | null; price_loading: number | null; description: string | null
 }
 const kalaPrice: CrudConfig<KalaPrice> = {
   route: '/kala-price', path: '/kala-price', queryKey: 'kala_price',
   title: 'کد گروه کالا', entity: 'گروه کالا', pkField: 'id_kala_price',
-  // Table-1 tariff view: code · goods group · storage (انبارداری) · handling (تخلیه و بارگیری)
+  // Separate unloading and loading tariffs for each goods group.
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'goods_group', label: 'گروه کالا', field: 'goods_group' },
     { key: 'storage_price', label: 'انبارداری', field: 'storage_price' },
-    { key: 'price_unloding', label: 'تخلیه و بارگیری', field: 'price_unloding' },
+    { key: 'price_unloding', label: 'تخلیه', field: 'price_unloding' },
+    { key: 'price_loading', label: 'بارگیری', field: 'price_loading' },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'goods_group', label: 'گروه کالا' },
     { key: 'storage_price', label: 'انبارداری', type: 'number' },
-    { key: 'price_unloding', label: 'تخلیه و بارگیری', type: 'number' },
+    { key: 'price_unloding', label: 'تخلیه', type: 'number' },
+    { key: 'price_loading', label: 'بارگیری', type: 'number' },
     { key: 'id_kala', label: 'شناسه کالا', type: 'number' },
     { key: 'description', label: 'توضیحات' },
   ],

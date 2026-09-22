@@ -1557,6 +1557,9 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+      qc.invalidateQueries({ queryKey: ['tally-junction', 'strip', tallyId] })
+      qc.invalidateQueries({ queryKey: ['tally-junction', 'stuffing', tallyId] })
+      qc.invalidateQueries({ queryKey: ['tally-junction', 'crane', tallyId] })
       qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
       // chained entry: after saving a NEW row, drop straight into the next empty one
       if (editingId == null && keepGoing) {
@@ -1577,6 +1580,9 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
     // onSuccess: () => qc.invalidateQueries({ queryKey: ['tally-details', tallyId] }),
     onSuccess: () => {
   qc.invalidateQueries({ queryKey: ['tally-details', tallyId] })
+  qc.invalidateQueries({ queryKey: ['tally-junction', 'strip', tallyId] })
+  qc.invalidateQueries({ queryKey: ['tally-junction', 'stuffing', tallyId] })
+  qc.invalidateQueries({ queryKey: ['tally-junction', 'crane', tallyId] })
   qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
   },
     onError: (e) => alert(`حذف ناموفق بود: ${(e as Error).message}`),

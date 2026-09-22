@@ -584,6 +584,7 @@ class KalaPriceInput(BaseModel):
     id_kala: int | None = None            # FK -> FA_KALA (plain number for now)
     goods_group: str | None = None        # گروه کالا (Table 1 row label, unit embedded)
     storage_price: float | None = None    # انبارداری (Table 1 storage rate)
+    price_loading: float | None = None
     price_unloding: float | None = None   # تخلیه و بارگیری (Table 1 handling rate)
     description: str | None = None
     code: str | None = None
@@ -718,6 +719,7 @@ class InsuranceCompanyInput(BaseModel):
 # UPLOAD_DOCUMENT remains deferred. DESCRIPTION is exposed as plain text because
 # the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
+    has_transportation: Literal["yes", "no"] | None = None
     number_karaneh: str | None = None       # شماره کارنه / ترانزیت
     tracking_number: str | None = None      # شماره پیگیری
     customs_procedure: Literal["واردات", "صادرات", "حمل یکسره"] | None = None
@@ -806,6 +808,7 @@ class TaliKalaStripInput(BaseModel):
     code: str | None = None
     number_hamel: str | None = None
     number_service: int | None = None
+    service_kind: Literal["strip", "stuffing", "crane"] = "strip"
     pricing_type: str | None = None   # normal | non_standard | dangerous (which rate column to bill)
     description: str | None = None
 
@@ -943,7 +946,7 @@ crud_routers = [
             "id_kala": "id_kala",
             "goods_group": "goods_group",
             "storage_price": "storage_price",
-            "price_unloding": "price_unloding",
+            "price_unloding": "price_unloding", "price_loading": "price_loading",
             # code/description/is_dangerous are UPPERCASE in the DB -> default handles them
         },
     ),
@@ -995,7 +998,7 @@ crud_routers = [
             "code": "code",
             "storage_price": "storage_price",
             "price_30_day": "price_30_day", "price_60_day": "price_60_day",
-            "price_90_day": "price_90_day", "price_unloding": "price_unloding",
+            "price_90_day": "price_90_day", "price_unloding": "price_unloding", "price_loading": "price_loading",
         },
     ),
     make_crud_router(
@@ -1087,7 +1090,7 @@ crud_routers = [
         access=TALLY_SERVICE_ACCESS,
         column_overrides={
             "tali_id": "tali_id", "kala_strip_id": "kala_strip_id",
-            "code": "code", "number_hamel": "number_hamel", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type",
+            "code": "code", "number_hamel": "number_hamel", "number_service": "NUMBER_SERVICE", "pricing_type": "pricing_type", "service_kind": "service_kind",
         },
     ),
     make_crud_router(

@@ -328,6 +328,7 @@ import { apiGet } from '../api/client'
 // import { TallyDiamoundSection } from '../components/TallyDiamoundSection'
 import { GhabzIssueModal } from '../components/GhabzIssueModal'
 import { TallyJunctionSection } from '../components/TallyJunctionSection'
+import { TallyHandlingSection } from '../components/TallyHandlingSection'
 import { TallyGoodsGrid } from '../components/TallyGoodsGrid'
 import { tallyJunctions } from '../components/junctions'
 import { TallyNumber } from '../components/TallyNumber'
@@ -664,7 +665,8 @@ export function TallyDetailPage() {
       <VolumetricCard tallyId={headerId} state={handoff} />
 
       <div className="tally-detail-junctions">
-        {headerId != null && tallyJunctions.map((cfg) => (
+        {headerId != null && <TallyHandlingSection tallyId={headerId} />}
+        {headerId != null && tallyJunctions.filter((cfg) => !cfg.serviceKind).map((cfg) => (
           <TallyJunctionSection key={cfg.key} config={cfg} tallyId={headerId} />
         ))}
       </div>

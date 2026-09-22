@@ -199,6 +199,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services import invoice_calc as calc
+from app.services.container_excess import derived_rows
 
 router = APIRouter(prefix="/invoice", tags=["invoice"])
 
@@ -239,6 +240,12 @@ SELECT "SETTING_KEY" AS setting_key, "VALUE_NUMBER" AS value_number
   FROM "FA_APP_SETTINGS"
  WHERE "SETTING_KEY" IN ('tax_rate', 'freight_rate')
 """
+TRANSPORTATION_SQL = '''SELECT COUNT(*) AS carrier_count
+FROM "FA_TALI_CARRIER_TRANSPORTATION" t
+WHERE t."TALI_ID" = :tid AND t."HAS_TRANSPORTATION" = 'yes'
+  AND EXISTS (SELECT 1 FROM "FA_TALI_DETAILES" d
+              WHERE d."ID_HEADERS_TALI" = t."TALI_ID"
+                AND d."NUMBER_HAMEL" = t."NUMBER_HAMEL" AND d."IS_DELETED" = 'no')'''
 
 # --- the five service junctions, each joined to its rate catalog (raw values; summed in Python) ---
 OTHER_SERVICE_SQL = """
@@ -248,12 +255,35 @@ JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_serv
 WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
 """
 STRIP_SQL = """
-SELECT j."pricing_type" AS pricing_type,
+SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
+       j."service_kind" AS service_kind, j."number_hamel" AS number_hamel,
        j."NUMBER_SERVICE" AS number_service,
-       c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous
+       c."code" AS rate_code, c."title" AS rate_title,
+       c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous,
+       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_unloding")
+          FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
+            ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+         WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
+           AND d."IS_DELETED" = 'no') AS unloading_amount,
+       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_loading")
+          FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
+            ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+         WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
+           AND d."IS_DELETED" = 'no') AS loading_amount
 FROM "fa_tali_kala_strip" j
-JOIN "fa_kala_strip" c ON c."id_kala_strip" = j."kala_strip_id"
-WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+LEFT JOIN "fa_kala_strip" c ON c."id_kala_strip" = j."kala_strip_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+CONTAINER_WEIGHTS_SQL = """
+SELECT "NUMBER_HAMEL" AS number_hamel, SUM(NVL("WEIGHTE", 0)) AS weight_kg
+FROM "FA_TALI_DETAILES"
+WHERE "ID_HEADERS_TALI" = :tid AND "IS_DELETED" = 'no'
+GROUP BY "NUMBER_HAMEL"
+"""
+CONTAINER_EXCESS_CATALOG_SQL = """
+SELECT "id_kala_strip" AS id, "code" AS code, "title" AS title,
+       "normal" AS normal, "non_standard" AS non_standard, "dangerous" AS dangerous
+FROM "fa_kala_strip" WHERE "code" IN ('202', '402') AND "IS_DELETED" = 'no'
 """
 NIGHT_STOP_SQL = """
 SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
@@ -285,6 +315,10 @@ _STRIP_COLUMN = {"normal": "normal", "non_standard": "non_standard", "dangerous"
 
 
 def _strip_price(row: dict):
+    if row.get("pricing_type") == "unloading":
+        return row["unloading_amount"]
+    if row.get("pricing_type") == "loading":
+        return row["loading_amount"]
     col = _STRIP_COLUMN.get((row.get("pricing_type") or "normal"), "normal")
     return row[col]
 
@@ -335,6 +369,9 @@ def preview_from_tally(tali_id: int):
     # services. strip: each junction's pricing_type picks normal|non_standard|dangerous.
     other = fetch_all(OTHER_SERVICE_SQL, {"tid": tali_id})
     strip = fetch_all(STRIP_SQL, {"tid": tali_id})
+    weights = {row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in fetch_all(CONTAINER_WEIGHTS_SQL, {"tid": tali_id})}
+    excess_catalog = {str(row["code"]): row for row in fetch_all(CONTAINER_EXCESS_CATALOG_SQL)}
+    strip = derived_rows(strip, weights, excess_catalog)
     night = fetch_all(NIGHT_STOP_SQL, {"tid": tali_id})
     diamound = fetch_all(DIAMOUND_SQL, {"tid": tali_id})
     vehicle = fetch_all(VEHICLE_ENTER_SQL, {"tid": tali_id})
@@ -342,8 +379,10 @@ def preview_from_tally(tali_id: int):
     service_rows = calc.compute_service_rows(
         other_service_prices=[r["price"] for r in other],
         other_service_counts=[r["number_service"] for r in other],
-        strip_values=[_strip_price(r) for r in strip],
-        strip_counts=[r["number_service"] for r in strip],
+        strip_values=[_strip_price(r) for r in strip if r["service_kind"] == "strip"],
+        strip_counts=[None if r["pricing_type"] == "unloading" else r["number_service"] for r in strip if r["service_kind"] == "strip"],
+        stuffing_values=[_strip_price(r) for r in strip if r["service_kind"] == "stuffing"],
+        stuffing_counts=[None if r["pricing_type"] == "loading" else r["number_service"] for r in strip if r["service_kind"] == "stuffing"],
         night_stop_prices=[r["price"] for r in night],
         night_stop_counts=[r["number_service"] for r in night],
         diamound_prices=[r["price"] for r in diamound],
@@ -351,12 +390,25 @@ def preview_from_tally(tali_id: int):
         vehicle_enter_prices=[r["price"] for r in vehicle],
         vehicle_enter_counts=[r["number_service"] for r in vehicle],
     )
+    for row in strip:
+        if row["service_kind"] != "crane":
+            continue
+        rate = calc.to_decimal(_strip_price(row))
+        quantity = calc.to_decimal(row["number_service"]) or Decimal(1)
+        service_rows.append(calc.InvoiceDetailRow(
+            f'{calc.SERVICE_LABELS["crane"]} — {row["rate_title"] or row["rate_code"]}',
+            quantity, None, None if rate is None else rate * quantity,
+        ))
 
-    all_rows = storage_rows + service_rows
-    grand_total = sum((r.price for r in all_rows if r.price is not None), Decimal(0))
     configured = {row["setting_key"]: Decimal(str(row["value_number"])) for row in fetch_all(INVOICE_SETTINGS_SQL)}
     tax_rate = configured.get("tax_rate", Decimal(0))
     freight_rate = configured.get("freight_rate", Decimal(0))
+    transportation = fetch_one(TRANSPORTATION_SQL, {"tid": tali_id}) or {}
+    carrier_count = int(transportation.get("carrier_count") or 0)
+    if carrier_count:
+        service_rows.append(calc.InvoiceDetailRow(calc.SERVICE_LABELS["transportation"], carrier_count, None, freight_rate * carrier_count))
+    all_rows = storage_rows + service_rows
+    grand_total = sum((r.price for r in all_rows if r.price is not None), Decimal(0))
     tax_amount = grand_total * tax_rate / Decimal(100)
 
     return {

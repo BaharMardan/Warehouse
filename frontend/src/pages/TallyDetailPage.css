@@ -423,9 +423,11 @@
 }
 
 .tally-detail-modal-form {
+  display: flex;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .tally-detail-modal-scroll {
@@ -450,6 +452,18 @@
   color: var(--detail-blue-dark);
   font-size: 18px;
   font-weight: 800;
+}
+
+.tally-handling-carrier-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  direction: rtl;
+}
+
+.tally-handling-carrier-details {
+  min-width: 0;
 }
 
 [data-mantine-color-scheme='dark'] .tally-detail-page,
@@ -574,6 +588,17 @@
   box-shadow: 0 8px 26px rgba(31, 66, 112, 0.07);
 }
 
+.volumetric-card .tally-detail-section-header {
+  min-height: 66px;
+  padding: 12px 20px;
+}
+
+.volumetric-card .tally-detail-section-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
 .volumetric-heading {
   display: flex;
   align-items: center;
@@ -592,22 +617,24 @@
 .volumetric-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px;
+  gap: 10px;
+  padding: 14px 20px 16px;
 }
 
 .volumetric-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  max-width: 680px;
-  margin-top: 10px;
+  grid-template-columns: minmax(0, 380px) 190px;
+  gap: 8px;
+  width: 100%;
+  max-width: 578px;
 }
 
 .volumetric-option {
-  padding: 10px 16px;
+  grid-column: 1;
+  min-height: 52px;
+  padding: 4px 14px;
   border: 1px solid var(--detail-line, #dbe6f3);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--mantine-color-default);
   transition:
     border-color 150ms ease,
@@ -630,25 +657,55 @@
   outline-offset: 3px;
 }
 
-.volumetric-pallets {
+.volumetric-option .mantine-Radio-root {
   width: 100%;
-  max-width: 320px;
+}
+
+.volumetric-option-content {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.volumetric-option-content .mantine-Radio-root {
+  flex: 1 1 auto;
+}
+
+.volumetric-pallets {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  width: 190px;
 }
 
 @media (max-width: 600px) {
   .volumetric-card .tally-detail-section-header {
+    padding: 12px 15px;
+    align-items: center;
+    flex-direction: row;
     flex-wrap: wrap;
   }
 
   .volumetric-body {
-    padding: 16px;
-  }
-
-  .volumetric-options {
-    grid-template-columns: 1fr;
+    padding: 12px 15px 15px;
   }
 
   .volumetric-pallets {
-    max-width: none;
+    width: 190px;
+  }
+}
+
+@media (max-width: 620px) {
+  .volumetric-options {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 380px;
+  }
+
+  .volumetric-pallets {
+    grid-column: 1;
+    grid-row: auto;
+    width: min(190px, 100%);
   }
 }

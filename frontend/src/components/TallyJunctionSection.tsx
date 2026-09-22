@@ -401,6 +401,7 @@ export type JunctionConfig = {
   catalogPath: string
   catalogValueKey: string
   catalogLabel: (r: Record<string, any>) => string
+  serviceKind?: 'strip' | 'stuffing'
   extraField?: { key: string; label: string }
   // A service can be tied to one of the carrier numbers entered in the tally's goods rows.
   carrierField?: { key: string; label: string }
@@ -427,6 +428,7 @@ type JunctionRow = {
   number_hamel?: string | null
   pricing_type?: string | null
   selected_price?: string | number | null
+  calculated_amount?: string | number | null
 }
 
 function normalizeDigits(s: string): string {
@@ -496,16 +498,18 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
 
   const saveMutation = useMutation({
     mutationFn: () => {
+      const automaticRate = selectVal === 'unloading' || selectVal === 'loading'
       const payload: Record<string, unknown> = {
         tali_id: tallyId,
-        [config.linkKey]: rateId,
-        code: snapCode,
+        [config.linkKey]: automaticRate ? null : rateId,
+        code: automaticRate ? null : snapCode,
         description: description.trim() === '' ? null : description,
       }
       if (config.extraField) {
         payload[config.extraField.key] =
-          extraVal.trim() === '' ? null : Number(normalizeDigits(extraVal))
+          automaticRate || extraVal.trim() === '' ? null : Number(normalizeDigits(extraVal))
       }
+      if (config.serviceKind) payload.service_kind = config.serviceKind
       if (config.carrierField) {
         payload[config.carrierField.key] = carrierNumber
       }
@@ -533,6 +537,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
   const SectionIcon = {
     diamound: Clock3,
     strip: Boxes,
+    stuffing: Boxes,
     'other-service': PackageSearch,
     'time-stop': Clock3,
     'vehicle-enter': Truck,
@@ -602,6 +607,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                   {config.extraField && <Table.Th>{config.extraField.label}</Table.Th>}
                   {config.selectField && <Table.Th>{config.selectField.label}</Table.Th>}
                   {config.selectField?.inlineWithCatalog && <Table.Th>مبلغ</Table.Th>}
+                  {config.serviceKind && <Table.Th>مبلغ محاسبه‌شده</Table.Th>}
                   <Table.Th>توضیحات</Table.Th>
                   {canEdit && <Table.Th className="tally-detail-actions-cell">عملیات</Table.Th>}
                 </Table.Tr>
@@ -626,6 +632,9 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                           ? '—'
                           : `${Number(row.selected_price).toLocaleString('fa-IR')} ریال`}
                       </Table.Td>
+                    )}
+                    {config.serviceKind && (
+                      <Table.Td>{row.calculated_amount == null ? '—' : `${Number(row.calculated_amount).toLocaleString('fa-IR')} ریال`}</Table.Td>
                     )}
                     <Table.Td>{row.description ?? '—'}</Table.Td>
                     {canEdit && (
@@ -689,7 +698,7 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
               nothingFoundMessage="شماره حاملی در ردیف‌های کالا ثبت نشده است"
             />
           )}
-          <RefSelect
+          {selectVal !== 'unloading' && selectVal !== 'loading' && <RefSelect
             label={`انتخاب ${config.title}`}
             path={config.catalogPath}
             valueKey={config.catalogValueKey}
@@ -708,8 +717,8 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
             }
             variantValue={config.selectField?.inlineWithCatalog ? selectVal : undefined}
             onVariantChange={config.selectField?.inlineWithCatalog ? setSelectVal : undefined}
-          />
-          {config.extraField && (
+          />}
+          {config.extraField && selectVal !== 'unloading' && selectVal !== 'loading' && (
             <TextInput
               label={config.extraField.label}
               inputMode="numeric"

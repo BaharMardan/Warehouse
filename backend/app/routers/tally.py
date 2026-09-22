@@ -307,8 +307,44 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services.insurance_check import check_insurance_ceilings
+from app.services.container_excess import derived_rows
+from decimal import Decimal
+from app.services.base import execute
+from pydantic import BaseModel
+from typing import Literal
 
 router = APIRouter(prefix="/tally", tags=["tally"])
+
+
+class TransportationInput(BaseModel):
+    number_hamel: str
+    has_transportation: Literal["yes", "no"]
+
+
+@router.get("/{header_id}/transportation", dependencies=[Depends(require_permission("tally.view"))])
+def list_transportation(header_id: int):
+    return fetch_all('''SELECT "NUMBER_HAMEL" AS number_hamel,
+        "HAS_TRANSPORTATION" AS has_transportation
+        FROM "FA_TALI_CARRIER_TRANSPORTATION" WHERE "TALI_ID" = :hid''', {"hid": header_id})
+
+
+@router.put("/{header_id}/transportation", dependencies=[Depends(require_permission("tally.services"))])
+def set_transportation(header_id: int, payload: TransportationInput):
+    if not fetch_one('SELECT "ID_TALI" AS id FROM "FA_TALI_HEADER" WHERE "ID_TALI" = :hid AND "IS_DELETED" = \'no\'', {"hid": header_id}):
+        raise HTTPException(status_code=404, detail="Tally not found")
+    carrier = payload.number_hamel.strip()
+    if not carrier or not fetch_one('''SELECT 1 AS found FROM "FA_TALI_DETAILES"
+        WHERE "ID_HEADERS_TALI" = :hid AND "NUMBER_HAMEL" = :carrier AND "IS_DELETED" = 'no' ''',
+        {"hid": header_id, "carrier": carrier}):
+        raise HTTPException(status_code=422, detail="Carrier is not registered on this tally")
+    execute('''MERGE INTO "FA_TALI_CARRIER_TRANSPORTATION" t
+        USING (SELECT :hid AS "TALI_ID", :carrier AS "NUMBER_HAMEL" FROM DUAL) s
+        ON (t."TALI_ID" = s."TALI_ID" AND t."NUMBER_HAMEL" = s."NUMBER_HAMEL")
+        WHEN MATCHED THEN UPDATE SET t."HAS_TRANSPORTATION" = :answer
+        WHEN NOT MATCHED THEN INSERT ("TALI_ID", "NUMBER_HAMEL", "HAS_TRANSPORTATION")
+            VALUES (:hid, :carrier, :answer)''',
+        {"hid": header_id, "carrier": carrier, "answer": payload.has_transportation})
+    return {"number_hamel": carrier, "has_transportation": payload.has_transportation}
 
 # Every identifier quoted with its EXACT stored case (same rule as the factory),
 # and soft-delete filtered the app's way: IS_DELETED = 'no' means active.
@@ -401,6 +437,7 @@ ORDER BY d."ID_TALI_DETAILS"
 PRINT_HEADER_SQL = """
 SELECT
     h."ID_TALI"                         AS id_tali,
+    h."HAS_TRANSPORTATION"              AS has_transportation,
     h."TALI_NUMBER"                     AS tali_number,
     h."NUMBER_KARANEH"                  AS number_karaneh,
     h."RADEF_MARZE"                     AS radef_marze,
@@ -462,6 +499,10 @@ def get_tally_print_data(
         current_user.get("full_name") or current_user.get("username") or ""
     )
     header["details"] = fetch_all(DETAILS_SQL, {"hid": header_id})
+    header["transportation_carriers"] = [
+        row["number_hamel"] for row in list_transportation(header_id)
+        if row["has_transportation"] == "yes"
+    ]
     return header
 
 # --- cross-tally insurance ceiling check ---
@@ -572,13 +613,40 @@ SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
        j."kala_strip_id" AS rate_id, j."code" AS code,
        j."number_hamel" AS number_hamel,
        j."NUMBER_SERVICE" AS number_service, j."DESCRIPTION" AS description,
-       j."pricing_type" AS pricing_type,
-       k."code" AS rate_code, k."title" AS rate_title
+       j."pricing_type" AS pricing_type, j."service_kind" AS service_kind,
+       k."code" AS rate_code, k."title" AS rate_title,
+       CASE WHEN j."pricing_type" IN ('unloading', 'loading') THEN
+         (SELECT SUM(NVL(d."WEIGHTE", 0) *
+                     CASE j."pricing_type" WHEN 'loading' THEN p."price_loading"
+                          ELSE p."price_unloding" END)
+            FROM "FA_TALI_DETAILES" d
+            JOIN "fa_kala_price" p ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+           WHERE d."ID_HEADERS_TALI" = j."tali_id"
+             AND d."NUMBER_HAMEL" = j."number_hamel" AND d."IS_DELETED" = 'no')
+         ELSE NULL END AS calculated_amount
 FROM "fa_tali_kala_strip" j
 LEFT JOIN "fa_kala_strip" k ON k."id_kala_strip" = j."kala_strip_id"
 WHERE j."tali_id" = :hid AND j."IS_DELETED" = 'no'
 ORDER BY j."id_tali_kala_strip"
 """
+CONTAINER_WEIGHTS_SQL = """
+SELECT "NUMBER_HAMEL" AS number_hamel, SUM(NVL("WEIGHTE", 0)) AS weight_kg
+FROM "FA_TALI_DETAILES"
+WHERE "ID_HEADERS_TALI" = :hid AND "IS_DELETED" = 'no'
+GROUP BY "NUMBER_HAMEL"
+"""
+CONTAINER_EXCESS_CATALOG_SQL = """
+SELECT "id_kala_strip" AS id, "code" AS code, "title" AS title,
+       "normal" AS normal, "non_standard" AS non_standard, "dangerous" AS dangerous
+FROM "fa_kala_strip" WHERE "code" IN ('202', '402') AND "IS_DELETED" = 'no'
+"""
+
+
+def _handling_rows(header_id: int, kind: str):
+    rows = [row for row in fetch_all(STRIP_SQL, {"hid": header_id}) if row["service_kind"] == kind]
+    weights = {row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in fetch_all(CONTAINER_WEIGHTS_SQL, {"hid": header_id})}
+    catalog = {str(row["code"]): row for row in fetch_all(CONTAINER_EXCESS_CATALOG_SQL)}
+    return derived_rows(rows, weights, catalog)
 
 TIME_STOP_SQL = """
 SELECT j."id_tali_kala_time_stop_vehicle" AS id, j."tali_id" AS tali_id,
@@ -617,7 +685,17 @@ def list_tally_other_service(header_id: int):
 
 @router.get("/{header_id}/strip", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_strip(header_id: int):
-    return fetch_all(STRIP_SQL, {"hid": header_id})
+    return _handling_rows(header_id, "strip")
+
+
+@router.get("/{header_id}/stuffing", dependencies=[Depends(require_permission("tally.view"))])
+def list_tally_stuffing(header_id: int):
+    return _handling_rows(header_id, "stuffing")
+
+
+@router.get("/{header_id}/crane", dependencies=[Depends(require_permission("tally.view"))])
+def list_tally_crane(header_id: int):
+    return _handling_rows(header_id, "crane")
 
 @router.get("/{header_id}/time-stop", dependencies=[Depends(require_permission("tally.view"))])
 def list_tally_time_stop(header_id: int):

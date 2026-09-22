@@ -32,7 +32,10 @@ def storage_label(kala_code) -> str:
 
 SERVICE_LABELS = {
     "other_service": "هزینه کل سایر خدمات",
-    "strip": "هزینه کل استریپ یا استافینگ",
+    "strip": "هزینه کل استریپ / تخلیه",
+    "stuffing": "هزینه کل استافینگ / بارگیری",
+    "transportation": "هزینه باربری",
+    "crane": "هزینه جابه‌جایی کانتینر با جرثقیل",
     "night_stop": "هزینه کل توقف شبانه",
     "diamound": "هزینه کل دیماند",
     "vehicle_enter": "هزینه کل حق ورودی (حق محوطه)",
@@ -160,6 +163,8 @@ def compute_service_rows(
     other_service_counts=(),
     strip_values=(),
     strip_counts=(),
+    stuffing_values=(),
+    stuffing_counts=(),
     night_stop_prices=(),
     night_stop_counts=(),
     diamound_prices=(),
@@ -206,6 +211,7 @@ def compute_service_rows(
 
     for key, values, counts in (
         ("strip", strip_values, strip_counts),
+        ("stuffing", stuffing_values, stuffing_counts),
         ("night_stop", night_stop_prices, night_stop_counts),
         ("diamound", diamound_prices, diamound_counts),
         ("vehicle_enter", vehicle_enter_prices, vehicle_enter_counts),
@@ -244,7 +250,7 @@ if __name__ == "__main__":
     )
     assert [r.description for r in svc] == [
         SERVICE_LABELS[k] for k in (
-            "other_service", "strip", "night_stop", "diamound", "vehicle_enter",
+            "other_service", "strip", "stuffing", "night_stop", "diamound", "vehicle_enter",
         )
     ], [r.description for r in svc]
     by = {r.description: r.price for r in svc}

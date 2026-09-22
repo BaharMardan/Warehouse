@@ -574,6 +574,7 @@ type TallyPrintData = {
   number_barnameh: string | null
   name_arzyab: string | null
   is_bimeh: string | null
+  transportation_carriers: string[]
   name_anbardar: string | null
   accepted_gomrok: string | null
   company_bimeh: string | null
@@ -791,6 +792,7 @@ function TallySheet({
             <InfoLine icon={<IdCard />} label="شماره تالی" value={data.tali_number} ltr />
             <InfoLine icon={<UserRound />} label="کد ملی / شناسه ملی صاحب کالا" value={data.owner_national_code} ltr />
             <InfoLine icon={<FileText />} label="شماره بارنامه" value={data.number_barnameh} ltr />
+            <InfoLine icon={<Truck />} label="باربری (شماره حامل)" value={data.transportation_carriers?.join('، ') || '—'} />
             <InfoLine icon={<CircleHelp />} label="نام ارزیاب" value={data.name_arzyab} />
           </div>
         </div>

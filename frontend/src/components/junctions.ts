@@ -65,7 +65,7 @@ export const tallyJunctions: JunctionConfig[] = [
     },
   },
   {
-    key: 'strip', title: 'استریپ یا استافینگ',
+    key: 'strip', title: 'استریپ / تخلیه', serviceKind: 'strip',
     apiPath: '/tali-kala-strip', readPath: 'strip', linkKey: 'kala_strip_id',
     catalogPath: '/kala-strip', catalogValueKey: 'id_kala_strip',
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
@@ -77,6 +77,24 @@ export const tallyJunctions: JunctionConfig[] = [
         { value: 'normal', label: 'عادی' },
         { value: 'non_standard', label: 'غیراستاندارد' },
         { value: 'dangerous', label: 'خطرناک' },
+        { value: 'unloading', label: 'تخلیه' },
+      ],
+    },
+  },
+  {
+    key: 'stuffing', title: 'استافینگ / بارگیری', serviceKind: 'stuffing',
+    apiPath: '/tali-kala-strip', readPath: 'stuffing', linkKey: 'kala_strip_id',
+    catalogPath: '/kala-strip', catalogValueKey: 'id_kala_strip',
+    catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+    extraField: { key: 'number_service', label: 'تعداد' },
+    carrierField: { key: 'number_hamel', label: 'شماره حامل' },
+    selectField: {
+      key: 'pricing_type', label: 'نوع قیمت', defaultValue: 'normal',
+      options: [
+        { value: 'normal', label: 'عادی' },
+        { value: 'non_standard', label: 'غیراستاندارد' },
+        { value: 'dangerous', label: 'خطرناک' },
+        { value: 'loading', label: 'بارگیری' },
       ],
     },
   },
