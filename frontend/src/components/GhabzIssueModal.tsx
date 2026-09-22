@@ -808,7 +808,7 @@ export function GhabzIssueModal({
               disabled={selected.length === 0 || tallyId == null || busy}
               onClick={() => { setError(null); issue.mutate() }}
             >
-              صدور قبض انبار تفکیکی
+              تفکیک قبض انبار
             </Button>
             <Button variant="subtle" onClick={onClose} disabled={busy}>انصراف</Button>
           </Group>

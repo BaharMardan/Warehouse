@@ -557,6 +557,7 @@ export function TallyDetailPage() {
             >
               <span>
                 <Button
+                  className="tally-detail-issue-button"
                   variant="light"
                   color="teal"
                   leftSection={<ReceiptText size={17} />}

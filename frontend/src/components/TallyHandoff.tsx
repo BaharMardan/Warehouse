@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Group, Paper, Radio, Stack, Text, TextInput, Tooltip } from '@mantine/core'
 import { Send, Undo2 } from 'lucide-react'
 import { errorMessage } from '../api/client'
-import { KEEPER_QUEUE_KEY, handoffApi, handoffKey, type HandoffState, type VolumetricAnswer } from '../api/handoff'
+import { KEEPER_QUEUE_KEY, handoffApi, handoffKey, type HandoffState, type CargoTypeAnswer } from '../api/handoff'
 import { usePermissions } from '../auth/usePermissions'
 
 /**
@@ -73,9 +73,10 @@ export function HandoffBanner({ state }: { state: HandoffState | undefined }) {
       : 'پیش از راه‌اندازی این گردش کار تکمیل شده است.'
   }
 
-  const answer = state.is_volumetric === 'yes'
-    ? `کالای حجمی: بله${state.volumetric_pallets ? `، ${faDigits(state.volumetric_pallets)} پالت` : ''}`
-    : state.is_volumetric === 'no' ? 'کالای حجمی: خیر' : null
+  const answer = state.cargo_type === 'volumetric'
+    ? `نوع بار: حجمی${state.volumetric_pallets ? `، ${faDigits(state.volumetric_pallets)} پالت` : ''}`
+    : state.cargo_type === 'weight' ? 'نوع بار: وزنی'
+      : state.cargo_type === 'container' ? 'نوع بار: کانتینری' : null
 
   return (
     <Paper withBorder radius="lg" p="sm" mb="md">
@@ -195,8 +196,8 @@ export function VolumetricCard({
 
   const save = useHandoffAction(
     tallyId,
-    (answer: VolumetricAnswer) =>
-      handoffApi.saveVolumetric(tallyId as number, answer),
+    (answer: CargoTypeAnswer) =>
+      handoffApi.saveCargoType(tallyId as number, answer),
     'ثبت پاسخ انجام نشد.',
   )
 
@@ -230,7 +231,7 @@ export function VolumetricCard({
     if (value === savedPallets) return
 
     save.mutate({
-      is_volumetric: 'yes',
+      cargo_type: 'volumetric',
       volumetric_pallets: value,
     })
   }
@@ -265,20 +266,20 @@ export function VolumetricCard({
           </span>
 
           <div className="tally-detail-section-heading">
-            <h3>آیا بار حجمی است؟</h3>
+            <h3>نوع بار چیست؟</h3>
             
           </div>
         </div>
 
         <Badge
-          color={state.is_volumetric ? 'teal' : 'orange'}
+          color={state.cargo_type ? 'teal' : 'orange'}
           variant="light"
           radius="sm"
           role="status"
         >
           {save.isPending
             ? 'در حال ذخیره…'
-            : state.is_volumetric
+            : state.cargo_type
               ? 'پاسخ ثبت شده'
               : 'نیاز به پاسخ'}
         </Badge>
@@ -288,31 +289,22 @@ export function VolumetricCard({
 
       <div className="volumetric-body">
         <Radio.Group
-          name={`volumetric-${tallyId}`}
-          // label="نوع بار"
-          value={state.is_volumetric ?? ''}
-          onChange={(value) =>
-            save.mutate(
-              value === 'yes'
-                ? {
-                    is_volumetric: 'yes',
-                    volumetric_pallets: savedPallets,
-                  }
-                : {
-                    is_volumetric: 'no',
-                    volumetric_pallets: null,
-                  },
-            )
-          }
+          name={`cargo-type-${tallyId}`}
+          value={state.cargo_type ?? ''}
+          onChange={(value) => {
+            if (value === 'weight' || value === 'volumetric' || value === 'container') {
+              save.mutate({ cargo_type: value, volumetric_pallets: value === 'volumetric' ? savedPallets : null })
+            }
+          }}
         >
           <div className="volumetric-options">
             <div
               className="volumetric-option"
-              data-selected={state.is_volumetric === 'yes'}
+              data-selected={state.cargo_type === 'weight'}
             >
               <Radio
-                value="yes"
-                label="بله"
+                value="weight"
+                label="وزنی"
                 disabled={save.isPending}
                 size="md"
                 styles={{
@@ -329,49 +321,52 @@ export function VolumetricCard({
 
             <div
               className="volumetric-option"
-              data-selected={state.is_volumetric === 'no'}
+              data-selected={state.cargo_type === 'volumetric'}
             >
+              <div className="volumetric-option-content">
+                <Radio
+                  value="volumetric"
+                  label="حجمی"
+                  disabled={save.isPending}
+                  size="md"
+                  styles={{
+                    body: { alignItems: 'center' },
+                    labelWrapper: { flex: 1 },
+                    label: { cursor: 'pointer', fontWeight: 600, paddingBlock: 8 },
+                  }}
+                />
+                {state.cargo_type === 'volumetric' && (
+                  <div className="volumetric-pallets">
+                    <TextInput
+                      aria-label="تعداد پالت"
+                      placeholder="تعداد پالت"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      size="sm"
+                      value={pallets}
+                      disabled={save.isPending}
+                      onChange={(event) => setPallets(latinDigits(event.currentTarget.value).replace(/\D/g, ''))}
+                      onBlur={savePallets}
+                      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="volumetric-option" data-selected={state.cargo_type === 'container'}>
               <Radio
-                value="no"
-                label="خیر"
+                value="container"
+                label="کانتینری"
                 disabled={save.isPending}
                 size="md"
-                styles={{
-                  body: { alignItems: 'center' },
-                  labelWrapper: { flex: 1 },
-                  label: {
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    paddingBlock: 8,
-                  },
-                }}
               />
             </div>
           </div>
         </Radio.Group>
 
-        {state.is_volumetric === 'yes' && (
+        {false && (
           <div className="volumetric-pallets">
-            <TextInput
-              label="تعداد پالت"
-              // description="عدد صحیح و حداقل ۱"
-              placeholder="مثلاً ۱۲"
-              inputMode="numeric"
-              autoComplete="off"
-              size="md"
-              radius="md"
-              value={pallets}
-              disabled={save.isPending}
-              onChange={(event) =>
-                setPallets(event.currentTarget.value)
-              }
-              onBlur={savePallets}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.currentTarget.blur()
-                }
-              }}
-            />
+            <TextInput label="تعداد پالت" />
           </div>
         )}
 
@@ -390,9 +385,9 @@ export function ReturnToOperatorButton({ tallyId, state }: { tallyId: number | n
 
   if (!can('tally.services') || tallyId == null || state?.step !== 'keeper') return null
 
-  const blocked = state.is_volumetric == null
-    ? 'ابتدا به پرسش «آیا کالا حجمی است؟» پاسخ دهید'
-    : state.is_volumetric === 'yes' && !state.volumetric_pallets
+  const blocked = state.cargo_type == null
+    ? 'ابتدا نوع بار را انتخاب کنید'
+    : state.cargo_type === 'volumetric' && !state.volumetric_pallets
       ? 'تعداد پالت را وارد کنید'
       : null
 
@@ -411,7 +406,7 @@ export function ReturnToOperatorButton({ tallyId, state }: { tallyId: number | n
               loading={back.isPending}
               onClick={() => back.mutate(undefined as never)}
             >
-              ارسال به اپراتور
+              ارسال به صدور اسناد
             </Button>
           </span>
         </Tooltip>

@@ -14,12 +14,15 @@ type Props = {
   categoryId: number
   value: string | null
   onChange: (value: string | null) => void
+  /** Optional compatibility values while a newly-added lookup category is migrated. */
+  fallbackValues?: string[]
 } & Omit<SelectProps, 'data' | 'value' | 'onChange'>
 
 export function TermValueSelect({
   categoryId,
   value,
   onChange,
+  fallbackValues = [],
   ...selectProps
 }: Props) {
   const { data, isLoading, isError } = useQuery({
@@ -37,12 +40,19 @@ export function TermValueSelect({
       )
       .map((row) => ({ value: row.value!.trim(), label: row.value!.trim() }))
 
+    for (const fallback of fallbackValues) {
+      const trimmed = fallback.trim()
+      if (trimmed && !rows.some((option) => option.value === trimmed)) {
+        rows.push({ value: trimmed, label: trimmed })
+      }
+    }
+
     // Preserve an older stored value even if its lookup row was later removed.
     if (value?.trim() && !rows.some((option) => option.value === value.trim())) {
       rows.push({ value: value.trim(), label: value.trim() })
     }
     return rows
-  }, [data, categoryId, value])
+  }, [data, categoryId, value, fallbackValues])
 
   return (
     <Select

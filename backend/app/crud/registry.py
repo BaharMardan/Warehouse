@@ -727,6 +727,8 @@ class TaliHeaderInput(BaseModel):
     id_marze: int | None = None             # نام مرز ورودی → terms cat 1
     id_company: int | None = None           # نام شرکت حمل → companies
     id_respons_company: int | None = None   # نام نماینده شرکت حمل → companies
+    has_power_of_attorney: str | None = None
+    power_of_attorney_validity: str | None = None
     id_product_ownear: int | None = None    # صاحب کالا → owners (note: DB spelling)
     owner_national_code: str | None = None  # کد ملی/شناسه ملی صاحب کالا، snapshot روی تالی
     id_country: int | None = None           # مبدا حمل (کشور) → terms cat 2

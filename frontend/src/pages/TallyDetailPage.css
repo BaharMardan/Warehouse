@@ -156,6 +156,15 @@
   opacity: 1;
 }
 
+.tally-detail-actions .tally-detail-issue-button:disabled:not([data-loading]),
+.tally-detail-actions .tally-detail-issue-button[data-disabled]:not([data-loading]) {
+  color: #8fa9c2;
+  border-color: #d7e3ef;
+  background: #e8f1f9;
+  box-shadow: none;
+  opacity: 0.72;
+}
+
 .tally-detail-summary-grid {
   display: grid;
   margin-top: 18px;

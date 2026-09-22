@@ -25,6 +25,11 @@ function normalizeIntegerInput(s: string): string {
   return normalizeDigits(s).replace(/\D/g, '')
 }
 
+function formatGroupedIntegerInput(value: string): string {
+  const normalized = normalizeIntegerInput(value)
+  return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
 const DEFAULT_WAREHOUSE_KEEPER = 'آقای میاندهی'
 
 // NUMBER_BIMEH and SABT_SEFARESH_NUMBER are stored as newline-separated text
@@ -107,6 +112,8 @@ type TallyHeaderState = {
   id_marze: number | null
   id_company: number | null
   id_respons_company: number | null
+  has_power_of_attorney: string
+  power_of_attorney_validity: string
   id_product_ownear: number | null
   owner_national_code: string
   id_country: number | null
@@ -124,7 +131,8 @@ type TallyHeaderState = {
 const EMPTY: TallyHeaderState = {
   number_karaneh: '', tracking_number: '', customs_procedure: '',
   radef_marze: '', date_enter_marze: null, date_unloading: null,
-  id_marze: null, id_company: null, id_respons_company: null, id_product_ownear: null,
+  id_marze: null, id_company: null, id_respons_company: null,
+  has_power_of_attorney: 'خیر', power_of_attorney_validity: '', id_product_ownear: null,
   owner_national_code: '', id_country: null, number_bimeh: [''],
   sabt_sefaresh_number: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
@@ -152,6 +160,10 @@ function toPayload(s: TallyHeaderState) {
     id_marze: s.id_marze,
     id_company: s.id_company,
     id_respons_company: s.id_respons_company,
+    has_power_of_attorney: strOrNull(s.has_power_of_attorney),
+    power_of_attorney_validity: s.has_power_of_attorney === 'بله'
+      ? strOrNull(s.power_of_attorney_validity)
+      : null,
     id_product_ownear: s.id_product_ownear,
     owner_national_code: codeOrNull(s.owner_national_code),
     id_country: s.id_country,
@@ -181,6 +193,8 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     id_marze: r.id_marze ?? null,
     id_company: r.id_company ?? null,
     id_respons_company: r.id_respons_company ?? null,
+    has_power_of_attorney: r.has_power_of_attorney ?? 'خیر',
+    power_of_attorney_validity: s(r.power_of_attorney_validity),
     id_product_ownear: r.id_product_ownear ?? null,
     owner_national_code: s(r.owner_national_code),
     id_country: r.id_country ?? null,
@@ -375,7 +389,7 @@ export function TallyHeaderForm() {
               label="ردیف مرزی"
               inputMode="numeric"
               pattern="[0-9]*"
-              value={form.radef_marze}
+              value={formatGroupedIntegerInput(form.radef_marze)}
               onChange={(e) => set('radef_marze', normalizeIntegerInput(e.currentTarget.value))}
               // description="فقط عدد وارد کنید."
               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
@@ -441,6 +455,27 @@ export function TallyHeaderForm() {
               labelKey={representativeLabel}
               value={form.id_respons_company}
               onChange={(v) => set('id_respons_company', v)}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Radio.Group
+              label="وکالت‌نامه دارد؟"
+              value={form.has_power_of_attorney}
+              onChange={(value) => set('has_power_of_attorney', value)}
+            >
+              <Group mt="xs">
+                <Radio value="بله" label="بله" />
+                <Radio value="خیر" label="خیر" />
+              </Group>
+            </Radio.Group>
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="مدت اعتبار وکالت‌نامه"
+              placeholder="مثلاً یک سال یا تا تاریخ ۱۴۰۶/۰۱/۳۱"
+              value={form.power_of_attorney_validity}
+              disabled={form.has_power_of_attorney !== 'بله'}
+              onChange={(event) => set('power_of_attorney_validity', event.currentTarget.value)}
             />
           </Grid.Col>
 

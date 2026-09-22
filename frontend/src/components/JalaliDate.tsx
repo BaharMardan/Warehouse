@@ -6,6 +6,7 @@ type Props = {
   value: string | null
   onChange: (isoDate: string | null) => void
   label?: string
+  compact?: boolean
 }
 
 const MONTHS = [
@@ -40,7 +41,7 @@ function yearOptions(selectedYear: number) {
 }
 
 /** Click-to-open Jalali calendar. Operators can select its month, year, and day. */
-export function JalaliDate({ value, onChange, label }: Props) {
+export function JalaliDate({ value, onChange, label, compact = false }: Props) {
   const initial = isoToParts(value)
   const today = new Date()
   const todayJalali = toJalaali(today.getFullYear(), today.getMonth() + 1, today.getDate())
@@ -79,7 +80,19 @@ export function JalaliDate({ value, onChange, label }: Props) {
             fullWidth
             justify="flex-start"
             onClick={() => setOpened((current) => !current)}
-            styles={{ root: { marginTop: 4, fontWeight: 400 }, label: { width: '100%', textAlign: 'right' } }}
+            styles={{
+              root: {
+                marginTop: compact ? 0 : 4,
+                minHeight: compact ? 30 : undefined,
+                height: compact ? 30 : undefined,
+                paddingInline: compact ? 8 : undefined,
+                border: compact ? 0 : undefined,
+                background: compact ? 'transparent' : undefined,
+                fontSize: compact ? 12 : undefined,
+                fontWeight: 400,
+              },
+              label: { width: '100%', textAlign: 'right' },
+            }}
           >
             {display}
           </Button>

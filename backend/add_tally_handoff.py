@@ -43,16 +43,16 @@ COLUMNS: list[tuple[str, str, str]] = [
     ("SENT_TO_KEEPER_BY", "NUMBER", "NUMBER"),
     ("RETURNED_AT", "DATE", "DATE"),
     ("RETURNED_BY", "NUMBER", "NUMBER"),
-    ("IS_VOLUMETRIC", "VARCHAR2(3 CHAR)", "VARCHAR2"),
+    ("IS_VOLUMETRIC", "VARCHAR2(12 CHAR)", "VARCHAR2"),
     ("VOLUMETRIC_PALLETS", "NUMBER", "NUMBER"),
 ]
 
 CONSTRAINTS: list[tuple[str, str]] = [
     ("CK_FA_TALI_HANDOFF_STEP", "\"HANDOFF_STEP\" IN ('operator', 'keeper', 'returned')"),
-    ("CK_FA_TALI_IS_VOLUMETRIC", "\"IS_VOLUMETRIC\" IN ('yes', 'no')"),
+    ("CK_FA_TALI_IS_VOLUMETRIC", "\"IS_VOLUMETRIC\" IN ('weight', 'volumetric', 'container')"),
     (
         "CK_FA_TALI_VOLUMETRIC_PALLETS",
-        "\"VOLUMETRIC_PALLETS\" IS NULL OR (\"IS_VOLUMETRIC\" = 'yes' "
+        "\"VOLUMETRIC_PALLETS\" IS NULL OR (\"IS_VOLUMETRIC\" = 'volumetric' "
         "AND \"VOLUMETRIC_PALLETS\" >= 1 AND \"VOLUMETRIC_PALLETS\" = TRUNC(\"VOLUMETRIC_PALLETS\"))",
     ),
 ]

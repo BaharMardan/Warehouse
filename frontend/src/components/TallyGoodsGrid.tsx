@@ -1060,11 +1060,11 @@ import { RefSelect } from './RefSelect'
 import { TermValueSelect } from './TermValueSelect'
 import { CommodityPicker, type Commodity } from './CommodityPicker'
 import { PlateInput } from './PlateInput'
-import { CONTAINER_TYPES, TYPES_WITH_NUMBER } from './ContainerFields'
+import { TYPES_WITH_NUMBER } from './ContainerFields'
 import type { StorageGroup } from './StorageGroupSelect'
+import { JalaliDate } from './JalaliDate'
 import {
   isoToJalaliInput,
-  normalizeFlexibleJalaliInput,
   parseFlexibleJalaliDate,
 } from '../utils/flexibleJalaliDate'
 import './TallyGoodsGrid.css'
@@ -1201,6 +1201,15 @@ function normalizeDecimalInput(s: string): string {
   return fractionParts.length === 0 ? whole : `${whole}.${fractionParts.join('')}`
 }
 
+/** Keep the stored/edit value plain, but make long numbers readable in the input. */
+function formatGroupedNumericInput(value: string): string {
+  if (value === '') return ''
+  const normalized = normalizeDecimalInput(value)
+  const [whole, fraction] = normalized.split('.')
+  const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return fraction === undefined ? groupedWhole : `${groupedWhole}.${fraction}`
+}
+
 function formatAmount(value: number | string | null): string {
   if (value == null || String(value).trim() === '') return '—'
   const amount = Number(normalizeDigits(String(value)))
@@ -1256,14 +1265,14 @@ const COLUMNS: ColumnDef[] = [
   { key: 'customs_value', label: 'ارزش کالای گمرکی', group: 'kala', kind: 'decimal', width: 140 },
   { key: 'insured_value', label: 'ارزش کالای بیمه‌شده', group: 'kala', kind: 'decimal', width: 150 },
   { key: 'insurance_expiry_date', label: 'تاریخ اتمام بیمه', group: 'kala', kind: 'date', width: 145 },
-  { key: 'weighte', label: 'وزن اظهار', group: 'baskol', kind: 'decimal', width: 100 },
+  { key: 'weighte', label: 'وزن اظهار (kg)', group: 'baskol', kind: 'decimal', width: 100 },
   { key: 'number_ghabze_bskol', label: 'شماره قبض باسکول', group: 'baskol', kind: 'int', width: 130 },
-  { key: 'weighte_baskol', label: 'وزن باسکول', group: 'baskol', kind: 'decimal', width: 110 },
+  { key: 'weighte_baskol', label: 'وزن باسکول (kg)', group: 'baskol', kind: 'decimal', width: 110 },
   { key: 'id_anbar', label: 'انبار', group: 'mahal', kind: 'anbar', width: 130 },
   { key: 'id_tagh_anbar', label: 'طاق', group: 'mahal', kind: 'tagh', width: 110 },
   { key: 'zarib_mahal', label: 'ضریب محل', group: 'mahal', kind: 'zarib', width: 150 },
   { key: 'number_hamel', label: 'شماره حامل', group: 'haml', kind: 'plate', width: 180 },
-  { key: 'container_type', label: 'نوع کانتینر', group: 'haml', kind: 'containerType', width: 130 },
+  { key: 'container_type', label: 'نوع حامل', group: 'haml', kind: 'containerType', width: 130 },
   { key: 'container_number', label: 'شماره کانتینر', group: 'haml', kind: 'containerNumber', width: 140 },
 ]
 
@@ -1304,6 +1313,11 @@ type Props = {
   headerExtra?: ReactNode
 }
 
+type AnbarLookup = {
+  id_anbar: number
+  name_anbar: string | null
+}
+
 export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
   const qc = useQueryClient()
   const canEdit = usePermissions().can('tally.edit')
@@ -1325,6 +1339,29 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
     queryFn: () => apiGet<StorageGroup[]>('/commodity/storage-groups'),
     staleTime: 5 * 60 * 1000,
   })
+  const { data: anbarOptions } = useQuery({
+    queryKey: ['anbar'],
+    queryFn: () => apiGet<AnbarLookup[]>('/anbar'),
+    staleTime: 5 * 60 * 1000,
+  })
+  const zaribByAnbar = useMemo(() => {
+    const result = new Map<number, string>()
+    for (const anbar of anbarOptions ?? []) {
+      const name = String(anbar.name_anbar ?? '').replace(/\u200c/g, '').trim()
+      // The visible warehouse values 6..11 are names, not database ids.
+      // Their ids are intentionally opaque because the lookup is legacy data.
+      if (/^(?:6|7|8|9|10|11)$/.test(name)) {
+        result.set(Number(anbar.id_anbar), 'انبارداری مسقف')
+      } else if (name.includes('هانگار') || name.includes('هنگار') || name.includes('هانگارد')) {
+        result.set(Number(anbar.id_anbar), 'انبارداری هانگار')
+      } else if (name.includes('بارانداز')) {
+        result.set(Number(anbar.id_anbar), 'انبارداری بارانداز')
+      } else if (name.includes('محوطه')) {
+        result.set(Number(anbar.id_anbar), 'انبارداری محوطه')
+      }
+    }
+    return result
+  }, [anbarOptions])
   const groupLabel = useMemo(() => {
     const byId = new Map<number, string>()
     for (const g of groups ?? []) {
@@ -1593,6 +1630,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
       case 'anbar': return dash(row.anbar_name)
       case 'tagh': return dash(row.tagh_name)
       case 'plate': return formatPlate(row.number_hamel)
+      case 'int':
       case 'decimal': return formatAmount(row[col.key as 'weighte'] as number | string | null)
       case 'date': return isoToJalaliInput(row.insurance_expiry_date) || '—'
       default: return dash((row as unknown as Record<string, unknown>)[col.key])
@@ -1652,7 +1690,13 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
             {...common}
             path="/anbar" valueKey="id_anbar" labelKey="name_anbar" placeholder="—"
             value={f.id_anbar}
-            onChange={(v) => setField('id_anbar', v)}
+            onChange={(v) => {
+              setField('id_anbar', v)
+              if (v != null) {
+                const automaticZarib = zaribByAnbar.get(Number(v))
+                if (automaticZarib) setField('zarib_mahal', automaticZarib)
+              }
+            }}
           />
         )
       case 'tagh':
@@ -1675,9 +1719,10 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
         )
       case 'containerType':
         return (
-          <Select
+          <TermValueSelect
             {...common}
-            data={CONTAINER_TYPES} clearable placeholder="—"
+            categoryId={5} clearable placeholder="—"
+            fallbackValues={['۴۰ فوت', '۲۰ فوت', 'تریلی چادری', 'تریلی یخچال‌دار', 'کامیون جفت', 'خاور', 'وانت', 'کمرشکن']}
             value={f.container_type || null}
             onChange={(v) => {
               const next = v ?? ''
@@ -1732,7 +1777,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
           <TextInput
             {...common}
             inputMode="numeric" placeholder="—"
-            value={f[col.key] as string}
+            value={formatGroupedNumericInput(f[col.key] as string)}
             onChange={(e) => setField(col.key, normalizeIntegerInput(e.currentTarget.value))}
           />
         )
@@ -1741,24 +1786,17 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
           <TextInput
             {...common}
             inputMode="decimal" placeholder="—"
-            value={f[col.key] as string}
+            value={formatGroupedNumericInput(f[col.key] as string)}
             onChange={(e) => setField(col.key, normalizeDecimalInput(e.currentTarget.value))}
           />
         )
       case 'date': {
+        const parsedDate = parseFlexibleJalaliDate(f.insurance_expiry_date)
         return (
-          <TextInput
-            {...common}
-            dir="ltr"
-            inputMode="numeric"
-            placeholder="۱۴۰۵/۰۶/۱۲ یا ۱۲/۰۶/۱۴۰۵"
-            value={f.insurance_expiry_date}
-            error={insuranceDateInvalid}
-            aria-label="تاریخ اتمام بیمه"
-            onChange={(e) => setField(
-              'insurance_expiry_date',
-              normalizeFlexibleJalaliInput(e.currentTarget.value),
-            )}
+          <JalaliDate
+            compact
+            value={parsedDate.status === 'valid' ? parsedDate.iso : null}
+            onChange={(isoDate) => setField('insurance_expiry_date', isoToJalaliInput(isoDate))}
           />
         )
       }

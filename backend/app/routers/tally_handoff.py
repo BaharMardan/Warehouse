@@ -25,8 +25,8 @@ from app.services import tally_handoff as rules
 router = APIRouter(prefix="/tally", tags=["tally_handoff"])
 
 
-class VolumetricInput(BaseModel):
-    is_volumetric: Literal["yes", "no"]
+class CargoTypeInput(BaseModel):
+    cargo_type: Literal["weight", "volumetric", "container"]
     volumetric_pallets: int | None = None
 
 
@@ -47,7 +47,11 @@ SELECT h."ID_TALI" AS id_tali,
          'NLS_CALENDAR = Persian'
        ) AS returned_at_display,
        NVL(TRIM(returner."FULL_NAME"), returner."USERNAME") AS returned_by,
-       h."IS_VOLUMETRIC" AS is_volumetric,
+       CASE h."IS_VOLUMETRIC"
+         WHEN 'yes' THEN 'volumetric'
+         WHEN 'no' THEN 'weight'
+         ELSE h."IS_VOLUMETRIC"
+       END AS cargo_type,
        h."VOLUMETRIC_PALLETS" AS volumetric_pallets,
        (SELECT COUNT(*)
           FROM "FA_TALI_DETAILES" d
@@ -156,20 +160,20 @@ def send_to_keeper(tali_id: int, current_user: dict = Depends(require_permission
 @router.put("/{tali_id}/handoff/volumetric")
 def save_volumetric(
     tali_id: int,
-    item: VolumetricInput,
+    item: CargoTypeInput,
     current_user: dict = Depends(require_permission("tally.services")),
 ):
     with get_connection() as connection:
         with connection.cursor() as cursor:
             step, _, _ = lock_tally(cursor, tali_id)
-            message = rules.volumetric_error(step, item.is_volumetric, item.volumetric_pallets)
+            message = rules.cargo_type_error(step, item.cargo_type, item.volumetric_pallets)
             if message:
                 # A wrong step is a conflict; a bad answer is a bad request.
                 status = 409 if step != rules.KEEPER else 400
                 raise HTTPException(status_code=status, detail=message)
             cursor.execute(SAVE_VOLUMETRIC_SQL, {
                 "tali_id": tali_id,
-                "is_volumetric": item.is_volumetric,
+                "is_volumetric": item.cargo_type,
                 "volumetric_pallets": item.volumetric_pallets,
                 "actor_id": int(current_user["id"]),
             })

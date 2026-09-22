@@ -348,7 +348,7 @@ const BASE_DATA_GROUPS: { title: string; routes: string[] }[] = [
   },
   {
     title: 'اطلاعات عمومی',
-    routes: ['/borders', '/countries', '/packaging-types', '/insurance-companies'],
+    routes: ['/borders', '/countries', '/packaging-types', '/carrier-types', '/insurance-companies'],
   },
 ]
 

@@ -403,6 +403,12 @@ type CurrentUser = { username: string; full_name: string | null }
 
 const ROWS_PER_PAGE = 6
 const EMPTY = '—'
+const STANDARD_RECEIPT_NOTE = 'با توجه به ماهیت و ویژگی‌های فیزیکی کالا، از جمله تأثیر رطوبت و شرایط محیطی و طبیعی و همچنین تلورانس و خطای مجاز تجهیزات توزین، اختلاف جزئی وزن در حدود متعارف(رواداری گمرک)، افت طبیعی کالا محسوب می‌شود.'
+
+function receiptNote(description: string | null): string {
+  const custom = description?.trim()
+  return custom ? `${STANDARD_RECEIPT_NOTE}\n${custom}` : STANDARD_RECEIPT_NOTE
+}
 
 function valueOf(value: unknown): string {
   return value == null || String(value).trim() === '' ? EMPTY : String(value)
@@ -645,7 +651,7 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
         )}
 
         <div className="tally-print-insurance ghabz-print-notes">
-          <div className="tally-print-notes"><strong>توضیحات:</strong><span>{valueOf(header.description)}</span></div>
+          <div className="tally-print-notes"><strong>توضیحات:</strong><span>{receiptNote(header.description)}</span></div>
         </div>
 
         <footer className="tally-print-signatures ghabz-print-signatures">

@@ -15,13 +15,13 @@ export interface HandoffState {
   /** Persian calendar date/time formatted by the database server. */
   returned_at_display: string | null
   returned_by: string | null
-  is_volumetric: 'yes' | 'no' | null
+  cargo_type: 'weight' | 'volumetric' | 'container' | null
   volumetric_pallets: number | null
   goods_rows: number
 }
 
-export interface VolumetricAnswer {
-  is_volumetric: 'yes' | 'no'
+export interface CargoTypeAnswer {
+  cargo_type: 'weight' | 'volumetric' | 'container'
   volumetric_pallets: number | null
 }
 
@@ -32,7 +32,7 @@ export const handoffApi = {
   read: (tallyId: number) => apiGet<HandoffState>(`/tally/${tallyId}/handoff`),
   sendToKeeper: (tallyId: number) =>
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/send-to-keeper`, 'POST'),
-  saveVolumetric: (tallyId: number, body: VolumetricAnswer) =>
+  saveCargoType: (tallyId: number, body: CargoTypeAnswer) =>
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/volumetric`, 'PUT', body),
   returnToOperator: (tallyId: number) =>
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/return-to-operator`, 'POST'),

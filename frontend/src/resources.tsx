@@ -213,6 +213,7 @@ const TERM_CATEGORY = {
   border: 1,
   country: 2,
   packagingType: 3,
+  carrierType: 5,
 } as const
 
 function termResource(
@@ -258,6 +259,15 @@ const packagingTypes = termResource(
   'نوع بسته‌بندی',
   'عنوان نوع بسته‌بندی',
   TERM_CATEGORY.packagingType,
+)
+
+const carrierTypes = termResource(
+  '/carrier-types',
+  'carrier_types',
+  'نوع حامل',
+  'نوع حامل',
+  'عنوان نوع حامل',
+  TERM_CATEGORY.carrierType,
 )
 
 // ---- شرکت‌های بیمه ----
@@ -402,6 +412,6 @@ const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
 }
 export const resources: CrudConfig<any>[] = [
   kala, anbar, owners, kalaPrice,
-  transportCompanies, companyRepresentatives, tagh, borders, countries, packagingTypes, insuranceCompanies,
+  transportCompanies, companyRepresentatives, tagh, borders, countries, packagingTypes, carrierTypes, insuranceCompanies,
   kalaDiamound, kalaOtherService, kalaStrip, kalaTimeStop, kalaVehicleEnter,
 ]
