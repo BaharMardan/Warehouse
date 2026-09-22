@@ -584,6 +584,13 @@ export function TallyDetailPage() {
             ltr
           />
           <SummaryLine
+            icon={<ReceiptText size={20} strokeWidth={1.8} />}
+            label="پیش پرداخت (ریال)"
+            value={header?.prepayment == null ? null : Number(header.prepayment).toLocaleString('en-US')}
+            tone="blue"
+            ltr
+          />
+          <SummaryLine
             icon={<ShieldCheck size={20} strokeWidth={1.8} />}
             label="شماره بیمه‌نامه / بیمه‌گر"
             value={[

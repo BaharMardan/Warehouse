@@ -1728,7 +1728,6 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
           <TermValueSelect
             {...common}
             categoryId={5} clearable placeholder="—"
-            fallbackValues={['۴۰ فوت', '۲۰ فوت', 'تریلی چادری', 'تریلی یخچال‌دار', 'کامیون جفت', 'خاور', 'وانت', 'کمرشکن']}
             value={f.container_type || null}
             onChange={(v) => {
               const next = v ?? ''

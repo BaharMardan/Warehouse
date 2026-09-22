@@ -719,6 +719,7 @@ class InsuranceCompanyInput(BaseModel):
 # UPLOAD_DOCUMENT remains deferred. DESCRIPTION is exposed as plain text because
 # the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
+    prepayment: int | None = Field(default=None, ge=0, le=9007199254740991)
     has_transportation: Literal["yes", "no"] | None = None
     number_karaneh: str | None = None       # شماره کارنه / ترانزیت
     tracking_number: str | None = None      # شماره پیگیری

@@ -126,6 +126,7 @@ type TallyHeaderState = {
   accepted_gomrok: string
   company_bimeh: string
   description: string
+  prepayment: string
 }
 
 const EMPTY: TallyHeaderState = {
@@ -137,7 +138,7 @@ const EMPTY: TallyHeaderState = {
   sabt_sefaresh_number: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
   name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
-  accepted_gomrok: '', company_bimeh: '', description: '',
+  accepted_gomrok: '', company_bimeh: '', description: '', prepayment: '',
 }
 
 // turn "" into null and numeric strings into numbers, so the payload matches the
@@ -177,6 +178,7 @@ function toPayload(s: TallyHeaderState) {
     accepted_gomrok: strOrNull(s.accepted_gomrok),
     company_bimeh: strOrNull(s.company_bimeh),
     description: strOrNull(s.description),
+    prepayment: strOrNull(s.prepayment),
   }
 }
 // A loaded tally row (from GET /tally-header/{id}) -> the form's state shape.
@@ -206,6 +208,7 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     accepted_gomrok: s(r.accepted_gomrok),
     company_bimeh: s(r.company_bimeh),
     description: s(r.description),
+    prepayment: s(r.prepayment),
   }
 }
 
@@ -389,7 +392,7 @@ export function TallyHeaderForm() {
               label="ردیف مرزی"
               inputMode="numeric"
               pattern="[0-9]*"
-              value={formatGroupedIntegerInput(form.radef_marze)}
+              value={form.radef_marze}
               onChange={(e) => set('radef_marze', normalizeIntegerInput(e.currentTarget.value))}
               // description="فقط عدد وارد کنید."
               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
@@ -643,6 +646,15 @@ export function TallyHeaderForm() {
                 <Radio value="خیر" label="خیر" />
               </Group>
             </Radio.Group>
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="پیش پرداخت (ریال)"
+              inputMode="numeric"
+              value={formatGroupedIntegerInput(form.prepayment)}
+              onChange={(e) => set('prepayment', normalizeIntegerInput(e.currentTarget.value))}
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+            />
           </Grid.Col>
           <Grid.Col span={12}>
             <Textarea

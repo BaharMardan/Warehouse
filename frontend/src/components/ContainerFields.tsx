@@ -68,7 +68,8 @@
 //   )
 // }
 
-import { Grid, Select, TextInput } from '@mantine/core'
+import { Grid, TextInput } from '@mantine/core'
+import { TermValueSelect } from './TermValueSelect'
 
 /**
  * ContainerFields — the tally line's «نوع کانتینر» (container type) dropdown plus a
@@ -82,16 +83,11 @@ import { Grid, Select, TextInput } from '@mantine/core'
  *      onNumberChange={(v) => set('container_number', v)} />
  */
 
-// In the exact order requested.
-// Exported so the inline goods grid reuses the exact same option list instead of
-// keeping a second copy that can silently drift.
-export const CONTAINER_TYPES = [
-  '۴۰ فوت', '۲۰ فوت', 'تریلی چادری', 'تریلی یخچال‌دار',
-  'کامیون جفت', 'خاور', 'وانت', 'کمرشکن',
+// Include historical stored names as well as the configured container titles.
+export const TYPES_WITH_NUMBER = [
+  '۲۰ فوت', '۴۰ فوت',
+  'کانتینر ۲۰ فوت', 'کانتینر ۴۰ فوت',
 ]
-
-// The types that carry a container number.
-export const TYPES_WITH_NUMBER = ['۲۰ فوت', '۴۰ فوت']
 
 type Props = {
   type: string
@@ -116,10 +112,10 @@ export function ContainerFields({ type, number, onTypeChange, onNumberChange }: 
   return (
     <>
       <Grid.Col span={6}>
-        <Select
+        <TermValueSelect
           label="نوع کانتینر"
           placeholder="انتخاب کنید"
-          data={CONTAINER_TYPES}
+          categoryId={5}
           value={type || null}
           onChange={handleType}
           searchable
