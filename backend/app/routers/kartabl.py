@@ -10,7 +10,10 @@ Each row carries what the table shows (tally number, aggregated goods
 description, owner, transport company, its representative, unloading date)
 plus navigation payload: the workflow status (the exact CASE /tally/list uses,
 so both screens always agree on a tally's colour), the tally's visible
-receipts, and the active invoice id when one exists.
+receipts, and its issued invoices.
+
+The worklist never issues invoices (that happens on the receipt page after the
+keeper's final checklist); it only links to invoices that already exist.
 """
 from fastapi import APIRouter, Depends
 
@@ -96,7 +99,20 @@ SELECT
         FROM "FA_SORAT_HESAB_HEADER" s
         WHERE s."TALI_ID_HEADER" = h."ID_TALI"
           AND s."SORAT_IS_DELETED" = 'no'
-    )                                   AS invoice_id
+    )                                   AS invoice_id,
+    -- Every issued invoice as "id|receipt number", like receipts above: a tally
+    -- with detailed receipts has one invoice per receipt.
+    (
+        SELECT LISTAGG(
+                   s."ID_SORAT" || '|' ||
+                   NVL(g."GHABZ_NUMBER", TO_CHAR(g."number_ghabz")),
+                   ','
+               ) WITHIN GROUP (ORDER BY s."ID_SORAT")
+        FROM "FA_SORAT_HESAB_HEADER" s
+        LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
+        WHERE s."TALI_ID_HEADER" = h."ID_TALI"
+          AND s."SORAT_IS_DELETED" = 'no'
+    )                                   AS invoices
 FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_TRANSPORT_COMPANY"      c_comp ON c_comp."ID_COMPANY"       = h."ID_COMPANY"
 LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_resp ON c_resp."ID_REPRE_COMPANY" = h."ID_RESPONS_COMPANY"

@@ -137,7 +137,6 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
       qc.invalidateQueries({ queryKey: ['tally-junction', 'stuffing', tallyId] })
       qc.invalidateQueries({ queryKey: ['tally-junction', 'crane', tallyId] })
       qc.invalidateQueries({ queryKey: ['tally-transportation', tallyId] })
-      qc.invalidateQueries({ queryKey: ['invoice-preview'] })
       setOpened(false)
     },
   })

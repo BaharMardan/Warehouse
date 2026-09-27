@@ -312,7 +312,6 @@ import { apiGet } from '../api/client'
 import { PageHeader } from '../components/PageHeader'
 import { BackButton } from '../components/BackButton'
 import { TallyNumber } from '../components/TallyNumber'
-import { modules } from '../modules'
 import { usePermissions } from '../auth/usePermissions'
 import { ReceiptKeeperQueue } from '../components/ReceiptWorkflow'
 import {
@@ -340,6 +339,7 @@ type KartablRow = {
   handoff_step: 'operator' | 'keeper' | 'returned'
   receipts: string | null // LISTAGG payload: "id|number,id|number"
   invoice_id: number | null
+  invoices: string | null // LISTAGG payload: "invoice id|receipt number,..."
 }
 
 // const STATUS = {
@@ -363,6 +363,19 @@ function parseReceipts(raw: string | null): Receipt[] {
     const [id, number] = pair.split('|')
     const parsed = Number(id)
     return Number.isFinite(parsed) ? [{ id: parsed, number: number || String(parsed) }] : []
+  })
+}
+
+type Invoice = { id: number; receipt: string | null }
+
+// "555|1405_3_1,556|1405_3_2" -> [{ id: 555, receipt: '1405_3_1' }, ...].
+// Legacy invoices may have no receipt number.
+function parseInvoices(raw: string | null): Invoice[] {
+  if (!raw) return []
+  return raw.split(',').flatMap((pair) => {
+    const [id, receipt] = pair.split('|')
+    const parsed = Number(id)
+    return Number.isFinite(parsed) ? [{ id: parsed, receipt: receipt || null }] : []
   })
 }
 
@@ -391,8 +404,9 @@ function RowActions({ row }: { row: KartablRow }) {
   const receipts = parseReceipts(row.receipts)
   const status = STATUS[row.workflow_status] ?? STATUS.open
 
-  // Saved invoices can be opened; generating a new invoice is not yet available.
-  const invoiceEnabled = modules.find((m) => m.key === 'invoice')?.enabled !== false && row.invoice_id != null
+  // The worklist only shows status and links to invoices that exist. Invoices
+  // are issued on the receipt page, never from here.
+  const invoices = parseInvoices(row.invoices)
   const canTally = can('tally.view')
   const canGhabz = can('ghabz.view')
   const canInvoice = can('invoice.view')
@@ -447,17 +461,33 @@ function RowActions({ row }: { row: KartablRow }) {
           </>
         )}
 
-        {canInvoice && (
+        {canInvoice && invoices.length === 0 && (
+          <Menu.Item leftSection={<IconInvoice size={16} />} disabled>
+            صورتحساب (صادر نشده)
+          </Menu.Item>
+        )}
+        {canInvoice && invoices.length === 1 && (
           <Menu.Item
             leftSection={<IconInvoice size={16} />}
-            disabled={!invoiceEnabled}
-            rightSection={!invoiceEnabled
-              ? <Badge size="xs" variant="light" color="gray">به‌زودی</Badge>
-              : undefined}
-            onClick={() => navigate(`/invoice/${row.invoice_id}`)}
+            onClick={() => navigate(`/invoice/${invoices[0].id}`)}
           >
             صورتحساب
           </Menu.Item>
+        )}
+        {canInvoice && invoices.length > 1 && (
+          <>
+            <Menu.Label>صورتحساب</Menu.Label>
+            {invoices.map((invoice) => (
+              <Menu.Item
+                key={invoice.id}
+                leftSection={<IconInvoice size={16} />}
+                onClick={() => navigate(`/invoice/${invoice.id}`)}
+              >
+                <bdi dir="ltr">{invoice.id}</bdi>
+                {invoice.receipt && <> (قبض <bdi dir="ltr">{invoice.receipt}</bdi>)</>}
+              </Menu.Item>
+            ))}
+          </>
         )}
       </Menu.Dropdown>
     </Menu>

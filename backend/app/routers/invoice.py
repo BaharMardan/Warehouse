@@ -180,17 +180,15 @@
 #     }
 
 
-"""Invoice (صورتحساب) endpoints.
+"""Invoice (صورتحساب) endpoints: saved-invoice list and detail.
 
-For now: a COMPUTE-ONLY preview. It reads a tally's real inputs (goods lines +
-storage rates + the five service junctions), runs the ported set_process_details
-logic in app.services.invoice_calc, and returns the computed detail rows WITHOUT
-persisting anything. Purpose: validate the port against the APEX golden case
-(generate 547 in APEX, compare the numbers) before we build the persisting
-generate/list/get endpoints.
+Invoices are issued per receipt in receipt_workflow.py under the 1405 rules
+(receipt_invoice.py) and read back here from their persisted rows. The tally
+preview endpoint, which priced storage with the APEX tier logic, was removed.
 
-Storage numbers are confirmed (reconciled to the rial). Service numbers and the
-first-invoice tier timing are PROVISIONAL until the 547 golden case lands.
+compute_from_tally is kept only to snapshot the shared service charges at the
+keeper's final checklist (receipt_workflow.calculate). Its storage rows come
+from the APEX port in invoice_calc.py and are not used by any invoice.
 """
 from decimal import Decimal
 
@@ -331,11 +329,6 @@ def _row_json(r: calc.InvoiceDetailRow) -> dict:
         "weight": None if r.weight is None else str(r.weight),
         "price": None if r.price is None else str(r.price),
     }
-
-
-@router.get("/from-tally/{tali_id}/preview", dependencies=[Depends(require_permission("invoice.view"))])
-def preview_from_tally(tali_id: int):
-    return compute_from_tally(tali_id)
 
 
 def compute_from_tally(tali_id: int, *, read_all=fetch_all, read_one=fetch_one,
