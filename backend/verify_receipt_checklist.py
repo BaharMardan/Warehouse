@@ -7,7 +7,7 @@ from app.routers import ghabz, receipt_workflow as api, tally_handoff
 from app.services import receipt_db as db
 from app.services.ghabz_allotment import GhabzFromTallyInput
 from app.services.tally_numbering import allocate_next_tally_number
-from app.services.invoice_calc import SERVICE_LABELS
+from app.services.receipt_invoice import SERVICE_LABELS
 
 
 def must_reject(action, code=409):

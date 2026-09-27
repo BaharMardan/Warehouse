@@ -6,7 +6,6 @@ from fastapi import HTTPException
 from app.services.receipt_allocation import allocation_ratio, allocated_amount
 from app.services import receipt_db
 from app.routers import receipt_workflow as api
-from app.routers import invoice
 
 
 def receipt(status="created", is_master="no", rid=1):
@@ -96,24 +95,31 @@ def test_pending_receipts_reopen_keeper_services(monkeypatch):
 
 
 def test_invoice_goods_query_uses_original_details_only():
-    assert '"FA_TALI_DETAILES"' in api.RECEIPT_GOODS_SQL
-    assert '"FA_GHABZ_TALLY_SOURCE"' in api.RECEIPT_GOODS_SQL
-    assert '"FA_ghabz_anbar_DETAILES"' not in api.RECEIPT_GOODS_SQL
+    assert '"FA_TALI_DETAILES"' in api.RECEIPT_STORAGE_SQL
+    assert '"FA_GHABZ_TALLY_SOURCE"' in api.RECEIPT_STORAGE_SQL
+    assert '"FA_ghabz_anbar_DETAILES"' not in api.RECEIPT_STORAGE_SQL
+    assert '"storage_price"' in api.RECEIPT_STORAGE_SQL
 
 
-def test_calculator_reads_service_totals_once_without_receipt_aggregation():
-    goods = [{"code_groupe_kala": 1, "number_kala": 2, "weight": 1, "zarib_mahal": 1,
-              "kala_price_code": "X", "price_30_day": 1, "price_60_day": 1, "price_90_day": 1}]
+def test_service_snapshot_reads_service_totals_once_without_receipt_aggregation(monkeypatch):
     calls = []
-    def read_all(sql, params=None):
+    def rows(_cur, sql, params=None):
         calls.append(sql)
-        return [{"price": 1000, "number_service": 1}] if sql == invoice.OTHER_SERVICE_SQL else []
-    def read_one(sql, params=None):
-        return {"cnt": 0, "carrier_count": 0}
-    result = invoice.compute_from_tally(10, goods=goods, read_all=read_all, read_one=read_one,
-                                       prior_invoice_count=0, strict_services=True)
-    assert Decimal(result["grand_total"]) == 1060
-    assert calls.count(invoice.OTHER_SERVICE_SQL) == 1
+        if sql == api.RECEIPT_STORAGE_SQL:
+            return [{"id": 1}]
+        return [{"price": 1000, "number_service": 1}] if sql == api.OTHER_SERVICE_SQL else []
+    monkeypatch.setattr(receipt_db, "rows", rows)
+    monkeypatch.setattr(receipt_db, "one", lambda *a, **k: {"carrier_count": 0})
+    charges = api.snapshot_services(MagicMock(), receipt())
+    assert calls.count(api.OTHER_SERVICE_SQL) == 1
+    assert sum(c.price for c in charges) == 1000     # services only; storage is never pooled
+
+
+def test_service_snapshot_requires_linked_tally_rows(monkeypatch):
+    monkeypatch.setattr(receipt_db, "rows", lambda *a, **k: [])
+    with pytest.raises(HTTPException) as exc:
+        api.snapshot_services(MagicMock(), receipt())
+    assert exc.value.status_code == 409
 
 
 @pytest.mark.parametrize("pending", [True, False])

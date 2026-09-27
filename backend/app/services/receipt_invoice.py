@@ -25,12 +25,132 @@ Storage per cargo type:
 """
 from collections import OrderedDict
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from app.services import storage_calc as sc
+from app.services.container_excess import derived_rows
 from app.services.insurance_cover import InsuranceCover
-from app.services.invoice_calc import SERVICE_LABELS
+
+# --- shared service charges (snapshotted once per tally) ----------------------
+# Labels are persisted as the pool/invoice row DESCRIPTION, so they must not change.
+SERVICE_LABELS = {
+    "other_service": "هزینه کل سایر خدمات",
+    "strip": "هزینه کل استریپ / تخلیه",
+    "stuffing": "هزینه کل استافینگ / بارگیری",
+    "transportation": "هزینه باربری",
+    "crane": "هزینه جابه‌جایی کانتینر با جرثقیل",
+    "night_stop": "هزینه کل توقف شبانه",
+    "diamound": "هزینه کل دیماند",
+    "vehicle_enter": "هزینه کل حق ورودی (حق محوطه)",
+}
+
+# Pricing type on a strip/stuffing/crane junction selects the tariff column;
+# NULL or unknown means "normal". unloading/loading use the per-ton handling
+# amount computed from the carrier's goods.
+_STRIP_COLUMN = {"normal": "normal", "non_standard": "non_standard", "dangerous": "dangerous"}
+
+
+class ServiceTariffError(ValueError):
+    """A selected service has a missing, non-numeric or negative tariff."""
+
+
+@dataclass(frozen=True)
+class ServiceCharge:
+    description: str
+    quantity: Optional[object]    # int, Decimal or None, as stored on the pool row
+    price: Optional[Decimal]
+
+
+def to_decimal(value) -> Optional[Decimal]:
+    """Catalog prices are VARCHAR2: blank or non-numeric text is None (no charge)."""
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, int):
+        return Decimal(value)
+    if isinstance(value, float):
+        return Decimal(str(value))
+    text = str(value).strip()
+    if text == "":
+        return None
+    try:
+        return Decimal(text)
+    except InvalidOperation:
+        return None
+
+
+def strip_price(row: dict):
+    if row.get("pricing_type") == "unloading":
+        return row["unloading_amount"]
+    if row.get("pricing_type") == "loading":
+        return row["loading_amount"]
+    return row[_STRIP_COLUMN.get((row.get("pricing_type") or "normal"), "normal")]
+
+
+def _weighted_total(prices, counts):
+    """Sum of price x quantity; a blank quantity counts as one."""
+    price_values, count_values = list(prices), list(counts)
+    if not price_values:
+        return Decimal(0), None, False
+    total, total_count = Decimal(0), Decimal(0)
+    for index, raw_price in enumerate(price_values):
+        quantity = to_decimal(count_values[index]) if index < len(count_values) else None
+        if quantity is None:
+            quantity = Decimal(1)
+        total_count += quantity
+        price = to_decimal(raw_price)
+        if price is not None:
+            total += price * quantity
+    return total, int(total_count), True
+
+
+def service_charges(*, other, strip, night, diamound, vehicle, container_weights, excess_catalog,
+                    freight_rate, carrier_count, strict=True) -> list[ServiceCharge]:
+    """The tally's shared service charges, frozen into FA_RECEIPT_SERVICE_POOL at
+    the keeper's first final checklist. Inputs are the junction rows joined to
+    their catalogs. Order: other services (when any), strip, stuffing, night
+    stop, demurrage, entry, one row per crane service, transportation."""
+    strip = derived_rows(strip, container_weights, excess_catalog)
+    if strict:
+        values = [r["price"] for group in (other, night, diamound, vehicle) for r in group]
+        values += [strip_price(r) for r in strip]
+        if any(to_decimal(v) is None or to_decimal(v) < 0 for v in values):
+            raise ServiceTariffError("تعرفه خدمات انتخاب‌شده ناقص یا نامعتبر است")
+
+    charges: list[ServiceCharge] = []
+    total, count, present = _weighted_total([r["price"] for r in other],
+                                            [r["number_service"] for r in other])
+    if present:
+        charges.append(ServiceCharge(SERVICE_LABELS["other_service"], count, total))
+    groups = (
+        ("strip", [strip_price(r) for r in strip if r["service_kind"] == "strip"],
+         [None if r["pricing_type"] == "unloading" else r["number_service"]
+          for r in strip if r["service_kind"] == "strip"]),
+        ("stuffing", [strip_price(r) for r in strip if r["service_kind"] == "stuffing"],
+         [None if r["pricing_type"] == "loading" else r["number_service"]
+          for r in strip if r["service_kind"] == "stuffing"]),
+        ("night_stop", [r["price"] for r in night], [r["number_service"] for r in night]),
+        ("diamound", [r["price"] for r in diamound], [r["number_service"] for r in diamound]),
+        ("vehicle_enter", [r["price"] for r in vehicle], [r["number_service"] for r in vehicle]),
+    )
+    for key, prices, counts in groups:
+        total, count, _ = _weighted_total(prices, counts)
+        charges.append(ServiceCharge(SERVICE_LABELS[key], count, total))
+    for row in strip:
+        if row["service_kind"] != "crane":
+            continue
+        rate = to_decimal(strip_price(row))
+        quantity = to_decimal(row["number_service"]) or Decimal(1)
+        charges.append(ServiceCharge(
+            f'{SERVICE_LABELS["crane"]} — {row["rate_title"] or row["rate_code"]}',
+            quantity, None if rate is None else rate * quantity))
+    carriers = int(carrier_count or 0)
+    if carriers:
+        charges.append(ServiceCharge(SERVICE_LABELS["transportation"], carriers,
+                                     Decimal(str(freight_rate or 0)) * carriers))
+    return charges
 
 CARGO_LABELS = {"weight": "وزنی", "volumetric": "حجمی", "container": "کانتینری"}
 SHARE_STEP = Decimal("0.0001")

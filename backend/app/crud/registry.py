@@ -657,9 +657,6 @@ class KalaDangerousInput(BaseModel):
     code: str | None = None
     title: str | None = None
     storage_price: float | None = None    # انبارداری (Table storage rate)
-    price_30_day: float | None = None
-    price_60_day: float | None = None
-    price_90_day: float | None = None
     price_unloding: float | None = None   # تخلیه و بارگیری (Table handling rate)
     description: str | None = None
 
@@ -999,8 +996,7 @@ crud_routers = [
         column_overrides={
             "code": "code",
             "storage_price": "storage_price",
-            "price_30_day": "price_30_day", "price_60_day": "price_60_day",
-            "price_90_day": "price_90_day", "price_unloding": "price_unloding", "price_loading": "price_loading",
+            "price_unloding": "price_unloding", "price_loading": "price_loading",
         },
     ),
     make_crud_router(

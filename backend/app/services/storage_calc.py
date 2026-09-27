@@ -1,8 +1,7 @@
 """Storage, insurance and invoice totals for the 1405 invoice rules.
 
-Pure and DB-free, like invoice_calc.py and insurance_check.py, so every rule is
-unit-tested without Oracle. For newly issued invoices this replaces the APEX
-tier logic (price_30/60/90 x a fixed 30/60/90). The storage rate is
+Pure and DB-free, like receipt_invoice.py and insurance_check.py, so every rule is
+unit-tested without Oracle. The storage rate is
 fa_kala_price."storage_price" (انبارداری), a per-day rate per ton, per pallet
 equivalent or per container.
 

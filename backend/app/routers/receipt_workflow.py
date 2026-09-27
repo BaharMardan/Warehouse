@@ -97,20 +97,6 @@ def verify_links(cur, current):
 
 
 
-RECEIPT_GOODS_SQL = """
-SELECT d."CODE_GROUPE_KALA" AS code_groupe_kala,
-       d."NUMBER_KALA" * m."QUANTITY_SHARE" AS number_kala,
-       d."WEIGHTE" * m."WEIGHT_SHARE" AS weight,
-       d."ZARIB_MAHAL" AS zarib_mahal, p."CODE" AS kala_price_code,
-       p."price_30_day" AS price_30_day, p."price_60_day" AS price_60_day,
-       p."price_90_day" AS price_90_day
-FROM "FA_TALI_DETAILES" d
-JOIN "FA_GHABZ_TALLY_SOURCE" m ON m."TALLY_DETAIL_ID" = d."ID_TALI_DETAILS"
-    AND m."RECEIPT_ID" = :rid
-LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = d."CODE_GROUPE_KALA"
-WHERE d."ID_HEADERS_TALI" = :tid AND d."IS_DELETED" = 'no'
-ORDER BY d."ID_TALI_DETAILS"
-"""
 
 QUEUE_SQL = """
 SELECT h."ID_ghabz" AS id, h."GHABZ_NUMBER" AS number_text, h."TALI_ID" AS tally_id
@@ -153,7 +139,7 @@ GROUP BY TRIM("NUMBER_HAMEL")
 """
 INVOICE_SETTINGS_SQL = """
 SELECT "SETTING_KEY" AS setting_key, "VALUE_NUMBER" AS value_number
-FROM "FA_APP_SETTINGS" WHERE "SETTING_KEY" IN ('tax_rate', 'system_service_rate')
+FROM "FA_APP_SETTINGS" WHERE "SETTING_KEY" IN ('tax_rate', 'system_service_rate', 'freight_rate')
 """
 TEHRAN_TODAY_SQL = """SELECT CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE) AS today FROM DUAL"""
 # A tally's prepayment and discount are applied on exactly one of its invoices.
@@ -243,16 +229,98 @@ def get_pool(cur, tid):
         WHERE "TALLY_ID" = :tid ORDER BY "LINE_NO" """, {"tid": tid})
 
 
-def calculate(cur, current, include_services=False):
-    from app.routers.invoice import compute_from_tally
-    goods = db.rows(cur, RECEIPT_GOODS_SQL, {"tid": current["tally_id"], "rid": current["id"]})
-    if not goods:
+# --- shared service charges: junction rows joined to their catalogs -----------
+# Read once, at the keeper's first final checklist, and frozen into
+# FA_RECEIPT_SERVICE_POOL. Priced by receipt_invoice.service_charges.
+OTHER_SERVICE_SQL = """
+SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
+FROM "fa_tali_kala_other_service" j
+LEFT JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+STRIP_SQL = """
+SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
+       j."service_kind" AS service_kind, j."number_hamel" AS number_hamel,
+       j."NUMBER_SERVICE" AS number_service,
+       c."code" AS rate_code, c."title" AS rate_title,
+       c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous,
+       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_unloding")
+          FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
+            ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+         WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
+           AND d."IS_DELETED" = 'no') AS unloading_amount,
+       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_loading")
+          FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
+            ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+         WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
+           AND d."IS_DELETED" = 'no') AS loading_amount
+FROM "fa_tali_kala_strip" j
+LEFT JOIN "fa_kala_strip" c ON c."id_kala_strip" = j."kala_strip_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+SERVICE_CONTAINER_WEIGHTS_SQL = """
+SELECT "NUMBER_HAMEL" AS number_hamel, SUM(NVL("WEIGHTE", 0)) AS weight_kg
+FROM "FA_TALI_DETAILES"
+WHERE "ID_HEADERS_TALI" = :tid AND "IS_DELETED" = 'no'
+GROUP BY "NUMBER_HAMEL"
+"""
+CONTAINER_EXCESS_CATALOG_SQL = """
+SELECT "id_kala_strip" AS id, "code" AS code, "title" AS title,
+       "normal" AS normal, "non_standard" AS non_standard, "dangerous" AS dangerous
+FROM "fa_kala_strip" WHERE "code" IN ('202', '402') AND "IS_DELETED" = 'no'
+"""
+NIGHT_STOP_SQL = """
+SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
+FROM "fa_tali_kala_time_stop_vehicle" j
+LEFT JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+DIAMOUND_SQL = """
+SELECT CASE NVL(j."pricing_type", 'off_hours')
+           WHEN 'holiday' THEN c."price_holiday"
+           ELSE c."price_gher_edari"
+       END AS price
+       , j."NUMBER_SERVICE" AS number_service
+FROM "fa_tali_kala_diamound" j
+LEFT JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+VEHICLE_ENTER_SQL = """
+SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
+FROM "fa_tali_kala_vehicle_enter_price" j
+LEFT JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+"""
+TRANSPORTATION_SQL = '''SELECT COUNT(*) AS carrier_count
+FROM "FA_TALI_CARRIER_TRANSPORTATION" t
+WHERE t."TALI_ID" = :tid AND t."HAS_TRANSPORTATION" = 'yes'
+  AND EXISTS (SELECT 1 FROM "FA_TALI_DETAILES" d
+              WHERE d."ID_HEADERS_TALI" = t."TALI_ID"
+                AND d."NUMBER_HAMEL" = t."NUMBER_HAMEL" AND d."IS_DELETED" = 'no')'''
+
+
+def snapshot_services(cur, current):
+    """The tally's shared service charges priced from today's catalogs."""
+    tid = current["tally_id"]
+    if not db.rows(cur, RECEIPT_STORAGE_SQL, {"tid": tid, "rid": current["id"]}):
         db.conflict("ردیف‌های اصلی تالی متعلق به این قبض را انتخاب کنید")
-    return compute_from_tally(current["tally_id"],
-        read_all=lambda sql, params=None: db.rows(cur, sql, params),
-        read_one=lambda sql, params=None: db.one(cur, sql, params),
-        goods=goods, include_services=include_services, prior_invoice_count=0,
-        strict_services=True)
+    settings = {row["setting_key"]: Decimal(str(row["value_number"]))
+                for row in db.rows(cur, INVOICE_SETTINGS_SQL)}
+    try:
+        return ri.service_charges(
+            other=db.rows(cur, OTHER_SERVICE_SQL, {"tid": tid}),
+            strip=db.rows(cur, STRIP_SQL, {"tid": tid}),
+            night=db.rows(cur, NIGHT_STOP_SQL, {"tid": tid}),
+            diamound=db.rows(cur, DIAMOUND_SQL, {"tid": tid}),
+            vehicle=db.rows(cur, VEHICLE_ENTER_SQL, {"tid": tid}),
+            container_weights={row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in
+                               db.rows(cur, SERVICE_CONTAINER_WEIGHTS_SQL, {"tid": tid})},
+            excess_catalog={str(row["code"]): row for row in db.rows(cur, CONTAINER_EXCESS_CATALOG_SQL)},
+            freight_rate=settings.get("freight_rate", Decimal(0)),
+            carrier_count=(db.one(cur, TRANSPORTATION_SQL, {"tid": tid}) or {}).get("carrier_count"),
+            strict=True)
+    except ri.ServiceTariffError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/keeper-queue", dependencies=[Depends(require_permission("tally.services"))])
@@ -363,14 +431,14 @@ def finalize(receipt_id: int, user: dict = Depends(require_permission("tally.ser
             # Snapshot all shared charges once, under the same tally lock. Later
             # tariff changes cannot change the pool between sibling invoices.
             if not get_pool(cur, current["tally_id"]):
-                computed = calculate(cur, current, include_services=True)
-                charges = [row for row in computed["service_rows"] if row["price"] is not None]
+                charges = [charge for charge in snapshot_services(cur, current)
+                           if charge.price is not None]
                 cur.executemany("""INSERT INTO "FA_RECEIPT_SERVICE_POOL"
                     ("TALLY_ID", "LINE_NO", "DESCRIPTION", "TOTAL_PRICE")
                     VALUES (:tid, :line_no, :description, :price)""",
                     [{"tid": current["tally_id"], "line_no": 0, "description": "snapshot", "price": 0}]
-                    + [{"tid": current["tally_id"], "line_no": i + 1, "description": row["description"],
-                        "price": Decimal(row["price"])} for i, row in enumerate(charges)])
+                    + [{"tid": current["tally_id"], "line_no": i + 1, "description": charge.description,
+                        "price": charge.price} for i, charge in enumerate(charges)])
             cur.execute("""UPDATE "fa_ghabz_anbar_header"
                 SET "WORKFLOW_STATUS" = 'finalized', "ALLOCATION_RATIO" = :ratio,
                     "FINALIZED_AT" = SYSDATE, "FINALIZED_BY" = :actor

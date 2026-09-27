@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from app.routers import receipt_workflow as api
 from app.services import receipt_db
-from app.services.invoice_calc import SERVICE_LABELS
+from app.services.receipt_invoice import SERVICE_LABELS
 from app.services.jalali import from_jalali
 
 

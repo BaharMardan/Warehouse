@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.services import receipt_invoice as ri
-from app.services.invoice_calc import SERVICE_LABELS
+from app.services.receipt_invoice import SERVICE_LABELS
 from app.services.jalali import from_jalali
 from app.services.storage_calc import billed_days
 
