@@ -1,0 +1,273 @@
+"""Invoice rows for one warehouse receipt under the 1405 rules.
+
+DB-free: the receipt_workflow router fetches plain rows and passes them here, so
+every rule is unit-tested without Oracle. Amount formulas live in storage_calc.
+
+Row order follows the business spec:
+    1 system service   2 storage   3 strip, stuffing, crane, transportation
+    4 demurrage        5 entry     6 other services   (then night stop)
+    7 insurance        8 VAT              9 prepayment and discount (negative rows)
+
+Insurance: base x 0.00055 x days. Without insurance the base is the receipt's
+customs value. With insurance it is the part of that value the tally's remaining
+cover does not reach; the cover is consumed in tally registration order
+(insurance_cover.py) and, inside a tally, by its receipts in invoice order.
+
+Storage per cargo type:
+  weight      one row per linked tally line, its own rate, location and weight
+  volumetric  one row per receipt; pallets come from the receipt (detailed) or
+              the tally (general). All linked lines must share one goods code and
+              one location, otherwise the pallets per code are unknown and the
+              invoice is refused rather than guessed.
+  container   one row per container (NUMBER_HAMEL). A container split between
+              detailed receipts is charged by this receipt's share of the
+              container's declared weight; a whole container counts as 1.
+"""
+from collections import OrderedDict
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Optional
+
+from app.services import storage_calc as sc
+from app.services.insurance_cover import InsuranceCover
+from app.services.invoice_calc import SERVICE_LABELS
+
+CARGO_LABELS = {"weight": "وزنی", "volumetric": "حجمی", "container": "کانتینری"}
+SHARE_STEP = Decimal("0.0001")
+
+# Pool rows are frozen at the keeper's final checklist with these descriptions.
+# Crane rows carry a suffix, so ranks match on the label prefix.
+SERVICE_ORDER = tuple(SERVICE_LABELS[key] for key in (
+    "strip", "stuffing", "crane", "transportation",
+    "diamound", "vehicle_enter", "other_service", "night_stop",
+))
+
+SYSTEM_LABEL = "خدمات سیستمی"
+TAX_LABEL = "مالیات بر ارزش افزوده"
+INSURANCE_LABEL = "هزینه بیمه"
+PREPAYMENT_LABEL = "کسر پیش‌پرداخت"
+DISCOUNT_LABEL = "تخفیف"
+
+
+@dataclass(frozen=True)
+class InvoiceRow:
+    kind: str
+    description: str
+    price: Decimal
+    note: str
+    quantity: Optional[Decimal] = None
+    weight: Optional[Decimal] = None
+    service_line: Optional[int] = None
+
+
+def cargo_type(value) -> str:
+    cargo = {"yes": "volumetric", "no": "weight"}.get(value, value)
+    if cargo not in CARGO_LABELS:
+        raise ValueError("نوع بار تالی (وزنی، حجمی یا کانتینری) مشخص نشده است")
+    return cargo
+
+
+def _dec(value) -> Decimal:
+    return Decimal(0) if value is None else Decimal(str(value))
+
+
+def _name(line) -> str:
+    return str(line.get("hscode") or line.get("description") or f"ردیف {line.get('id')}").strip()
+
+
+def _storage_label(line) -> str:
+    return f"هزینه انبارداری کد کالای {line.get('kala_code')}"
+
+
+def _location(line) -> sc.Location:
+    try:
+        return sc.location(line.get("zarib_mahal"))
+    except ValueError as exc:
+        raise ValueError(f"{_name(line)}: {exc}") from exc
+
+
+def _single_rate(lines, message: str):
+    """All lines must share one goods code and one location multiplier."""
+    keys = {(line.get("goods_group"), _location(line).multiplier) for line in lines}
+    if len(keys) != 1:
+        raise ValueError(message)
+    return lines[0], _location(lines[0])
+
+
+def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
+                 container_weights: Optional[dict] = None) -> list[InvoiceRow]:
+    """lines: the receipt's linked tally rows, with weight_kg and quantity already
+    multiplied by this receipt's share of each row."""
+    if not lines:
+        raise ValueError("ردیف‌های اصلی تالی متعلق به این قبض را انتخاب کنید")
+
+    if cargo == "weight":
+        rows = []
+        for line in lines:
+            try:
+                charge = sc.storage_charge("weight", rate=line.get("storage_price"),
+                                           loc=_location(line), days=days,
+                                           weight_kg=line.get("weight_kg"))
+            except ValueError as exc:
+                raise ValueError(f"{_name(line)}: {exc}") from exc
+            rows.append(InvoiceRow("storage", _storage_label(line), charge.amount, charge.note,
+                                   quantity=line.get("quantity"), weight=line.get("weight_kg")))
+        return rows
+
+    if cargo == "volumetric":
+        line, loc = _single_rate(
+            lines, "کالاهای این قبض کد کالا یا ضریب محل متفاوت دارند و تعداد پالت هر کدام مشخص نیست")
+        charge = sc.storage_charge("volumetric", rate=line.get("storage_price"), loc=loc,
+                                   days=days, pallets=pallets)
+        return [InvoiceRow("storage", _storage_label(line), charge.amount, charge.note,
+                           quantity=_dec(pallets))]
+
+    if cargo == "container":
+        groups: "OrderedDict[str, list[dict]]" = OrderedDict()
+        for line in lines:
+            hamel = str(line.get("number_hamel") or "").strip()
+            if not hamel:
+                raise ValueError(f"{_name(line)}: شماره حامل (کانتینر) ثبت نشده است")
+            groups.setdefault(hamel, []).append(line)
+        rows = []
+        for hamel, group in groups.items():
+            line, loc = _single_rate(
+                group, f"کالاهای کانتینر {hamel} کد کالا یا ضریب محل متفاوت دارند")
+            total = _dec((container_weights or {}).get(hamel))
+            linked = sum((_dec(item.get("weight_kg")) for item in group), Decimal(0))
+            if total <= 0:
+                raise ValueError(f"وزن اظهار کانتینر {hamel} ثبت نشده است")
+            if linked <= 0:
+                raise ValueError(f"سهم وزنی این قبض از کانتینر {hamel} صفر است")
+            share = Decimal(1) if linked >= total else (linked / total).quantize(SHARE_STEP)
+            charge = sc.storage_charge("container", rate=line.get("storage_price"), loc=loc,
+                                       days=days, containers=share)
+            rows.append(InvoiceRow("storage",
+                                   f"هزینه انبارداری کانتینر {hamel} (کد کالای {line.get('kala_code')})",
+                                   charge.amount, charge.note, quantity=share))
+        return rows
+
+    raise ValueError("نوع بار تالی (وزنی، حجمی یا کانتینری) مشخص نشده است")
+
+
+def service_rank(description) -> int:
+    text = str(description or "")
+    for index, label in enumerate(SERVICE_ORDER):
+        if text.startswith(label):
+            return index
+    return len(SERVICE_ORDER)
+
+
+def service_rows(allocated: list[dict], ratio) -> list[InvoiceRow]:
+    """allocated: pool lines with line_no, description, total and this receipt's amount."""
+    ratio = _dec(ratio)
+    rows = []
+    for item in sorted(allocated, key=lambda r: (service_rank(r["description"]), int(r["line_no"]))):
+        amount, total = _dec(item["amount"]), _dec(item["total"])
+        if ratio >= 1:
+            note = "کل مبلغ خدمت"
+        else:
+            note = f"سهم این قبض از {sc.fmt(total)} (نسبت {sc.fmt(ratio.quantize(SHARE_STEP))})"
+        rows.append(InvoiceRow("service", item["description"], amount, f"{note} = {sc.fmt(amount)}",
+                               service_line=int(item["line_no"])))
+    return rows
+
+
+def insurance_row(value, cover: InsuranceCover, prior_receipts_value, days: int,
+                  missing=()) -> Optional[InvoiceRow]:
+    """value: this receipt's customs value. prior_receipts_value: customs value of
+    the tally's receipts already invoiced; they used the tally's cover first.
+    missing: names of linked rows without a customs value (counted as zero).
+
+    Returns None only when the goods are fully covered and nothing is missing.
+    """
+    value, prior = _dec(value), _dec(prior_receipts_value)
+    rate = sc.fmt(sc.INSURANCE_DAILY_RATE)
+    missing_text = "، ".join(str(name) for name in missing)
+
+    if value <= 0:
+        # Nothing to price. Kept as a visible zero row; issuing also warns.
+        return InvoiceRow("insurance", INSURANCE_LABEL, Decimal(0),
+                          "ارزش گمرکی کالاهای این قبض در تالی ثبت نشده است؛ هزینه بیمه صفر ثبت شد"
+                          + (f" (ردیف‌ها: {missing_text})" if missing_text else ""))
+    missing_note = (f"؛ ارزش گمرکی ردیف‌های {missing_text} ثبت نشده و صفر حساب شد"
+                    if missing_text else "")
+
+    if not cover.insured or cover.missing_ceiling:
+        if not cover.insured:
+            basis = "بدون بیمه"
+        else:
+            policies = cover.policy_text or "بیمه‌نامه ثبت‌شده"
+            basis = ("کل ارزش گمرکی قبض؛ تالی بیمه‌دار ثبت شده است "
+                     f"({policies}) ولی ارزش کالای بیمه‌شده نه در ردیف‌های این تالی و نه در "
+                     "تالی‌های هم‌بیمه‌نامه ثبت نشده است؛ چون سقف بیمه معلوم نیست، کل ارزش "
+                     "گمرکی این قبض مبنای محاسبه قرار گرفت")
+        charge = sc.insurance_charge(value, None, days)
+        return InvoiceRow("insurance", INSURANCE_LABEL, charge.amount,
+                          f"{sc.fmt(value)} × {rate} × {days} روز ({basis}{missing_note})"
+                          f" = {sc.fmt(charge.amount)}")
+
+    available = max(Decimal(0), cover.cover - prior)
+    charge = sc.insurance_charge(value, available, days)
+    if charge is None:
+        if not missing_text:
+            return None
+        return InvoiceRow("insurance", INSURANCE_LABEL, Decimal(0),
+                          f"تحت پوشش بیمه ({cover.policy_text}){missing_note}")
+    parts = [f"ارزش گمرکی {sc.fmt(value)} − پوشش باقی‌مانده {sc.fmt(available)}",
+             f"سقف بیمه‌نامه {sc.fmt(cover.ceiling)}",
+             f"مصرف تالی‌های قبلی {sc.fmt(cover.used_before)}"]
+    if prior > 0:
+        parts.append(f"مصرف قبض‌های قبلی همین تالی {sc.fmt(min(prior, cover.cover))}")
+    return InvoiceRow("insurance", INSURANCE_LABEL, charge.amount,
+                      f"{sc.fmt(value - available)} × {rate} × {days} روز ({'؛ '.join(parts)}"
+                      f"{missing_note}) = {sc.fmt(charge.amount)}")
+
+
+def deduction_plan(*, is_general: bool, prepayment, discount, already_applied: bool,
+                   answer: Optional[bool]) -> str:
+    """none | apply | skip | ask.
+
+    A tally's prepayment and discount are applied once. A general receipt takes
+    them automatically; for detailed receipts the user is asked per receipt
+    until one invoice takes them.
+    """
+    if already_applied or (_dec(prepayment) <= 0 and _dec(discount) <= 0):
+        return "none"
+    if is_general:
+        return "apply"
+    if answer is None:
+        return "ask"
+    return "apply" if answer else "skip"
+
+
+def build_invoice(*, system_rate, storage: list[InvoiceRow], services: list[InvoiceRow],
+                  tax_rate, prepayment=None, discount=None, apply_deductions=False,
+                  receipt_label: str = "", insurance: Optional[InvoiceRow] = None):
+    """Return (rows, totals). Deductions are stored as negative rows so the saved
+    invoice total is the payable amount. Their notes name the receipt they were
+    applied on, since a tally's prepayment and discount land on only one invoice."""
+    system = _dec(system_rate)
+    rows = [InvoiceRow("system", SYSTEM_LABEL, system,
+                       f"مبلغ ثابت از تنظیمات = {sc.fmt(system)}")]
+    rows += storage + services + ([insurance] if insurance else [])
+    prepaid = _dec(prepayment) if apply_deductions else Decimal(0)
+    off = _dec(discount) if apply_deductions else Decimal(0)
+    totals = sc.invoice_totals([row.price for row in rows], tax_rate, prepaid, off)
+    if totals.tax:
+        rows.append(InvoiceRow("tax", TAX_LABEL, totals.tax,
+                               f"{sc.fmt(totals.tax_rate)}٪ × {sc.fmt(totals.subtotal)} = {sc.fmt(totals.tax)}"))
+    applied_on = f"، اعمال‌شده روی قبض {receipt_label}" if receipt_label else ""
+    if prepaid > 0:
+        rows.append(InvoiceRow("prepayment", PREPAYMENT_LABEL, -prepaid,
+                               f"پیش‌پرداخت سربرگ تالی{applied_on} = {sc.fmt(prepaid)}"))
+    if off > 0:
+        rows.append(InvoiceRow("discount", DISCOUNT_LABEL, -off,
+                               f"تخفیف سربرگ تالی{applied_on} = {sc.fmt(off)}"))
+    if totals.payable < 0:
+        raise ValueError("مجموع پیش‌پرداخت و تخفیف از مبلغ این صورتحساب بیشتر است")
+    return rows, totals
+
+
+def header_note(cargo: str, days: sc.BilledDays) -> str:
+    return f"نوع بار: {CARGO_LABELS[cargo]}؛ {days.note}"

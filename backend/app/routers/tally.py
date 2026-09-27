@@ -306,7 +306,8 @@ number can be allocated atomically. Detail-line writes still use the generic
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
-from app.services.insurance_check import check_insurance_ceilings
+from app.services.insurance_cover import insurance_cover
+from app.services import insurance_cover as cover_sql
 from app.services.container_excess import derived_rows
 from decimal import Decimal
 from app.services.base import execute
@@ -511,49 +512,37 @@ def get_tally_print_data(
     ]
     return header
 
-# --- cross-tally insurance ceiling check ---
-# The (NUMBER_BIMEH, SABT_SEFARESH_NUMBER) pairs are newline-separated and
-# aligned line-by-line, so matching happens in app.services.insurance_check
-# rather than in SQL. Both queries stay trivially small: one row per active
-# header, plus one summed row per header with active goods lines.
-INSURANCE_HEADERS_SQL = """
-SELECT
-    h."ID_TALI"               AS id_tali,
-    h."TALI_NUMBER"           AS tali_number,
-    h."NUMBER_BIMEH"          AS number_bimeh,
-    h."SABT_SEFARESH_NUMBER"  AS sabt_sefaresh_number
-FROM "FA_TALI_HEADER" h
-WHERE h."IS_DELETED" = 'no'
-"""
-
-INSURANCE_TOTALS_SQL = """
-SELECT
-    d."ID_HEADERS_TALI"            AS header_id,
-    SUM(NVL(d."CUSTOMS_VALUE", 0)) AS customs_value,
-    MAX(d."INSURED_VALUE")         AS insured_ceiling
-FROM "FA_TALI_DETAILES" d
-WHERE d."IS_DELETED" = 'no'
-GROUP BY d."ID_HEADERS_TALI"
-"""
-
-
+# --- insurance position of one tally (warning banner) ---
+# Same algorithm and SQL as the invoice (app.services.insurance_cover): shared
+# ceilings are consumed in tally registration order (ID_TALI), so the banner
+# warns only about a real shortfall of THIS tally, never a false one.
 @router.get("/{header_id}/insurance-check", dependencies=[Depends(require_permission("tally.view"))])
 def check_tally_insurance(header_id: int):
-    """Per insurance of this tally: total customs value vs the policy ceiling.
+    """This tally's insurance position under the invoice rule.
 
-    The customs sum runs across the active goods rows of EVERY active tally
-    that carries the same (بیمه نامه, ثبت سفارش) pair. INSURED_VALUE is the
-    policy's single ceiling repeated on rows, so it is taken with MAX rather
-    than summed. Entries with is_over=True carry an overage that must be
-    charged on the invoice; the detail page warns about them.
+    Earlier insured tallies draw first on a shared ceiling; only this tally's
+    real shortfall is reported. Also flags an insured tally without a recorded
+    insured value, which the invoice then charges on the full customs value.
     """
-    headers = fetch_all(INSURANCE_HEADERS_SQL)
+    headers = fetch_all(cover_sql.HEADERS_SQL)
     if not any(int(row["id_tali"]) == header_id for row in headers):
         raise HTTPException(status_code=404, detail="تالی یافت نشد")
-    totals_by_header = {
-        int(row["header_id"]): row for row in fetch_all(INSURANCE_TOTALS_SQL)
+    totals = {int(row["id_tali"]): row for row in fetch_all(cover_sql.TOTALS_SQL)}
+    cover = insurance_cover(header_id, headers, totals)
+    numbers = {int(row["id_tali"]): row.get("tali_number") for row in headers}
+    return {
+        "insured": cover.insured,
+        "missing_ceiling": cover.missing_ceiling,
+        "customs_value": cover.customs,
+        "ceiling": cover.ceiling,
+        "used_before": cover.used_before,
+        "cover": cover.cover,
+        "shortfall": cover.shortfall,
+        "is_over": cover.shortfall > 0,
+        "policies": [{"number_bimeh": bimeh, "sabt_sefaresh_number": sabt}
+                     for bimeh, sabt in cover.policies if bimeh != cover_sql.OWN],
+        "earlier_tallies": [str(numbers.get(i) or i) for i in cover.drawn_by],
     }
-    return check_insurance_ceilings(header_id, headers, totals_by_header)
 
 # --- one tally's diamound-rate entries, catalog title/code resolved ---
 DIAMOUND_SQL = """

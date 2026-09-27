@@ -359,18 +359,20 @@ type TallySummaryData = {
   representative_name: string | null
 }
 
-// One entry per (بیمه نامه, ثبت سفارش) pair of this tally. Customs values are
-// summed across all tallies that share the pair; insured_ceiling is the
-// policy's single value (repeated on rows, extracted with MAX, never summed).
-// is_over entries carry the invoice difference.
-type InsuranceCheckEntry = {
-  number_bimeh: string
-  sabt_sefaresh_number: string
-  total_customs_value: number
-  insured_ceiling: number | null
-  overage: number | null
+// This tally's insurance position, computed with the invoice's own algorithm:
+// shared ceilings are consumed in tally registration order, so is_over means
+// THIS tally has a real shortfall the invoice will charge (no false warnings).
+type InsuranceCheck = {
+  insured: boolean
+  missing_ceiling: boolean
+  customs_value: number
+  ceiling: number | null
+  used_before: number
+  cover: number
+  shortfall: number
   is_over: boolean
-  tally_numbers: string[]
+  policies: { number_bimeh: string; sabt_sefaresh_number: string }[]
+  earlier_tallies: string[]
 }
 
 function formatMoney(value: number): string {
@@ -472,10 +474,9 @@ export function TallyDetailPage() {
 
   const { data: insuranceCheck } = useQuery({
     queryKey: ['tally-insurance-check', headerId],
-    queryFn: () => apiGet<InsuranceCheckEntry[]>(`/tally/${headerId}/insurance-check`),
+    queryFn: () => apiGet<InsuranceCheck>(`/tally/${headerId}/insurance-check`),
     enabled: headerId != null,
   })
-  const overInsured = (insuranceCheck ?? []).filter((entry) => entry.is_over)
 
   useEffect(() => {
     if (isLegacyId && header?.tali_number) {
@@ -485,30 +486,52 @@ export function TallyDetailPage() {
 
   return (
     <div dir="rtl" className="tally-detail-page">
-      {overInsured.map((entry) => (
+      {insuranceCheck?.is_over && (
         <Alert
-          key={`${entry.number_bimeh}|${entry.sabt_sefaresh_number}`}
           color="red"
           variant="light"
           radius="lg"
           mb="md"
           icon={<TriangleAlert size={20} />}
-          title="سقف ارزش کالای بیمه‌شده پر شده است."
+          title="این تالی کسری بیمه دارد."
         >
-          مجموع ارزش کالای گمرکی تالی‌های بیمه‌نامه{' '}
-          <bdi dir="ltr">«{entry.number_bimeh || '—'}»</bdi>
-          {entry.sabt_sefaresh_number !== '' && (
-            <> (ثبت سفارش <bdi dir="ltr">«{entry.sabt_sefaresh_number}»</bdi>)</>
-          )}{' '}
-          برابر {formatMoney(entry.total_customs_value)} است و از سقف ارزش
-          کالای بیمه‌شده ({formatMoney(entry.insured_ceiling ?? 0)}) بیشتر شده
-          است؛ مبلغ مابه‌التفاوت {formatMoney(entry.overage ?? 0)} باید در
-          صورتحساب اعمال شود.
-          {entry.tally_numbers.length > 0 && (
-            <> تالی‌های این بیمه: {entry.tally_numbers.join('، ')}</>
+          ارزش کالای گمرکی این تالی {formatMoney(insuranceCheck.customs_value)} است و سقف
+          بیمه‌نامه{' '}
+          {insuranceCheck.policies.map((policy, index) => (
+            <span key={`${policy.number_bimeh}|${policy.sabt_sefaresh_number}`}>
+              {index > 0 && '، '}
+              <bdi dir="ltr">«{policy.number_bimeh || '—'}»</bdi>
+              {policy.sabt_sefaresh_number !== '' && (
+                <> (ثبت سفارش <bdi dir="ltr">«{policy.sabt_sefaresh_number}»</bdi>)</>
+              )}
+            </span>
+          ))}{' '}
+          برابر {formatMoney(insuranceCheck.ceiling ?? 0)} است.
+          {insuranceCheck.used_before > 0 && (
+            <>
+              {' '}تالی‌های قبلی
+              {insuranceCheck.earlier_tallies.length > 0 && <> ({insuranceCheck.earlier_tallies.join('، ')})</>}
+              {' '}{formatMoney(insuranceCheck.used_before)} از این سقف را مصرف کرده‌اند.
+            </>
           )}
+          {' '}پوشش باقی‌مانده برای این تالی {formatMoney(insuranceCheck.cover)} است؛ کسری{' '}
+          {formatMoney(insuranceCheck.shortfall)} در صورتحساب مشمول هزینه بیمه می‌شود.
         </Alert>
-      ))}
+      )}
+      {insuranceCheck?.missing_ceiling && (
+        <Alert
+          color="orange"
+          variant="light"
+          radius="lg"
+          mb="md"
+          icon={<TriangleAlert size={20} />}
+          title="ارزش کالای بیمه‌شده ثبت نشده است."
+        >
+          این تالی بیمه‌دار ثبت شده ولی ارزش کالای بیمه‌شده نه در ردیف‌های آن و نه در
+          تالی‌های هم‌بیمه‌نامه ثبت نشده است؛ در صورتحساب، هزینه بیمه با کل ارزش گمرکی
+          محاسبه می‌شود.
+        </Alert>
+      )}
       <Paper className="tally-detail-hero" radius="xl">
         <div className="tally-detail-title-block">
           <span className="tally-detail-title-icon" aria-hidden>

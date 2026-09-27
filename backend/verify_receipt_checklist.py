@@ -48,8 +48,10 @@ def main():
                     with conn.cursor() as cur:
                         cur.execute('SELECT MIN("ID") FROM "FA_USERS"')
                         actor = int(cur.fetchone()[0])
+                        # Invoices bill storage from "storage_price" (1405 rules).
                         cur.execute('''SELECT "id_kala_price" FROM "fa_kala_price"
-                            WHERE "price_60_day" IS NOT NULL FETCH FIRST 1 ROW ONLY''')
+                            WHERE "storage_price" IS NOT NULL AND "IS_DELETED" = 'no'
+                            FETCH FIRST 1 ROW ONLY''')
                         rate = cur.fetchone()[0]
                         number = allocate_next_tally_number(cur)
                         out = cur.var(int)
@@ -62,12 +64,19 @@ def main():
                              "pallets": 100 if cargo == "volumetric" else None, "id": out})
                         tid = int(out.getvalue()[0])
                         temporary_tallies.append(tid)
+                        # Container storage is billed per container, so that case needs a
+                        # carrier number and (for the final checklist) its transportation answer.
+                        hamel = "SMOKE-CONTAINER" if cargo == "container" else None
                         cur.execute('''INSERT INTO "FA_TALI_DETAILES"
                             ("ID_HEADERS_TALI","CODE_GROUPE_KALA","HSCODE","DESCRIPTION_KALA",
-                             "NUMBER_KALA","WEIGHTE","WEIGHTE_BASKOL","ZARIB_MAHAL","IS_DELETED")
-                            VALUES (:tid,:rate,'99000001','temporary checklist smoke',100,100,100,'1','no')
-                            RETURNING "ID_TALI_DETAILS" INTO :id''', {"tid": tid, "rate": rate, "id": out})
+                             "NUMBER_KALA","WEIGHTE","WEIGHTE_BASKOL","ZARIB_MAHAL","NUMBER_HAMEL","IS_DELETED")
+                            VALUES (:tid,:rate,'99000001','temporary checklist smoke',100,100,100,'1',:hamel,'no')
+                            RETURNING "ID_TALI_DETAILS" INTO :id''', {"tid": tid, "rate": rate, "hamel": hamel, "id": out})
                         source_id = int(out.getvalue()[0])
+                        if hamel:
+                            cur.execute('''INSERT INTO "FA_TALI_CARRIER_TRANSPORTATION"
+                                ("TALI_ID","NUMBER_HAMEL","HAS_TRANSPORTATION") VALUES (:tid,:hamel,'no')''',
+                                {"tid": tid, "hamel": hamel})
                     user = {"id": actor}
                     general = ghabz.create_master_ghabz(tid, user)["id_ghabz"]
                     receipts = []

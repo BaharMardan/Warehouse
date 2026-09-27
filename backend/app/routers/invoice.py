@@ -495,7 +495,8 @@ SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
        s."VAHED_MALIE" AS finance_name,
        s."NAMAYANDEH_COMPANY" AS representative_name,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
-       s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted
+       s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
+       s."CALC_NOTE" AS calc_note
 FROM "FA_SORAT_HESAB_HEADER" s
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
@@ -506,7 +507,8 @@ INVOICE_DETAILS_SQL = """
 SELECT "ID_SORA_DETAILS" AS id_detail, "DESCRIPTION" AS description,
        "NUMBER_KALA" AS quantity, "WEIGHTE" AS weight,
        "PRICE_DETAILS" AS price, "TAKHFIF_DETAILS" AS discount,
-       "TAKHFIF_ALL" AS amount
+       "TAKHFIF_ALL" AS amount,
+       "ROW_KIND" AS row_kind, "CALC_NOTE" AS calc_note
 FROM "FA_SORA_HESAB_DETAILS"
 WHERE "ID_SORA_HEADER" = :invoice_id
   AND NVL("IS_DELETED", 'N') NOT IN ('Y', 'yes')
