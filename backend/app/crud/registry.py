@@ -720,6 +720,7 @@ class InsuranceCompanyInput(BaseModel):
 # the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
     prepayment: int | None = Field(default=None, ge=0, le=9007199254740991)
+    discount: int | None = Field(default=None, ge=0, le=9007199254740991)  # تخفیف (ریال)
     has_transportation: Literal["yes", "no"] | None = None
     number_karaneh: str | None = None       # شماره کارنه / ترانزیت
     tracking_number: str | None = None      # شماره پیگیری

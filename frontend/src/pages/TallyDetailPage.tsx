@@ -601,6 +601,13 @@ export function TallyDetailPage() {
             ltr
           />
           <SummaryLine
+            icon={<ReceiptText size={20} strokeWidth={1.8} />}
+            label="تخفیف (ریال)"
+            value={header?.discount == null ? null : Number(header.discount).toLocaleString('en-US')}
+            tone="blue"
+            ltr
+          />
+          <SummaryLine
             icon={<ShieldCheck size={20} strokeWidth={1.8} />}
             label="شماره بیمه‌نامه / بیمه‌گر"
             value={[

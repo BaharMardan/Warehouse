@@ -127,6 +127,7 @@ type TallyHeaderState = {
   company_bimeh: string
   description: string
   prepayment: string
+  discount: string
 }
 
 const EMPTY: TallyHeaderState = {
@@ -138,7 +139,7 @@ const EMPTY: TallyHeaderState = {
   sabt_sefaresh_number: [''],
   name_arzyab: '', number_barnameh: '', is_bimeh: 'خیر',
   name_anbardar: DEFAULT_WAREHOUSE_KEEPER,
-  accepted_gomrok: '', company_bimeh: '', description: '', prepayment: '',
+  accepted_gomrok: '', company_bimeh: '', description: '', prepayment: '', discount: '',
 }
 
 // turn "" into null and numeric strings into numbers, so the payload matches the
@@ -179,6 +180,7 @@ function toPayload(s: TallyHeaderState) {
     company_bimeh: strOrNull(s.company_bimeh),
     description: strOrNull(s.description),
     prepayment: strOrNull(s.prepayment),
+    discount: strOrNull(s.discount),
   }
 }
 // A loaded tally row (from GET /tally-header/{id}) -> the form's state shape.
@@ -209,6 +211,7 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     company_bimeh: s(r.company_bimeh),
     description: s(r.description),
     prepayment: s(r.prepayment),
+    discount: s(r.discount),
   }
 }
 
@@ -653,6 +656,15 @@ export function TallyHeaderForm() {
               inputMode="numeric"
               value={formatGroupedIntegerInput(form.prepayment)}
               onChange={(e) => set('prepayment', normalizeIntegerInput(e.currentTarget.value))}
+              styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
+            />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <TextInput
+              label="تخفیف (ریال)"
+              inputMode="numeric"
+              value={formatGroupedIntegerInput(form.discount)}
+              onChange={(e) => set('discount', normalizeIntegerInput(e.currentTarget.value))}
               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
           </Grid.Col>

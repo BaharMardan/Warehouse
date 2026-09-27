@@ -137,3 +137,22 @@ def format_jalali(value: date | datetime, separator: str = "/") -> str:
     """Format as YYYY/MM/DD in Latin digits, matching the printed documents."""
     jy, jm, jd = to_jalali(value)
     return f"{jy}{separator}{jm:02d}{separator}{jd:02d}"
+
+
+def _j2d(jy: int, jm: int, jd: int) -> int:
+    """Jalali date to Julian Day Number (jalaali-js ``j2d``)."""
+    _, gy, march = _jal_cal(jy, without_leap=True)
+    return _g2d(gy, 3, march) + (jm - 1) * 31 - _div(jm, 7) * (jm - 7) + jd - 1
+
+
+def from_jalali(jy: int, jm: int, jd: int) -> date:
+    """Convert a Jalali (year, month, day) to a Python date.
+
+    Rejects impossible days (e.g. Mehr 31 or Esfand 30 in a common year) by
+    round-tripping, so callers never get a silently shifted date.
+    """
+    gy, gm, gd = _d2g(_j2d(jy, jm, jd))
+    result = date(gy, gm, gd)
+    if to_jalali(result) != (jy, jm, jd):
+        raise ValueError(f"Invalid Jalali date {jy}/{jm:02d}/{jd:02d}")
+    return result
