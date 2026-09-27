@@ -4,7 +4,9 @@ import { Button, Center, Group, Loader, Paper, SimpleGrid, Table, Text, Title } 
 import { apiGet } from '../api/client'
 import { BackButton } from '../components/BackButton'
 import { IconPrint } from '../components/icons'
-import { SavedInvoice, jalali, money } from './invoiceTypes'
+import { SavedInvoice, invoiceSections, jalali, money, quantity, signedMoney } from './invoiceTypes'
+
+const headStyles = { th: { backgroundColor: '#e03131', color: '#fff' } }
 
 export function InvoiceDetailPage() {
   const { id } = useParams()
@@ -29,8 +31,10 @@ export function InvoiceDetailPage() {
           <Text size="sm">شناسه ملی: {data.header.seller_national_id || '—'}</Text></Paper>
         <Paper withBorder p="md"><Title order={4} c="red" mb="sm">مشخصات خریدار</Title>
           <Text>{data.header.buyer_name || '—'}</Text><Text size="sm">نشانی: {data.header.buyer_address || '—'}</Text>
-          <Text size="sm">شماره تالی: {data.header.tali_number || '—'} | تاریخ: {jalali(data.header.created_at)}</Text></Paper>
+          <Text size="sm">شماره تالی: {data.header.tali_number || '—'} | تاریخ: {jalali(data.header.created_at)}</Text>
+          {data.header.ghabz_number && <Text size="sm">شماره قبض انبار: <bdi dir="ltr">{data.header.ghabz_number}</bdi></Text>}</Paper>
       </SimpleGrid>
+      {invoiceSections(data.details).modern ? <ModernDetails data={data} /> :
       <Paper withBorder p="md"><Title order={4} mb="sm">جزئیات صورتحساب</Title>
         <Table.ScrollContainer minWidth={700}><Table striped styles={{ th: { backgroundColor: '#e03131', color: '#fff' } }}>
           <Table.Thead><Table.Tr><Table.Th>ردیف</Table.Th><Table.Th>شرح</Table.Th>
@@ -44,7 +48,39 @@ export function InvoiceDetailPage() {
           </Table.Tr>)}</Table.Tbody>
         </Table></Table.ScrollContainer>
         <Text fw={800} mt="md">جمع کل: <bdi dir="ltr">{money(data.grand_total)}</bdi> ریال</Text>
-      </Paper>
+      </Paper>}
     </>}
   </div>
+}
+
+// 1405 invoices: every charge with how it was calculated, then the summary
+// «جمع هزینه‌ها + مالیات − پیش‌پرداخت − تخفیف = قابل پرداخت» for the operator's check.
+function ModernDetails({ data }: { data: SavedInvoice }) {
+  const { charges, subtotal, summary } = invoiceSections(data.details)
+  return <Paper withBorder p="md"><Title order={4} mb="xs">جزئیات صورتحساب</Title>
+    {data.header.calc_note && <Text size="sm" c="dimmed" mb="sm">{data.header.calc_note}</Text>}
+    <Table.ScrollContainer minWidth={900}><Table striped verticalSpacing="xs" styles={headStyles}>
+      <Table.Thead><Table.Tr><Table.Th w={50}>ردیف</Table.Th><Table.Th>شرح</Table.Th>
+        <Table.Th>تعداد</Table.Th><Table.Th>وزن (کیلوگرم)</Table.Th><Table.Th>مبلغ (ریال)</Table.Th>
+        <Table.Th w="38%">نحوه محاسبه</Table.Th></Table.Tr></Table.Thead>
+      <Table.Tbody>{charges.map((line, index) => <Table.Tr key={line.id_detail}>
+        <Table.Td>{index + 1}</Table.Td><Table.Td>{line.description || '—'}</Table.Td>
+        <Table.Td><bdi dir="ltr">{quantity(line.quantity)}</bdi></Table.Td>
+        <Table.Td><bdi dir="ltr">{quantity(line.weight)}</bdi></Table.Td>
+        <Table.Td><bdi dir="ltr">{money(line.price)}</bdi></Table.Td>
+        <Table.Td><Text size="xs" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
+      </Table.Tr>)}</Table.Tbody>
+      <Table.Tbody>
+        <Table.Tr><Table.Td colSpan={4} fw={700}>جمع هزینه‌ها</Table.Td>
+          <Table.Td fw={700}><bdi dir="ltr">{money(subtotal)}</bdi></Table.Td><Table.Td /></Table.Tr>
+        {summary.map((line) => <Table.Tr key={line.id_detail}>
+          <Table.Td colSpan={4}>{line.description}</Table.Td>
+          <Table.Td><bdi dir="ltr">{signedMoney(line.price)}</bdi></Table.Td>
+          <Table.Td><Text size="xs" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
+        </Table.Tr>)}
+        <Table.Tr style={{ backgroundColor: '#fff1f1' }}><Table.Td colSpan={4} fw={800}>مبلغ قابل پرداخت</Table.Td>
+          <Table.Td fw={800}><bdi dir="ltr">{money(data.grand_total)}</bdi></Table.Td><Table.Td /></Table.Tr>
+      </Table.Tbody>
+    </Table></Table.ScrollContainer>
+  </Paper>
 }

@@ -104,7 +104,7 @@ def test_yes_applies_prepayment_and_discount_on_this_invoice(wired):
     subtotal = Decimal(100000 + 75604050 + 300000)
     assert rows[3]["price"] == Decimal(7600405)           # 10% of 76,004,050
     assert [r["price"] for r in rows[4:]] == [-200000, -50000]
-    assert all("اعمال‌شده روی قبض 1405_1503_2" in r["note"] for r in rows[4:])
+    assert all("اعمال‌شده روی قبض \u20661405_1503_2\u2069" in r["note"] for r in rows[4:])
     assert sum(r["price"] for r in rows) == subtotal + Decimal(7600405) - 250000
     header_params = cur.execute.call_args_list[0].args[1]
     assert header_params["calc_note"].startswith("نوع بار: وزنی؛ 1405/01/01 تا 1405/02/01")

@@ -97,6 +97,12 @@ def round_rial(value: Decimal) -> Decimal:
     return value.quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
 
+def ltr(text) -> str:
+    """Isolate a left-to-right token (receipt or policy number) inside a Persian
+    note, so e.g. 1405_1503_2 is not displayed as 2_1503_1405."""
+    return f"\u2066{text}\u2069"
+
+
 def fmt(value) -> str:
     """Latin digits, comma grouping, no trailing zeros (matches the invoice UI)."""
     return format(Decimal(value).normalize(), ",f")

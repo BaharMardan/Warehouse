@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { apiGet } from '../api/client'
 import { IconPrint } from '../components/icons'
-import { SavedInvoice, jalali, money } from './invoiceTypes'
+import { SavedInvoice, invoiceSections, jalali, money, quantity, signedMoney } from './invoiceTypes'
 import './TallyPrintPage.css'
 import './InvoicePrintPage.css'
 
@@ -89,12 +89,13 @@ export function InvoicePrintPage() {
               <span>شماره تماس: {shown(h.buyer_phone)}</span>
               <span>شماره تالی: {shown(h.tali_number)}</span>
               <span>
-                شماره قبض: {shown(h.buyer_ghabz_number ?? h.ghabz_id)}
+                شماره قبض: <bdi dir="ltr">{shown(h.ghabz_number ?? h.buyer_ghabz_number ?? h.ghabz_id)}</bdi>
               </span>
             </div>
           </section>
         </div>
 
+        {invoiceSections(data.details).modern ? <ModernTable data={data} /> :
         <table className="invoice-print-table">
           <thead>
             <tr>
@@ -128,7 +129,7 @@ export function InvoicePrintPage() {
               <td>{money(data.grand_total)}</td>
             </tr>
           </tbody>
-        </table>
+        </table>}
 
         <div className="invoice-print-notes">
           <strong>توضیحات</strong>
@@ -143,5 +144,58 @@ export function InvoicePrintPage() {
         </footer>
       </section>
     </main>
+  )
+}
+// 1405 invoices: each charge with how it was calculated, then the summary rows
+// «جمع هزینه‌ها + مالیات − پیش‌پرداخت − تخفیف = مبلغ قابل پرداخت».
+function ModernTable({ data }: { data: SavedInvoice }) {
+  const { charges, subtotal, summary } = invoiceSections(data.details)
+  return (
+    <>
+      {data.header.calc_note && (
+        <p className="invoice-print-calc-header">{data.header.calc_note}</p>
+      )}
+      <table className="invoice-print-table invoice-print-table-calc">
+        <thead>
+          <tr>
+            <th>ردیف</th>
+            <th>شرح</th>
+            <th>تعداد</th>
+            <th>وزن (کیلوگرم)</th>
+            <th>مبلغ (ریال)</th>
+            <th>نحوه محاسبه</th>
+          </tr>
+        </thead>
+        <tbody>
+          {charges.map((line, index) => (
+            <tr key={line.id_detail}>
+              <td>{index + 1}</td>
+              <td>{shown(line.description)}</td>
+              <td><bdi dir="ltr">{quantity(line.quantity)}</bdi></td>
+              <td><bdi dir="ltr">{quantity(line.weight)}</bdi></td>
+              <td><bdi dir="ltr">{money(line.price)}</bdi></td>
+              <td className="invoice-print-calc">{shown(line.calc_note)}</td>
+            </tr>
+          ))}
+          <tr className="invoice-print-subtotal">
+            <td colSpan={4}>جمع هزینه‌ها</td>
+            <td><bdi dir="ltr">{money(subtotal)}</bdi></td>
+            <td />
+          </tr>
+          {summary.map((line) => (
+            <tr key={line.id_detail} className="invoice-print-summary">
+              <td colSpan={4}>{shown(line.description)}</td>
+              <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
+              <td className="invoice-print-calc">{shown(line.calc_note)}</td>
+            </tr>
+          ))}
+          <tr className="invoice-print-total">
+            <td colSpan={4}>مبلغ قابل پرداخت</td>
+            <td><bdi dir="ltr">{money(data.grand_total)}</bdi></td>
+            <td />
+          </tr>
+        </tbody>
+      </table>
+    </>
   )
 }

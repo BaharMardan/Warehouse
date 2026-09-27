@@ -27,6 +27,7 @@ from decimal import Decimal
 from typing import Optional
 
 from app.services.insurance_check import normalize_number_text, parse_insurance_pairs
+from app.services.storage_calc import ltr
 
 INSURED = "بله"
 
@@ -77,7 +78,8 @@ class InsuranceCover:
             if bimeh == OWN:
                 parts.append("بدون شماره بیمه‌نامه")
             else:
-                parts.append(f"بیمه‌نامه «{bimeh or '—'}»" + (f" / ثبت سفارش «{sabt}»" if sabt else ""))
+                parts.append(f"بیمه‌نامه «{ltr(bimeh or '—')}»"
+                             + (f" / ثبت سفارش «{ltr(sabt)}»" if sabt else ""))
         return "، ".join(parts)
 
 

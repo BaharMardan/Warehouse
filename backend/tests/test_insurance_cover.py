@@ -85,7 +85,7 @@ def test_cover_reports_shortfall_policies_and_earlier_consumers():
     t = totals(t1=(600, 1000), t2=(900, 1000), t3=(700, 1000))
     third = insurance_cover(3, headers, t)
     assert (third.shortfall, third.drawn_by) == (300, (1,))       # tally 2 is another policy
-    assert third.policy_text == "بیمه‌نامه «B-1» / ثبت سفارش «S-1»"
+    assert third.policy_text == "بیمه‌نامه «\u2066B-1\u2069» / ثبت سفارش «\u2066S-1\u2069»"
     assert insurance_cover(1, headers, t).shortfall == 0
     missing = insurance_cover(1, [header(1)], totals(t1=(900, None)))
     assert missing.shortfall == 0 and missing.missing_ceiling

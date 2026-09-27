@@ -257,7 +257,7 @@ def build_invoice(*, system_rate, storage: list[InvoiceRow], services: list[Invo
     if totals.tax:
         rows.append(InvoiceRow("tax", TAX_LABEL, totals.tax,
                                f"{sc.fmt(totals.tax_rate)}٪ × {sc.fmt(totals.subtotal)} = {sc.fmt(totals.tax)}"))
-    applied_on = f"، اعمال‌شده روی قبض {receipt_label}" if receipt_label else ""
+    applied_on = f"، اعمال‌شده روی قبض {sc.ltr(receipt_label)}" if receipt_label else ""
     if prepaid > 0:
         rows.append(InvoiceRow("prepayment", PREPAYMENT_LABEL, -prepaid,
                                f"پیش‌پرداخت سربرگ تالی{applied_on} = {sc.fmt(prepaid)}"))

@@ -139,6 +139,64 @@
   font-weight: 700;
 }
 
+/* 1405 invoices: a calculation column and summary rows. The legacy table keeps
+   the widths above; these override them only on .invoice-print-table-calc. */
+.invoice-print-calc-header {
+  margin: 4mm 0 0;
+  color: #7a4b4b;
+}
+
+.invoice-print-table-calc th:nth-child(2),
+.invoice-print-table-calc td:nth-child(2) {
+  width: 22%;
+}
+
+.invoice-print-table-calc th:nth-child(3),
+.invoice-print-table-calc td:nth-child(3),
+.invoice-print-table-calc th:nth-child(4),
+.invoice-print-table-calc td:nth-child(4) {
+  width: 8%;
+}
+
+.invoice-print-table-calc th:nth-child(5),
+.invoice-print-table-calc td:nth-child(5) {
+  width: 12%;
+}
+
+.invoice-print-table-calc th:last-child,
+.invoice-print-table-calc td.invoice-print-calc {
+  width: 44%;
+  text-align: right;
+}
+
+.invoice-print-calc {
+  color: #5c4040;
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+
+.invoice-print-subtotal td,
+.invoice-print-summary td {
+  background: #fffafa;
+}
+
+.invoice-print-subtotal td {
+  font-weight: 700;
+}
+
+.invoice-print-subtotal td:first-child,
+.invoice-print-summary td:first-child,
+.invoice-print-table-calc .invoice-print-total td:first-child {
+  text-align: right;
+}
+
+/* In summary rows the amount is the 2nd cell (the label spans 4 columns). */
+.invoice-print-subtotal td:nth-child(2),
+.invoice-print-summary td:nth-child(2),
+.invoice-print-table-calc .invoice-print-total td:nth-child(2) {
+  text-align: center;
+}
+
 .invoice-print-notes {
   display: flex;
   min-height: 23mm;

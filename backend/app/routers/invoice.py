@@ -496,10 +496,11 @@ SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
        s."NAMAYANDEH_COMPANY" AS representative_name,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
        s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
-       s."CALC_NOTE" AS calc_note
+       s."CALC_NOTE" AS calc_note, g."GHABZ_NUMBER" AS ghabz_number
 FROM "FA_SORAT_HESAB_HEADER" s
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
+LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
 WHERE s."ID_SORAT" = :invoice_id AND NVL(s."SORAT_IS_DELETED", 'no') = 'no'
 """
 
