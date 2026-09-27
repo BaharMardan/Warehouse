@@ -108,18 +108,27 @@ ORDER BY h."ID_TALI" DESC
 
 @router.get("/list", dependencies=[Depends(require_permission("kartabl.view"))])
 def list_kartabl():
-    return fetch_all(LIST_SQL)
+    from app.routers.receipt_workflow import keeper_queue as receipt_queue
+    rows = fetch_all(LIST_SQL)
+    pending_tallies = {receipt["tally_id"] for receipt in receipt_queue()}
+    for row in rows:
+        if row["id_tali"] in pending_tallies:
+            row["handoff_step"] = "keeper"
+    return rows
 
 
 # Polled every few seconds by keepers' browsers, so it stays a single COUNT.
 KEEPER_QUEUE_SQL = """
 SELECT COUNT(*) AS waiting
-  FROM "FA_TALI_HEADER"
- WHERE "IS_DELETED" = 'no'
-   AND "HANDOFF_STEP" = 'keeper'
+  FROM "FA_TALI_HEADER" t
+ WHERE t."IS_DELETED" = 'no'
+   AND t."HANDOFF_STEP" = 'keeper'
+   AND NOT EXISTS (SELECT 1 FROM "fa_ghabz_anbar_header" h
+       WHERE h."TALI_ID" = t."ID_TALI" AND h."IS_DELETED" = 'no')
 """
 
 
 @router.get("/keeper-queue", dependencies=[Depends(require_permission("tally.services"))])
 def keeper_queue():
-    return {"waiting": int(fetch_all(KEEPER_QUEUE_SQL)[0]["waiting"])}
+    from app.routers.receipt_workflow import keeper_queue as receipt_queue
+    return {"waiting": int(fetch_all(KEEPER_QUEUE_SQL)[0]["waiting"]) + len(receipt_queue())}

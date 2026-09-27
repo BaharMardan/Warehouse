@@ -314,6 +314,7 @@ import { BackButton } from '../components/BackButton'
 import { TallyNumber } from '../components/TallyNumber'
 import { modules } from '../modules'
 import { usePermissions } from '../auth/usePermissions'
+import { ReceiptKeeperQueue } from '../components/ReceiptWorkflow'
 import {
   IconClipboardList, IconDots, IconInvoice, IconReceipt, IconRefresh,
 } from '../components/icons'
@@ -472,6 +473,7 @@ export function KartablPage() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['kartabl-list'],
     queryFn: () => apiGet<KartablRow[]>('/kartabl/list'),
+    refetchInterval: 20000,
   })
 
   // The bell links here with ?waiting=1, so a keeper lands on their own queue.
@@ -516,6 +518,7 @@ export function KartablPage() {
         }
       `}</style>
 
+      <ReceiptKeeperQueue />
       <PageHeader
         title="کارتابل"
         subtitle="پیگیری پرونده‌ها از تالی تا صورتحساب"

@@ -176,6 +176,7 @@ from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
 from app.services.base import execute, fetch_all, fetch_one
 from app.services.tally_numbering import allocate_next_tally_number
+from app.services.receipt_db import guarded_write
 
 
 router = APIRouter(prefix="/tally-header", tags=["tally_header"])
@@ -328,7 +329,8 @@ def update_tally_header(
         raise HTTPException(status_code=404, detail="تالی یافت نشد")
     params = {**_coerce_dates(provided), "id": row_id, "actor_id": current_user["id"]}
 
-    if execute(_PLAN["build_update"](provided.keys()), params) == 0:
+    if guarded_write("FA_TALI_HEADER", "ID_TALI", "update",
+                     _PLAN["build_update"](provided.keys()), params, row_id=row_id, values=provided) == 0:
         raise HTTPException(status_code=404, detail="تالی یافت نشد")
     return fetch_one(_PLAN["one"], {"id": row_id})
 
@@ -339,5 +341,6 @@ def delete_tally_header(
     current_user: dict = Depends(require_permission("tally.delete")),
 ):
     params = {"id": row_id, "actor_id": current_user["id"]}
-    if execute(_PLAN["delete"], params) == 0:
+    if guarded_write("FA_TALI_HEADER", "ID_TALI", "delete",
+                     _PLAN["delete"], params, row_id=row_id) == 0:
         raise HTTPException(status_code=404, detail="تالی یافت نشد")

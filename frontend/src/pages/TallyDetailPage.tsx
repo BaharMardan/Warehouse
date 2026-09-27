@@ -1,5 +1,5 @@
 // import { useEffect, useState } from 'react'
-// import { useParams, useNavigate } from 'react-router-dom'
+// import { useParams, useNavigate, useLocation } from 'react-router-dom'
 // import { BackButton } from '../components/BackButton'
 // import { useQuery } from '@tanstack/react-query'
 // import { toJalaali } from 'jalaali-js'
@@ -135,9 +135,9 @@
 
 //   useEffect(() => {
 //     if (isLegacyId && header?.tali_number) {
-//       navigate(`/tally/${encodeURIComponent(String(header.tali_number))}`, { replace: true })
+//       navigate(`/tally/${encodeURIComponent(String(header.tali_number))}${location.search}`, { replace: true })
 //     }
-//   }, [header?.tali_number, isLegacyId, navigate])
+//   }, [header?.tali_number, isLegacyId, navigate, location.search])
 
 //   return (
 //     <div dir="rtl" className="tally-detail-page">
@@ -197,6 +197,7 @@
 //           <BackButton to="/tally" />
 //         </Group>
 //       </Paper>
+
 
 //       <section className="tally-detail-summary-grid" aria-label="خلاصه اطلاعات تالی">
 //         <Paper className="tally-detail-summary-card" radius="lg">
@@ -303,12 +304,12 @@
 // }
 
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery } from '@tanstack/react-query'
 import { toJalaali } from 'jalaali-js'
 import {
-  Alert, Title, Button, Group, Paper, Loader, Center, Text, Tooltip,
+  Alert, Title, Button, Group, Paper, Stack, Loader, Center, Text, Tooltip,
 } from '@mantine/core'
 import {
   Bookmark,
@@ -335,6 +336,7 @@ import { TallyNumber } from '../components/TallyNumber'
 import {
   HandoffBanner, ReturnToOperatorButton, SendToKeeperButton, VolumetricCard, useHandoff,
 } from '../components/TallyHandoff'
+import { ReceiptWorkflow, ReceiptContext } from '../components/ReceiptWorkflow'
 import { usePermissions } from '../auth/usePermissions'
 import './TallyDetailPage.css'
 /**
@@ -436,6 +438,7 @@ export function TallyDetailPage() {
   const reference = tallyId ?? tallyNumber ?? ''
   const isLegacyId = tallyId != null
   const navigate = useNavigate()
+  const location = useLocation()
   const [issueOpen, setIssueOpen] = useState(false)
   const { can } = usePermissions()
 
@@ -456,6 +459,10 @@ export function TallyDetailPage() {
   })
   const headerId = header?.id_tali == null ? undefined : Number(header.id_tali)
   const { data: handoff } = useHandoff(headerId)
+  const requestedReceipt = new URLSearchParams(location.search).get('receipt')
+  const receiptChecklists = (handoff?.receipt_checklists ?? []).filter(
+    r => !requestedReceipt || r.id === Number(requestedReceipt)
+  )
 
   const { data: summary } = useQuery({
     queryKey: ['tally-summary', headerId],
@@ -472,9 +479,9 @@ export function TallyDetailPage() {
 
   useEffect(() => {
     if (isLegacyId && header?.tali_number) {
-      navigate(`/tally/${encodeURIComponent(String(header.tali_number))}`, { replace: true })
+      navigate(`/tally/${encodeURIComponent(String(header.tali_number))}${location.search}`, { replace: true })
     }
-  }, [header?.tali_number, isLegacyId, navigate])
+  }, [header?.tali_number, isLegacyId, navigate, location.search])
 
   return (
     <div dir="rtl" className="tally-detail-page">
@@ -534,7 +541,7 @@ export function TallyDetailPage() {
           >
             چاپ تالی
           </Button>
-          {can('tally.edit') && (
+          {can('tally.edit') && !handoff?.has_receipts && (
             <Button
               variant="light"
               leftSection={<PencilLine size={17} />}
@@ -551,7 +558,7 @@ export function TallyDetailPage() {
           {can('ghabz.issue') && (
             <Tooltip
               label="تا انباردار تالی را تکمیل و برنگرداند، قبض انبار صادر نمی‌شود"
-              disabled={handoff?.step === 'returned'}
+              disabled={handoff?.step === 'returned' || handoff?.has_receipts}
               withArrow
               multiline
               w={240}
@@ -563,7 +570,7 @@ export function TallyDetailPage() {
                   color="teal"
                   leftSection={<ReceiptText size={17} />}
                   onClick={() => setIssueOpen(true)}
-                  disabled={headerId == null || handoff?.step !== 'returned'}
+                  disabled={headerId == null || (!handoff?.has_receipts && handoff?.step !== 'returned')}
                 >
                   صدور قبض انبار
                 </Button>
@@ -573,6 +580,9 @@ export function TallyDetailPage() {
           <BackButton to="/tally" />
         </Group>
       </Paper>
+
+      {can('tally.services') && receiptChecklists.map(r =>
+        <ReceiptContext key={r.id} id={r.id} number={r.number} />)}
 
       <section className="tally-detail-summary-grid" aria-label="خلاصه اطلاعات تالی">
         <Paper className="tally-detail-summary-card" radius="lg">
@@ -679,6 +689,14 @@ export function TallyDetailPage() {
       </div>
 
       <ReturnToOperatorButton tallyId={headerId} state={handoff} />
+      {can('tally.services') && receiptChecklists.length ? <Stack mt="md">
+        <Text fw={700}>چک‌لیست نهایی انباردار</Text>
+        <Text size="sm" c="dimmed">پس از ذخیره تغییرات خدمات تالی، قبض مربوطه را تأیید نهایی کنید.</Text>
+        {receiptChecklists.map(r => <Paper key={r.id} withBorder p="md">
+          <Text fw={600} mb="sm">قبض {r.number ?? r.id}</Text>
+          <Group><ReceiptWorkflow id={r.id} placement="tally" /></Group>
+        </Paper>)}
+      </Stack> : null}
 
       <GhabzIssueModal
         opened={issueOpen}

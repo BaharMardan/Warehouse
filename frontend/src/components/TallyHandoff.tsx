@@ -449,6 +449,7 @@ export function useHandoff(tallyId: number | null | undefined) {
     queryKey: handoffKey(tallyId),
     queryFn: () => handoffApi.read(tallyId as number),
     enabled: tallyId != null,
+    refetchInterval: 20000,
   })
 }
 
@@ -514,7 +515,7 @@ export function SendToKeeperButton({ tallyId, state }: { tallyId: number | null 
   const { can } = usePermissions()
   const send = useHandoffAction(tallyId, () => handoffApi.sendToKeeper(tallyId as number), 'ارسال به انباردار انجام نشد.')
 
-  if (!can('tally.edit') || tallyId == null || state?.step !== 'operator') return null
+  if (!can('tally.edit') || tallyId == null || state?.has_receipts || state?.step !== 'operator') return null
 
   const ready = state.goods_rows > 0
   return (
@@ -629,7 +630,7 @@ export function VolumetricCard({
   if (
     !can('tally.services') ||
     tallyId == null ||
-    state?.step !== 'keeper'
+    state?.step !== 'keeper' || !state?.can_edit_services
   ) {
     return null
   }
@@ -800,7 +801,7 @@ export function ReturnToOperatorButton({ tallyId, state }: { tallyId: number | n
   const { can } = usePermissions()
   const back = useHandoffAction(tallyId, () => handoffApi.returnToOperator(tallyId as number), 'ارسال به اپراتور انجام نشد.')
 
-  if (!can('tally.services') || tallyId == null || state?.step !== 'keeper') return null
+  if (!can('tally.services') || tallyId == null || state?.has_receipts || state?.step !== 'keeper') return null
 
   const blocked = state.cargo_type == null
     ? 'ابتدا نوع بار را انتخاب کنید'

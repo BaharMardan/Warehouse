@@ -337,13 +337,19 @@ def set_transportation(header_id: int, payload: TransportationInput):
         WHERE "ID_HEADERS_TALI" = :hid AND "NUMBER_HAMEL" = :carrier AND "IS_DELETED" = 'no' ''',
         {"hid": header_id, "carrier": carrier}):
         raise HTTPException(status_code=422, detail="Carrier is not registered on this tally")
-    execute('''MERGE INTO "FA_TALI_CARRIER_TRANSPORTATION" t
+    from app.core.db import get_connection
+    from app.services.receipt_db import guard_services
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            guard_services(cursor, header_id)
+            cursor.execute('''MERGE INTO "FA_TALI_CARRIER_TRANSPORTATION" t
         USING (SELECT :hid AS "TALI_ID", :carrier AS "NUMBER_HAMEL" FROM DUAL) s
         ON (t."TALI_ID" = s."TALI_ID" AND t."NUMBER_HAMEL" = s."NUMBER_HAMEL")
         WHEN MATCHED THEN UPDATE SET t."HAS_TRANSPORTATION" = :answer
         WHEN NOT MATCHED THEN INSERT ("TALI_ID", "NUMBER_HAMEL", "HAS_TRANSPORTATION")
             VALUES (:hid, :carrier, :answer)''',
         {"hid": header_id, "carrier": carrier, "answer": payload.has_transportation})
+        connection.commit()
     return {"number_hamel": carrier, "has_transportation": payload.has_transportation}
 
 # Every identifier quoted with its EXACT stored case (same rule as the factory),

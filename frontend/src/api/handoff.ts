@@ -18,6 +18,9 @@ export interface HandoffState {
   cargo_type: 'weight' | 'volumetric' | 'container' | null
   volumetric_pallets: number | null
   goods_rows: number
+  has_receipts: boolean
+  can_edit_services: boolean
+  receipt_checklists: { id: number; number: string | null; status: string }[]
 }
 
 export interface CargoTypeAnswer {

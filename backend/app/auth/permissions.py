@@ -43,7 +43,7 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("tally.delete", "حذف تالی", "tally", implies=("tally.view",)),
     # The warehouse keeper's part of a tally: the five service sections, the
     # volumetric question and sending the tally back to the operator.
-    Permission("tally.services", "تکمیل خدمات تالی", "tally", implies=("tally.view",)),
+    Permission("tally.services", "تکمیل خدمات تالی", "tally", implies=("tally.view", "ghabz.view")),
 
     Permission("ghabz.view", "مشاهده قبض انبار", "ghabz"),
     # Receipts are issued from the tally detail page (GhabzIssueModal), so the
@@ -55,6 +55,7 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("ghabz.edit", "ویرایش قبض انبار", "ghabz", implies=("ghabz.view",)),
 
     Permission("invoice.view", "مشاهده صورتحساب", "invoice"),
+    Permission("invoice.issue", "صدور صورتحساب", "invoice", implies=("invoice.view", "ghabz.view")),
     Permission("settings.manage", "مدیریت تنظیمات سامانه", "settings"),
 )
 

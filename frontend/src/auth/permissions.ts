@@ -17,6 +17,7 @@ export const PERMISSION_CODES = [
   'ghabz.issue',
   'ghabz.edit',
   'invoice.view',
+  'invoice.issue',
   'settings.manage',
 ] as const
 

@@ -378,6 +378,7 @@ import {
 } from 'lucide-react'
 import { apiGet, apiSend } from '../api/client'
 import { usePermissions } from '../auth/usePermissions'
+import { useHandoff } from './TallyHandoff'
 import { RefSelect } from './RefSelect'
 import { IranianPlate } from './IranianPlate'
 import { IconEdit, IconTrash } from './icons'
@@ -440,7 +441,8 @@ function normalizeDigits(s: string): string {
 export function TallyJunctionSection({ config, tallyId }: { config: JunctionConfig; tallyId: number }) {
   const qc = useQueryClient()
   // Every section in tallyJunctions is part of the warehouse keeper's step.
-  const canEdit = usePermissions().can('tally.services')
+  const { data: handoff } = useHandoff(tallyId)
+  const canEdit = usePermissions().can('tally.services') && handoff?.can_edit_services === true
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [rateId, setRateId] = useState<number | null>(null)

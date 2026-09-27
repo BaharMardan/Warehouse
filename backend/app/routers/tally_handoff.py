@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.services import tally_handoff as rules
+from app.services import receipt_db
 
 router = APIRouter(prefix="/tally", tags=["tally_handoff"])
 
@@ -99,7 +100,7 @@ UPDATE "FA_TALI_HEADER"
        "MODIFY_AT" = SYSDATE,
        "MODIFY_BY" = :actor_id
  WHERE "ID_TALI" = :tali_id
-   AND "HANDOFF_STEP" = 'keeper'
+
 """
 
 RETURN_TO_OPERATOR_SQL = """
@@ -120,7 +121,18 @@ def read_handoff(cursor, tali_id: int) -> dict:
     row = cursor.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="تالی یافت نشد")
-    return dict(zip(columns, row))
+    state = dict(zip(columns, row))
+    docs = receipt_db.receipts(cursor, tali_id)
+    active = receipt_db.operational(docs)
+    locked = any(r["status"] in ("finalized", "invoice_issued") for r in active)
+    pending = any(r["status"] in ("created", "sent_to_keeper") for r in active)
+    state["has_receipts"] = bool(docs)
+    state["can_edit_services"] = not locked and (pending if docs else state["step"] == "keeper")
+    state["receipt_checklists"] = [
+        {"id": r["id"], "number": r["number_text"], "status": r["status"]} for r in active]
+    if docs:
+        state["step"] = "keeper" if state["can_edit_services"] else "returned"
+    return state
 
 
 def lock_tally(cursor, tali_id: int) -> tuple[str, str | None, int | None]:
@@ -152,6 +164,8 @@ def send_to_keeper(tali_id: int, current_user: dict = Depends(require_permission
             step, _, _ = lock_tally(cursor, tali_id)
             cursor.execute(GOODS_ROWS_SQL, {"tali_id": tali_id})
             _conflict(rules.send_to_keeper_error(step, int(cursor.fetchone()[0])))
+            if receipt_db.receipts(cursor, tali_id):
+                receipt_db.conflict("قبض‌ها به طور خودکار در چک‌لیست نهایی انباردار قرار می‌گیرند")
             cursor.execute(SEND_TO_KEEPER_SQL, {"tali_id": tali_id, "actor_id": int(current_user["id"])})
             connection.commit()
             return read_handoff(cursor, tali_id)
@@ -166,11 +180,11 @@ def save_volumetric(
     with get_connection() as connection:
         with connection.cursor() as cursor:
             step, _, _ = lock_tally(cursor, tali_id)
-            message = rules.cargo_type_error(step, item.cargo_type, item.volumetric_pallets)
+            receipt_db.guard_services(cursor, tali_id)
+            message = rules.cargo_type_error("keeper", item.cargo_type, item.volumetric_pallets)
             if message:
-                # A wrong step is a conflict; a bad answer is a bad request.
-                status = 409 if step != rules.KEEPER else 400
-                raise HTTPException(status_code=status, detail=message)
+                # Workflow conflicts are handled by guard_services above.
+                raise HTTPException(status_code=400, detail=message)
             cursor.execute(SAVE_VOLUMETRIC_SQL, {
                 "tali_id": tali_id,
                 "is_volumetric": item.cargo_type,
@@ -186,6 +200,8 @@ def return_to_operator(tali_id: int, current_user: dict = Depends(require_permis
     with get_connection() as connection:
         with connection.cursor() as cursor:
             step, is_volumetric, pallets = lock_tally(cursor, tali_id)
+            if receipt_db.receipts(cursor, tali_id):
+                receipt_db.conflict("ثبت نهایی را از چک‌لیست قبض انجام دهید")
             _conflict(rules.return_to_operator_error(step, is_volumetric, pallets))
             cursor.execute(RETURN_TO_OPERATOR_SQL, {"tali_id": tali_id, "actor_id": int(current_user["id"])})
             connection.commit()

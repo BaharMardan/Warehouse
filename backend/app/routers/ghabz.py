@@ -712,12 +712,13 @@ from datetime import datetime
 
 import oracledb
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.services.base import execute, fetch_all
 from app.services import tally_handoff as handoff_rules
+from app.services import receipt_db
 from app.services.ghabz_allotment import (
     GhabzFromTallyInput,
     annotate,
@@ -741,6 +742,7 @@ router = APIRouter(prefix="/ghabz", tags=["ghabz"])
 class GhabzExtrasInput(BaseModel):
     number_ghabz_uniqe: int | None = None
     description: str | None = None
+    pallet_quantity: int | None = Field(default=None, strict=True, ge=1)
 
 logger = logging.getLogger(__name__)
 
@@ -833,11 +835,24 @@ SELECT
     h."status_BIMEH"         AS status_bimeh,
     h."NUMBER_BIMEH"         AS number_bimeh,
     h."COMPANY_BIMEH"        AS company_bimeh,
+    h."PALLET_QUANTITY"      AS pallet_quantity,
+    CASE t."IS_VOLUMETRIC" WHEN 'yes' THEN 'volumetric'
+         WHEN 'no' THEN 'weight' ELSE t."IS_VOLUMETRIC" END AS cargo_type,
+    t."VOLUMETRIC_PALLETS"   AS total_pallet_quantity,
+    GREATEST(0, t."VOLUMETRIC_PALLETS" - (
+        SELECT NVL(SUM(other."PALLET_QUANTITY"), 0)
+        FROM "fa_ghabz_anbar_header" other
+        WHERE other."TALI_ID" = h."TALI_ID"
+          AND other."ID_ghabz" <> h."ID_ghabz"
+          AND other."IS_DELETED" = 'no'
+          AND NVL(other."IS_MASTER", 'no') = 'no'
+    )) AS available_pallet_quantity,
     h."DESCRIPTION"          AS description,
     h."CREATE_AT"            AS create_at,
     u."USERNAME"             AS created_by_username,
     u."FULL_NAME"            AS created_by_full_name
 FROM "fa_ghabz_anbar_header" h
+LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = h."TALI_ID" AND t."IS_DELETED" = 'no'
 LEFT JOIN "FA_SYS_TERMS"         t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
 LEFT JOIN "FA_SYS_TERMS"         t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
 LEFT JOIN "FA_TRANSPORT_COMPANY" c         ON c."ID_COMPANY"          = h."ID_COMPANY"
@@ -988,7 +1003,10 @@ WHERE "ID_GHABZ_ANBAR_HEADAR" = :header_id
 
 REVIVE_MASTER_SQL = """
 UPDATE "fa_ghabz_anbar_header"
-   SET "IS_DELETED" = 'no', "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor_id
+   SET "IS_DELETED" = 'no', "WORKFLOW_STATUS" = 'created', "ALLOCATION_RATIO" = NULL,
+       "FINALIZED_AT" = NULL, "FINALIZED_BY" = NULL,
+       "INVOICE_ISSUED_AT" = NULL, "INVOICE_ISSUED_BY" = NULL,
+       "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor_id
  WHERE "ID_ghabz" = :header_id
 """
 
@@ -1095,37 +1113,79 @@ def list_ghabz_allotments(tali_id: int):
     return annotate(fetch_all(ALLOTMENTS_SQL, {"tid": tali_id}))
 
 
+def validate_pallet_quantity(quantity, is_master, cargo_type, total, allocated_other=0):
+    if quantity is None:
+        return
+    if is_master == "yes" or cargo_type not in ("volumetric", "yes"):
+        raise HTTPException(422, "تعداد پالت فقط برای قبض تفکیکی بار حجمی مجاز است")
+    if total is None or total < 1:
+        raise HTTPException(422, "تعداد کل پالت در تالی ثبت نشده است")
+    available = max(0, total - allocated_other)
+    if quantity > available:
+        raise HTTPException(422, f"تعداد پالت قبض نباید بیشتر از پالت باقی‌مانده قابل تخصیص ({available}) باشد")
+
+
 @router.put("/{header_id}/extras")
 def update_ghabz_extras(
     header_id: int,
     payload: GhabzExtrasInput,
     current_user: dict = Depends(require_permission("ghabz.edit")),
 ):
-    """Save the two operator-entered fields used by the receipt printout."""
-    affected = execute(
-        """
-        UPDATE "fa_ghabz_anbar_header"
-           SET "number_ghabz_uniqe" = :number_ghabz_uniqe,
-               "DESCRIPTION" = :description,
-               "MODIFY_AT" = SYSDATE,
-               "MODIFY_BY" = :actor_id
-         WHERE "ID_ghabz" = :header_id
-           AND "IS_DELETED" = 'no'
-        """,
-        {
-            "header_id": header_id,
-            "number_ghabz_uniqe": payload.number_ghabz_uniqe,
-            "description": payload.description,
-            "actor_id": current_user["id"],
-        },
-    )
-    if affected == 0:
-        raise HTTPException(status_code=404, detail="قبض انبار یافت نشد")
-
-    rows = fetch_all(SUMMARY_SQL, {"hid": header_id})
-    if not rows:
-        raise HTTPException(status_code=404, detail="قبض انبار یافت نشد")
-    return rows[0]
+    """Save receipt completion fields; validate pallet allocation against its tally."""
+    provided = payload.model_dump(exclude_unset=True)
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT "TALI_ID" FROM "fa_ghabz_anbar_header"
+                WHERE "ID_ghabz" = :hid AND "IS_DELETED" = 'no'
+            """, {"hid": header_id})
+            ref = cursor.fetchone()
+            if ref is None:
+                raise HTTPException(404, "قبض انبار یافت نشد")
+            # Same tally-before-receipt lock order as receipt creation/handoff.
+            cursor.execute("""
+                SELECT "IS_VOLUMETRIC", "VOLUMETRIC_PALLETS"
+                FROM "FA_TALI_HEADER"
+                WHERE "ID_TALI" = :tid AND "IS_DELETED" = 'no' FOR UPDATE
+            """, {"tid": ref[0]})
+            tally = cursor.fetchone()
+            cursor.execute("""
+                SELECT NVL("IS_MASTER", 'no'), "TALI_ID", "WORKFLOW_STATUS"
+                FROM "fa_ghabz_anbar_header"
+                WHERE "ID_ghabz" = :hid AND "IS_DELETED" = 'no' FOR UPDATE
+            """, {"hid": header_id})
+            receipt = cursor.fetchone()
+            if receipt is None:
+                raise HTTPException(404, "قبض انبار یافت نشد")
+            if receipt[1] != ref[0]:
+                raise HTTPException(409, "تالی مرتبط تغییر کرده است؛ صفحه را تازه کنید")
+            if "pallet_quantity" in provided:
+                if receipt[2] in ("finalized", "invoice_issued"):
+                    receipt_db.conflict("تعداد پالت قبض نهایی قابل تغییر نیست")
+                cursor.execute("""
+                    SELECT NVL(SUM("PALLET_QUANTITY"), 0)
+                    FROM "fa_ghabz_anbar_header"
+                    WHERE "TALI_ID" = :tid AND "ID_ghabz" <> :hid
+                      AND "IS_DELETED" = 'no' AND NVL("IS_MASTER", 'no') = 'no'
+                """, {"tid": ref[0], "hid": header_id})
+                allocated_other = cursor.fetchone()[0]
+                validate_pallet_quantity(provided["pallet_quantity"], receipt[0],
+                                        tally[0] if tally else None, tally[1] if tally else None,
+                                        allocated_other)
+            columns = {"number_ghabz_uniqe": "number_ghabz_uniqe",
+                       "description": "DESCRIPTION", "pallet_quantity": "PALLET_QUANTITY"}
+            if provided:
+                assignments = [f'"{columns[key]}" = :{key}' for key in provided]
+                assignments += ['"MODIFY_AT" = SYSDATE', '"MODIFY_BY" = :actor']
+                cursor.execute(
+                    'UPDATE "fa_ghabz_anbar_header" SET ' + ", ".join(assignments)
+                    + ' WHERE "ID_ghabz" = :hid',
+                    {**provided, "hid": header_id, "actor": current_user["id"]},
+                )
+            cursor.execute(SUMMARY_SQL, {"hid": header_id})
+            result = _rows_with_columns(cursor)[0]
+        conn.commit()
+    return result
 
 
 @router.get("/{header_id}/summary", dependencies=[Depends(require_permission("ghabz.view"))])
@@ -1158,13 +1218,15 @@ def create_master_ghabz(
     with get_connection() as conn:
         try:
             with conn.cursor() as cursor:
+                receipt_db.lock_tally(cursor, tali_id)
+                related_receipts = receipt_db.receipts(cursor, tali_id)
                 cursor.execute(FROM_TALLY_READ, {"tid": tali_id})
                 tally_rows = _rows_with_columns(cursor)
                 if not tally_rows:
                     raise HTTPException(status_code=404, detail="تالی یافت نشد")
                 tally = tally_rows[0]
                 blocked = handoff_rules.issue_receipt_error(tally.get("handoff_step"))
-                if blocked:
+                if blocked and not related_receipts:
                     raise HTTPException(status_code=409, detail=blocked)
 
                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
@@ -1208,6 +1270,8 @@ def create_master_ghabz(
                         REVIVE_MASTER_SQL,
                         {"header_id": header_id, "actor_id": actor_id},
                     )
+                    cursor.execute('DELETE FROM "FA_GHABZ_TALLY_SOURCE" WHERE "RECEIPT_ID" = :id',
+                                   {"id": header_id})
                     cursor.execute(
                         CLEAR_MASTER_LINES_SQL, {"header_id": header_id}
                     )
@@ -1307,13 +1371,15 @@ def create_ghabz_from_tally(
     with get_connection() as conn:
         try:
             with conn.cursor() as cursor:
+                receipt_db.lock_tally(cursor, tali_id)
+                related_receipts = receipt_db.receipts(cursor, tali_id)
                 cursor.execute(FROM_TALLY_READ, {"tid": tali_id})
                 tally_rows = _rows_with_columns(cursor)
                 if not tally_rows:
                     raise HTTPException(status_code=404, detail="تالی یافت نشد")
                 tally = tally_rows[0]
                 blocked = handoff_rules.issue_receipt_error(tally.get("handoff_step"))
-                if blocked:
+                if blocked and not related_receipts:
                     raise HTTPException(status_code=409, detail=blocked)
 
                 cursor.execute(ALLOTMENTS_SQL, {"tid": tali_id})
@@ -1324,6 +1390,9 @@ def create_ghabz_from_tally(
                     if normalize_hscode(row.get("hscode"))
                 }
 
+                if any(r["is_master"] == "yes" and r["status"] in ("finalized", "invoice_issued")
+                       for r in related_receipts):
+                    receipt_db.conflict("پس از ثبت نهایی قبض کلی، ایجاد قبض تفکیکی مجاز نیست")
                 lines = plan_lines(requested, allotments, by_hscode)
 
                 ghabz_number, sequence, tali_number = allocate_ghabz_number(

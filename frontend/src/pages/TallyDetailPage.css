@@ -680,6 +680,17 @@
   width: 190px;
 }
 
+.tally-receipt-context.mantine-Paper-root {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+}
+
+.tally-receipt-context .mantine-Table-table,
+.tally-receipt-context .mantine-Table-tr,
+.tally-receipt-context .mantine-Table-tr:nth-of-type(odd) {
+  background-color: transparent;
+}
+
 @media (max-width: 600px) {
   .volumetric-card .tally-detail-section-header {
     padding: 12px 15px;

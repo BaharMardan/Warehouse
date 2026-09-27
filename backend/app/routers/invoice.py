@@ -53,8 +53,8 @@
 # OTHER_SERVICE_SQL = """
 # SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 # FROM "fa_tali_kala_other_service" j
-# JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
-# WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+# LEFT JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
+# WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 # """
 # STRIP_SQL = """
 # SELECT j."pricing_type" AS pricing_type,
@@ -62,13 +62,13 @@
 #        c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous
 # FROM "fa_tali_kala_strip" j
 # JOIN "fa_kala_strip" c ON c."id_kala_strip" = j."kala_strip_id"
-# WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+# WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 # """
 # NIGHT_STOP_SQL = """
 # SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 # FROM "fa_tali_kala_time_stop_vehicle" j
-# JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
-# WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+# LEFT JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
+# WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 # """
 # DIAMOUND_SQL = """
 # SELECT CASE NVL(j."pricing_type", 'off_hours')
@@ -77,14 +77,14 @@
 #        END AS price
 #        , j."NUMBER_SERVICE" AS number_service
 # FROM "fa_tali_kala_diamound" j
-# JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
-# WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+# LEFT JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
+# WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 # """
 # VEHICLE_ENTER_SQL = """
 # SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 # FROM "fa_tali_kala_vehicle_enter_price" j
-# JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
-# WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+# LEFT JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
+# WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 # """
 
 
@@ -251,8 +251,8 @@ WHERE t."TALI_ID" = :tid AND t."HAS_TRANSPORTATION" = 'yes'
 OTHER_SERVICE_SQL = """
 SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_other_service" j
-JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
-WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+LEFT JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 """
 STRIP_SQL = """
 SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
@@ -288,8 +288,8 @@ FROM "fa_kala_strip" WHERE "code" IN ('202', '402') AND "IS_DELETED" = 'no'
 NIGHT_STOP_SQL = """
 SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_time_stop_vehicle" j
-JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
-WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+LEFT JOIN "fa_kala_time_stop_vehicle" c ON c."id_kala_time_stop_vehicle" = j."kala_time_stop_vehicle_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 """
 DIAMOUND_SQL = """
 SELECT CASE NVL(j."pricing_type", 'off_hours')
@@ -298,14 +298,14 @@ SELECT CASE NVL(j."pricing_type", 'off_hours')
        END AS price
        , j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_diamound" j
-JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
-WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+LEFT JOIN "fa_kala_diamound" c ON c."id_kala_diamound" = j."kala_diamound_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 """
 VEHICLE_ENTER_SQL = """
 SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_vehicle_enter_price" j
-JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
-WHERE j."tali_id" = :tid  -- NB: set_cal does NOT filter junction IS_DELETED (soft-deleted junctions still bill)
+LEFT JOIN "fa_kala_vehicle_enter_price" c ON c."id_kala_vehicle_enter_price" = j."kala_vehicle_enter_price_id"
+WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
 """
 
 
@@ -335,14 +335,30 @@ def _row_json(r: calc.InvoiceDetailRow) -> dict:
 
 @router.get("/from-tally/{tali_id}/preview", dependencies=[Depends(require_permission("invoice.view"))])
 def preview_from_tally(tali_id: int):
+    return compute_from_tally(tali_id)
+
+
+def compute_from_tally(tali_id: int, *, read_all=fetch_all, read_one=fetch_one,
+                       goods=None, include_services=True, prior_invoice_count=None, strict_services=False):
     """Compute a tally's invoice detail rows without saving. Returns storage rows,
     service rows, the tier used, and the grand total. Does not persist."""
-    goods = fetch_all(GOODS_SQL, {"tid": tali_id})
+
+    service_queries = {OTHER_SERVICE_SQL, STRIP_SQL, CONTAINER_WEIGHTS_SQL,
+                       CONTAINER_EXCESS_CATALOG_SQL, NIGHT_STOP_SQL, DIAMOUND_SQL, VEHICLE_ENTER_SQL}
+    original_read_all, original_read_one = read_all, read_one
+    read_all = lambda sql, params=None: ([] if not include_services and sql in service_queries
+                                        else original_read_all(sql, params))
+    read_one = lambda sql, params=None: ({"carrier_count": 0} if not include_services and sql == TRANSPORTATION_SQL
+                                        else original_read_one(sql, params))
+    if goods is None:
+        goods = read_all(GOODS_SQL, {"tid": tali_id})
     if not goods:
         raise HTTPException(status_code=404, detail="تالی یا ردیف‌های کالا یافت نشد")
 
-    prior = fetch_one(PRIOR_INVOICE_SQL, {"tid": tali_id}) or {"cnt": 0}
-    has_receipt = (fetch_one(RECEIPT_SQL, {"tid": tali_id}) or {"cnt": 0})["cnt"] > 0
+    prior = read_one(PRIOR_INVOICE_SQL, {"tid": tali_id}) or {"cnt": 0}
+    if prior_invoice_count is not None:
+        prior = {"cnt": prior_invoice_count}
+    has_receipt = (read_one(RECEIPT_SQL, {"tid": tali_id}) or {"cnt": 0})["cnt"] > 0
 
     # build storage inputs
     lines: list[calc.GoodsLine] = []
@@ -367,14 +383,19 @@ def preview_from_tally(tali_id: int):
     storage_rows, tier = calc.compute_storage_rows(lines, rates, prior_invoice_count=prior["cnt"])
 
     # services. strip: each junction's pricing_type picks normal|non_standard|dangerous.
-    other = fetch_all(OTHER_SERVICE_SQL, {"tid": tali_id})
-    strip = fetch_all(STRIP_SQL, {"tid": tali_id})
-    weights = {row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in fetch_all(CONTAINER_WEIGHTS_SQL, {"tid": tali_id})}
-    excess_catalog = {str(row["code"]): row for row in fetch_all(CONTAINER_EXCESS_CATALOG_SQL)}
+    other = read_all(OTHER_SERVICE_SQL, {"tid": tali_id})
+    strip = read_all(STRIP_SQL, {"tid": tali_id})
+    weights = {row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in read_all(CONTAINER_WEIGHTS_SQL, {"tid": tali_id})}
+    excess_catalog = {str(row["code"]): row for row in read_all(CONTAINER_EXCESS_CATALOG_SQL)}
     strip = derived_rows(strip, weights, excess_catalog)
-    night = fetch_all(NIGHT_STOP_SQL, {"tid": tali_id})
-    diamound = fetch_all(DIAMOUND_SQL, {"tid": tali_id})
-    vehicle = fetch_all(VEHICLE_ENTER_SQL, {"tid": tali_id})
+    night = read_all(NIGHT_STOP_SQL, {"tid": tali_id})
+    diamound = read_all(DIAMOUND_SQL, {"tid": tali_id})
+    vehicle = read_all(VEHICLE_ENTER_SQL, {"tid": tali_id})
+    if strict_services:
+        values = [r["price"] for group in (other, night, diamound, vehicle) for r in group]
+        values += [_strip_price(r) for r in strip]
+        if any(calc.to_decimal(value) is None or calc.to_decimal(value) < 0 for value in values):
+            raise HTTPException(422, "تعرفه خدمات انتخاب‌شده ناقص یا نامعتبر است")
 
     service_rows = calc.compute_service_rows(
         other_service_prices=[r["price"] for r in other],
@@ -400,10 +421,10 @@ def preview_from_tally(tali_id: int):
             quantity, None, None if rate is None else rate * quantity,
         ))
 
-    configured = {row["setting_key"]: Decimal(str(row["value_number"])) for row in fetch_all(INVOICE_SETTINGS_SQL)}
+    configured = {row["setting_key"]: Decimal(str(row["value_number"])) for row in read_all(INVOICE_SETTINGS_SQL)}
     tax_rate = configured.get("tax_rate", Decimal(0))
     freight_rate = configured.get("freight_rate", Decimal(0))
-    transportation = fetch_one(TRANSPORTATION_SQL, {"tid": tali_id}) or {}
+    transportation = read_one(TRANSPORTATION_SQL, {"tid": tali_id}) or {}
     carrier_count = int(transportation.get("carrier_count") or 0)
     if carrier_count:
         service_rows.append(calc.InvoiceDetailRow(calc.SERVICE_LABELS["transportation"], carrier_count, None, freight_rate * carrier_count))

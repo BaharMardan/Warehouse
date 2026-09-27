@@ -118,6 +118,7 @@
 
 #     return router
 
+from app.services.receipt_db import guarded_write, SERVICE_TABLES, SOURCE_TABLES, RECEIPT_TABLES
 from dataclasses import dataclass
 from typing import Any, Callable, Type
 
@@ -249,7 +250,10 @@ def make_crud_router(
                 params[key] = datetime.fromisoformat(value).date()
         if p["stamps_create_by"]:
             params["actor_id"] = current_user["id"]
-        new_id = insert_returning_id(p["insert"], params)
+        if table in SERVICE_TABLES | SOURCE_TABLES | RECEIPT_TABLES:
+            new_id = guarded_write(table, pk, "create", p["insert"], params, values=item.model_dump())
+        else:
+            new_id = insert_returning_id(p["insert"], params)
         return fetch_one(p["one"], {"id": new_id})
 
     # @router.put("/{row_id}")
@@ -280,7 +284,12 @@ def make_crud_router(
                 params[key] = datetime.fromisoformat(value).date()
         if p["stamps_modify_by"]:
             params["actor_id"] = current_user["id"]
-        if execute(p["build_update"](provided.keys()), params) == 0:
+        if table in SERVICE_TABLES | SOURCE_TABLES | RECEIPT_TABLES:
+            affected = guarded_write(table, pk, "update", p["build_update"](provided.keys()),
+                                     params, row_id=row_id, values=provided)
+        else:
+            affected = execute(p["build_update"](provided.keys()), params)
+        if affected == 0:
             raise HTTPException(status_code=404, detail=not_found)
         return fetch_one(p["one"], {"id": row_id})
 
@@ -289,7 +298,11 @@ def make_crud_router(
         params = {"id": row_id}
         if p["stamps_modify_by"] and p["soft_delete"]:
             params["actor_id"] = current_user["id"]
-        if execute(p["delete"], params) == 0:
+        if table in SERVICE_TABLES | SOURCE_TABLES | RECEIPT_TABLES:
+            affected = guarded_write(table, pk, "delete", p["delete"], params, row_id=row_id)
+        else:
+            affected = execute(p["delete"], params)
+        if affected == 0:
             raise HTTPException(status_code=404, detail=not_found)
 
     return router

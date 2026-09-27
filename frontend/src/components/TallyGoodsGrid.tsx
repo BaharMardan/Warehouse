@@ -1069,6 +1069,7 @@ import {
 } from '../utils/flexibleJalaliDate'
 import './TallyGoodsGrid.css'
 import { handoffKey } from '../api/handoff'
+import { useHandoff } from './TallyHandoff'
 
 /**
  * TallyGoodsGrid — the tally's goods lines (ردیف‌های کالا) as ONE in-place editable grid.
@@ -1320,7 +1321,8 @@ type AnbarLookup = {
 
 export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
   const qc = useQueryClient()
-  const canEdit = usePermissions().can('tally.edit')
+  const { data: handoff } = useHandoff(tallyId)
+  const canEdit = usePermissions().can('tally.edit') && handoff != null && !handoff.has_receipts
 
   const {
     data: lines,

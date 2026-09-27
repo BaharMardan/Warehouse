@@ -80,7 +80,7 @@
 //       number_ghabz_uniqe: uniqeId.trim() === '' ? null : Number(normalizeDigits(uniqeId)),
 //       description: description.trim() === '' ? null : description,
 //     }),
-//     onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-summary', headerId] }),
+//     onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: ['ghabz-summary'] }), qc.invalidateQueries({ queryKey: ['receipt-workflow'] })]),
 //   })
 
 //   // The printed receipt number, not the table's primary key.
@@ -280,7 +280,7 @@
 //       number_ghabz_uniqe: uniqeId.trim() === '' ? null : Number(normalizeDigits(uniqeId)),
 //       description: description.trim() === '' ? null : description,
 //     }),
-//     onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-summary', headerId] }),
+//     onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: ['ghabz-summary'] }), qc.invalidateQueries({ queryKey: ['receipt-workflow'] })]),
 //   })
 
 //   // The printed receipt number, not the table's primary key.
@@ -436,9 +436,10 @@ import {
   Badge, Title, Button, Group, Table, Paper, Loader, Center, Text, Divider,
   Modal, TextInput, Textarea, Grid,
 } from '@mantine/core'
-import { apiGet, apiSend } from '../api/client'
+import { apiGet, apiSend, errorMessage } from '../api/client'
 import { IconPrint } from '../components/icons'
 import { usePermissions } from '../auth/usePermissions'
+import { ReceiptWorkflow, useReceiptWorkflow } from '../components/ReceiptWorkflow'
 
 type DetailRow = {
   id_ghabz_anbar_details: number
@@ -468,6 +469,10 @@ type GhabzSummary = {
   created_by_full_name: string | null
   number_ghabz_uniqe: number | null
   description: string | null
+  pallet_quantity: number | null
+  cargo_type: string | null
+  total_pallet_quantity: number | null
+  available_pallet_quantity: number | null
 }
 
 function normalizeDigits(s: string): string {
@@ -479,7 +484,8 @@ export function GhabzDetailPage() {
   const { id } = useParams<{ id: string }>()
   const headerId = Number(id)
   const qc = useQueryClient()
-  const canEdit = usePermissions().can('ghabz.edit')
+  const { data: workflow } = useReceiptWorkflow(headerId)
+  const canEdit = usePermissions().can('ghabz.edit') && workflow != null && !['finalized', 'invoice_issued'].includes(workflow.status)
   const [selectedLine, setSelectedLine] = useState<DetailRow | null>(null)
 
   const { data: summary } = useQuery({
@@ -498,28 +504,39 @@ export function GhabzDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-details', headerId] }),
   })
 
-  // Operator enters these two directly on this page; PUT only sends these
-  // fields, and the factory updates only the provided columns.
+  // Completion fields are saved through the validated receipt extras endpoint.
   const [uniqeId, setUniqeId] = useState('')
   const [description, setDescription] = useState('')
+  const [palletQuantity, setPalletQuantity] = useState('')
+  const showPalletQuantity = summary != null && summary.is_master !== 'yes' && summary.cargo_type === 'volumetric'
+  const palletText = normalizeDigits(palletQuantity.trim())
+  const palletValue = palletText === '' ? null : Number(palletText)
+  const palletError = showPalletQuantity && palletValue !== null
+    ? (!/^\d+$/.test(palletText) || !Number.isSafeInteger(palletValue) || palletValue < 1
+      ? 'تعداد پالت باید عدد صحیح مثبت باشد'
+      : summary?.available_pallet_quantity == null || palletValue > summary.available_pallet_quantity
+        ? 'تعداد پالت نباید بیشتر از پالت باقی‌مانده قابل تخصیص باشد' : null)
+    : null
   useEffect(() => {
     setUniqeId(summary?.number_ghabz_uniqe == null ? '' : String(summary.number_ghabz_uniqe))
     setDescription(summary?.description ?? '')
-  }, [summary?.number_ghabz_uniqe, summary?.description])
+    setPalletQuantity(summary?.pallet_quantity == null ? '' : String(summary.pallet_quantity))
+  }, [headerId, summary?.number_ghabz_uniqe, summary?.description, summary?.pallet_quantity])
 
   const saveExtras = useMutation({
-    mutationFn: () => apiSend(`/ghabz-header/${headerId}`, 'PUT', {
+    mutationFn: () => apiSend(`/ghabz/${headerId}/extras`, 'PUT', {
       number_ghabz_uniqe: uniqeId.trim() === '' ? null : Number(normalizeDigits(uniqeId)),
       description: description.trim() === '' ? null : description,
+      ...(showPalletQuantity ? { pallet_quantity: palletValue } : {}),
     }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ghabz-summary', headerId] }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: ['ghabz-summary'] }), qc.invalidateQueries({ queryKey: ['receipt-workflow'] })]),
   })
 
   // The printed receipt number, not the table's primary key.
   const receiptNumber = summary?.ghabz_number ?? summary?.number_ghabz ?? null
   const createdBy = summary?.created_by_full_name?.trim() || summary?.created_by_username?.trim()
   const savedUniqueId = summary?.number_ghabz_uniqe == null ? '' : String(summary.number_ghabz_uniqe)
-  const extrasChanged = uniqeId.trim() !== savedUniqueId || description !== (summary?.description ?? '')
+  const extrasChanged = uniqeId.trim() !== savedUniqueId || description !== (summary?.description ?? '') || (showPalletQuantity && palletValue !== (summary?.pallet_quantity ?? null))
 
   return (
     <div dir="rtl">
@@ -545,6 +562,7 @@ export function GhabzDetailPage() {
           >
             چاپ قبض انبار
           </Button>
+          <ReceiptWorkflow id={headerId} />
           <BackButton to="/ghabz" />
         </Group>
       </Group>
@@ -561,7 +579,7 @@ export function GhabzDetailPage() {
         </Group>
 
         <Grid gutter="md" align="stretch">
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          <Grid.Col span={{ base: 12, md: showPalletQuantity ? 4 : 6 }}>
             <TextInput
               label="شناسه یکتا"
               inputMode="numeric"
@@ -572,7 +590,25 @@ export function GhabzDetailPage() {
               styles={{ input: { minHeight: 72 } }}
               onChange={(e) => { setUniqeId(e.currentTarget.value); saveExtras.reset() }} />
           </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 6 }}>
+          {showPalletQuantity && (
+            <Grid.Col span={{ base: 12, md: 4 }}>
+              <TextInput
+                label="تعداد پالت"
+                description={summary?.total_pallet_quantity == null
+                  ? 'تعداد کل پالت در تالی ثبت نشده است'
+                  : `تعداد کل پالت تالی: ${summary.total_pallet_quantity.toLocaleString('fa-IR')} | قابل تخصیص به این قبض: ${summary.available_pallet_quantity?.toLocaleString('fa-IR') ?? '—'}`}
+                inputMode="numeric"
+                size="md"
+                radius="md"
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
+                value={palletQuantity}
+                readOnly={!canEdit}
+                error={palletError}
+                styles={{ input: { minHeight: 72 } }}
+                onChange={(e) => { setPalletQuantity(e.currentTarget.value); saveExtras.reset() }} />
+            </Grid.Col>
+          )}
+          <Grid.Col span={{ base: 12, md: showPalletQuantity ? 4 : 6 }}>
             <Textarea
               label="توضیحات"
               minRows={2}
@@ -584,12 +620,15 @@ export function GhabzDetailPage() {
               onChange={(e) => { setDescription(e.currentTarget.value); saveExtras.reset() }} />
           </Grid.Col>
         </Grid>
+        {saveExtras.isError && <Text c="red" size="sm" mt="xs">
+          {errorMessage(saveExtras.error, 'ذخیره اطلاعات انجام نشد')}
+        </Text>}
         {canEdit && (
           <Group justify="flex-start" mt="md">
             <Button
               radius="md"
               loading={saveExtras.isPending}
-              disabled={!extrasChanged}
+              disabled={!summary || !extrasChanged || palletError != null}
               onClick={() => saveExtras.mutate()}
             >
               ذخیره اطلاعات

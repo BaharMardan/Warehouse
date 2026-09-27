@@ -71,8 +71,8 @@ export function KeeperQueueBell() {
   return (
     <Tooltip
       label={waiting > 0
-        ? `${waiting.toLocaleString('fa-IR')} تالی در انتظار تکمیل`
-        : 'تالی در انتظار تکمیل ندارید'}
+        ? `${waiting.toLocaleString('fa-IR')} سند در انتظار تکمیل`
+        : 'سند در انتظار تکمیل ندارید'}
       withArrow
     >
       <Indicator
@@ -86,7 +86,7 @@ export function KeeperQueueBell() {
           variant="subtle"
           radius="md"
           size="lg"
-          aria-label="تالی‌های در انتظار انباردار"
+          aria-label="اسناد در انتظار انباردار"
           onClick={() => navigate('/kartabl?waiting=1')}
         >
           <Bell size={20} />

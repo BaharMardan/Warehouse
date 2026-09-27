@@ -4,6 +4,7 @@ import { Alert, Button, Group, Modal, Paper, Radio, Select, Stack, Text, TextInp
 import { Boxes, Plus } from 'lucide-react'
 import { apiGet, apiSend, errorMessage } from '../api/client'
 import { usePermissions } from '../auth/usePermissions'
+import { useHandoff } from './TallyHandoff'
 import { IranianPlate } from './IranianPlate'
 
 type Kind = 'strip' | 'stuffing' | 'crane'
@@ -46,7 +47,8 @@ const digits = (value: string) => value.replace(/[۰-۹]/g, (digit) => String(di
 
 export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
   const qc = useQueryClient()
-  const canEdit = usePermissions().can('tally.services')
+  const { data: handoff } = useHandoff(tallyId)
+  const canEdit = usePermissions().can('tally.services') && handoff?.can_edit_services === true
   const [opened, setOpened] = useState(false)
   const [carrier, setCarrier] = useState<string | null>(null)
   const [strip, setStrip] = useState<ServiceForm>(emptyForm)
