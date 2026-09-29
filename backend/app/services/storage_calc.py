@@ -3,12 +3,12 @@
 Pure and DB-free, like receipt_invoice.py and insurance_check.py, so every rule is
 unit-tested without Oracle. The storage rate is
 fa_kala_price."storage_price" (انبارداری), a per-day rate per ton, per pallet
-equivalent or per container.
+equivalent. Container cargo also uses the per-ton basis.
 
 Storage, by the keeper's cargo type (IS_VOLUMETRIC):
     weight      rate x location x (declared weight in kg / 1000) x days
     volumetric  rate x location x 1.2 x pallets x days
-    container   rate x location x containers x days
+    container   rate x location x (declared weight in kg / 1000) x days
 The caller supplies the pallets: a detailed receipt's own pallet count, or the
 tally's keeper-recorded count for a general receipt. Nothing is distributed here.
 
@@ -173,13 +173,13 @@ def _storage_note(rate: Decimal, loc: Location, middle: str, days: int) -> str:
 
 
 def storage_charge(cargo_type: str, *, rate, loc: Location, days: int,
-                   weight_kg=None, pallets=None, containers=None) -> Charge:
+                   weight_kg=None, pallets=None) -> Charge:
     """One storage line. Which quantity is required depends on the cargo type."""
     rate = _decimal(rate, "نرخ انبارداری کد کالا")
     if rate < 0:
         raise ValueError("نرخ انبارداری کد کالا نمی‌تواند منفی باشد")
     days_d = Decimal(days)
-    if cargo_type == "weight":
+    if cargo_type in ("weight", "container"):
         # وزن اظهار is stored in kilograms; the tariff is per ton. The note shows
         # the kg value as entered plus the ÷ 1,000 step so it cannot be misread.
         kg = _positive(weight_kg, "وزن اظهار")
@@ -189,10 +189,6 @@ def storage_charge(cargo_type: str, *, rate, loc: Location, days: int,
         count = _positive(pallets, "تعداد پالت")
         raw = rate * loc.multiplier * VOLUMETRIC_FACTOR * count * days_d
         middle = f"{fmt(VOLUMETRIC_FACTOR)} × {fmt(count)} پالت"
-    elif cargo_type == "container":
-        count = _positive(1 if containers is None else containers, "تعداد کانتینر")
-        raw = rate * loc.multiplier * count * days_d
-        middle = f"{fmt(count)} کانتینر"
     else:
         raise ValueError("نوع بار (وزنی، حجمی یا کانتینری) مشخص نشده است")
     amount = round_rial(raw)

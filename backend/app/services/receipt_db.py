@@ -1,4 +1,5 @@
 """Shared transaction and edit guards for receipt workflow and source records."""
+from datetime import date, datetime
 from fastapi import HTTPException
 from app.core.db import get_connection
 
@@ -84,10 +85,23 @@ def guard_services(cursor, tally_id):
         conflict("تالی در اختیار انباردار نیست")
 
 
+def validate_header_dates(values):
+    def as_date(value):
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        return datetime.fromisoformat(value).date()
+
+    start, end = values.get("date_unloading"), values.get("date_cargo_exit")
+    if start and end and as_date(end) < as_date(start):
+        raise HTTPException(422, "تاریخ خروج بار نمی‌تواند پیش از تاریخ تخلیه باشد")
+
+
 def guard_source(cursor, tally_id):
     lock_tally(cursor, tally_id)
     if receipts(cursor, tally_id):
-        conflict("ردیف‌ها و سربرگ تالی دارای قبض قابل تغییر نیستند")
+        conflict("تالی دارای قبض قابل حذف نیست و ردیف‌های آن قابل تغییر نیستند")
 
 
 SERVICE_TABLES = {
@@ -115,7 +129,11 @@ def guarded_write(table, pk, action, sql, params, *, row_id=None, values=None):
                     conflict("تغییر تالی مرتبط مجاز نیست")
                 if not tid:
                     raise HTTPException(422, "تالی مرتبط الزامی است")
-                (guard_services if table in SERVICE_TABLES else guard_source)(cur, tid)
+                if table == "FA_TALI_HEADER" and action == "update":
+                    locked_header = lock_tally(cur, tid)
+                    validate_header_dates({**locked_header, **values})
+                else:
+                    (guard_services if table in SERVICE_TABLES else guard_source)(cur, tid)
             elif table in RECEIPT_TABLES:
                 rid = row_id if table == "fa_ghabz_anbar_header" else (existing or values).get("id_ghabz_anbar_headar")
                 current, siblings, _ = receipt(cur, rid, lock=True)

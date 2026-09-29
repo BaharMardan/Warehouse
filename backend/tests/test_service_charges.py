@@ -29,7 +29,7 @@ CASES = {
       "rate_code": "302", "rate_title": "t", "normal": "1", "non_standard": "1", "dangerous": "1",
       "unloading_amount": None, "loading_amount": Decimal("123.25")},
      {"id": 4, "service_kind": "crane", "pricing_type": None, "number_hamel": "A", "number_service": 0,
-      "rate_code": "501", "rate_title": "جرثقیل 20 فوت", "normal": "750000", "non_standard": "1", "dangerous": "1",
+      "rate_code": "201", "rate_title": "جرثقیل 20 فوت", "normal": "750000", "non_standard": "1", "dangerous": "1",
       "unloading_amount": None, "loading_amount": None}],
     night=[], diamound=[], vehicle=[{"price": "935000", "number_service": 1}],
     weights=[], carriers=2, freight=Decimal("1500000.0000")),
@@ -50,7 +50,8 @@ EXPECTED = {
     "strip_stuffing_crane_transport": [
         (L["strip"], 3, "3940923.5"), (L["stuffing"], 1, "123.25"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], 1, "935000"),
-        (f'{L["crane"]} — جرثقیل 20 فوت', 1, "750000"),     # quantity 0 bills as 1, as before
+        (f'{L["crane"]} — full', 1, "100"),
+        (f'{L["crane"]} — empty', 1, "50"),
         (L["transportation"], 2, "3000000")],
     "container_excess": [
         (L["strip"], 6, "3162"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
@@ -64,6 +65,8 @@ def run(case, strict=True):
         vehicle=case["vehicle"],
         container_weights={w["number_hamel"]: Decimal(str(w["weight_kg"])) for w in case["weights"]},
         excess_catalog={c["code"]: c for c in CATALOG},
+        crane_catalog={"118": {"title": "full", "unloading": 100, "loading": 200},
+                       "122": {"title": "empty", "unloading": 25, "loading": 50}},
         freight_rate=case["freight"], carrier_count=case["carriers"], strict=strict)
 
 

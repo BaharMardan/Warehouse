@@ -93,12 +93,13 @@ def test_volumetric_requires_pallets():
 
 # --- container ----------------------------------------------------------------------------
 
-def test_whole_container_counts_as_one():
+def test_whole_container_is_charged_by_declared_weight():
     rows = ri.storage_rows("container", [line(kala_code="118", storage_price=804650)], 30,
                            container_weights={"MSKU1234567": Decimal(100000)})
     assert rows[0].description == "هزینه انبارداری کانتینر MSKU1234567 (کد کالای 118)"
     assert rows[0].quantity == Decimal(1)
-    assert rows[0].price == Decimal(36209250)    # 804,650 x 1.5 x 1 x 30
+    assert rows[0].weight == Decimal(100000)
+    assert rows[0].price == Decimal(3620925000)    # 804,650 x 1.5 x 100 t x 30
 
 
 def test_split_container_is_charged_by_this_receipts_weight_share():
@@ -106,8 +107,9 @@ def test_split_container_is_charged_by_this_receipts_weight_share():
                                               weight_kg=Decimal(30000))], 30,
                            container_weights={"MSKU1234567": Decimal(100000)})
     assert rows[0].quantity == Decimal("0.3")
-    assert rows[0].price == Decimal(10862775)    # 804,650 x 1.5 x 0.3 x 30
-    assert "0.3 کانتینر" in rows[0].note
+    assert rows[0].weight == Decimal(30000)
+    assert rows[0].price == Decimal(1086277500)    # 804,650 x 1.5 x 30 t x 30
+    assert "30,000 کیلوگرم ÷ 1,000" in rows[0].note
 
 
 def test_each_container_gets_its_own_row():
@@ -115,6 +117,17 @@ def test_each_container_gets_its_own_row():
         line(), line(id=2, number_hamel="TGHU7654321"),
     ], 30, container_weights={"MSKU1234567": Decimal(100000), "TGHU7654321": Decimal(100000)})
     assert [r.description.split()[3] for r in rows] == ["MSKU1234567", "TGHU7654321"]
+
+
+def test_container_sums_declared_weight_across_linked_tally_lines():
+    rows = ri.storage_rows("container", [
+        line(weight_kg=Decimal(1200)),
+        line(id=2, weight_kg=Decimal(2300)),
+    ], 30, container_weights={"MSKU1234567": Decimal(10000)})
+    assert len(rows) == 1
+    assert rows[0].weight == Decimal(3500)
+    assert rows[0].price == Decimal(8820473)   # 56,003 x 1.5 x 3.5 t x 30
+    assert "3,500 کیلوگرم ÷ 1,000" in rows[0].note
 
 
 @pytest.mark.parametrize("lines, weights, message", [

@@ -17,6 +17,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = () => {
     // Nothing cached for a previous user may carry into this session.
     queryClient.clear()
+    // The router mounts after sign-in; start every new session at the launcher.
+    window.history.replaceState(null, '', '/')
     setIsAuthed(true)
   }
   const signOut = () => {

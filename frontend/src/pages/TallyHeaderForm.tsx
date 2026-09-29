@@ -3,13 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ActionIcon, Title, Paper, Grid, TextInput, Textarea, Radio, Select, Group, Button, Stack, LoadingOverlay,
+  FileButton, ActionIcon, Title, Paper, Grid, Text, TextInput, Textarea, Radio, Select, Group, Button, Stack, LoadingOverlay,
 } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
 import { RefSelect } from '../components/RefSelect'
 import { JalaliDate } from '../components/JalaliDate'
 import { InsuranceCompanySelect } from '../components/InsuranceCompanySelect'
-import { apiSend, apiGet } from '../api/client'
+import { apiSend, apiGet, apiUpload, apiDownload } from '../api/client'
 
 
 // Persian (۰۱۲۳) / Arabic-Indic (٠١٢٣) digits -> Latin (0123). Latin passes through.
@@ -109,6 +109,7 @@ type TallyHeaderState = {
   radef_marze: string // kept as string in the input, sent as number|null
   date_enter_marze: string | null // ISO date
   date_unloading: string | null // ISO date
+  date_cargo_exit: string | null
   id_marze: number | null
   id_company: number | null
   id_respons_company: number | null
@@ -132,7 +133,7 @@ type TallyHeaderState = {
 
 const EMPTY: TallyHeaderState = {
   number_karaneh: '', tracking_number: '', customs_procedure: '',
-  radef_marze: '', date_enter_marze: null, date_unloading: null,
+  radef_marze: '', date_enter_marze: null, date_unloading: null, date_cargo_exit: null,
   id_marze: null, id_company: null, id_respons_company: null,
   has_power_of_attorney: 'خیر', power_of_attorney_validity: '', id_product_ownear: null,
   owner_national_code: '', id_country: null, number_bimeh: [''],
@@ -159,6 +160,7 @@ function toPayload(s: TallyHeaderState) {
     radef_marze: numOrNull(normalizeDigits(s.radef_marze)),
     date_enter_marze: s.date_enter_marze,
     date_unloading: s.date_unloading,
+    date_cargo_exit: s.date_cargo_exit,
     id_marze: s.id_marze,
     id_company: s.id_company,
     id_respons_company: s.id_respons_company,
@@ -194,6 +196,7 @@ function rowToState(r: Record<string, any>): TallyHeaderState {
     radef_marze: s(r.radef_marze),
     date_enter_marze: r.date_enter_marze ?? null,
     date_unloading: r.date_unloading ?? null,
+    date_cargo_exit: r.date_cargo_exit ?? null,
     id_marze: r.id_marze ?? null,
     id_company: r.id_company ?? null,
     id_respons_company: r.id_respons_company ?? null,
@@ -250,7 +253,33 @@ export function TallyHeaderForm() {
     ),
     enabled: isEdit, // only fetch in edit mode
   })
-  const editId = existing?.id_tali == null ? null : Number(existing.id_tali)
+  const [createdHeader, setCreatedHeader] = useState<{ id_tali: number; tali_number: string } | null>(null)
+  const editId = existing?.id_tali == null ? createdHeader?.id_tali ?? null : Number(existing.id_tali)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const { data: savedReceipt } = useQuery({
+    queryKey: ['prepayment-receipt', editId],
+    queryFn: () => apiGet<{ name: string } | null>(`/tally-header/${editId}/prepayment-receipt`),
+    enabled: editId != null,
+  })
+  const chooseReceipt = (file: File | null) => {
+    setFileError(null)
+    if (file && file.size > 10 * 1024 * 1024) {
+      setFileError('حجم فیش نباید بیشتر از ۱۰ مگابایت باشد')
+      return
+    }
+    setReceiptFile(file)
+  }
+  const uploadReceipt = async (id: number) => {
+    if (!receiptFile) return
+    try {
+      await apiUpload(`/tally-header/${id}/prepayment-receipt`, receiptFile)
+      setReceiptFile(null)
+      await queryClient.invalidateQueries({ queryKey: ['prepayment-receipt', id] })
+    } catch {
+      throw new Error('اطلاعات تالی ذخیره شد، اما آپلود فیش ناموفق بود. برای تلاش مجدد ذخیره را بزنید.')
+    }
+  }
 
   const { data: serverToday } = useQuery({
     queryKey: ['tally-server-today'],
@@ -334,7 +363,7 @@ export function TallyHeaderForm() {
     setSaving(true)
     setError(null)
     try {
-      if (isEdit) {
+      if (isEdit || createdHeader) {
         if (editId == null) {
           throw new Error('اطلاعات تالی هنوز بارگذاری نشده است.')
         }
@@ -357,14 +386,19 @@ export function TallyHeaderForm() {
             queryKey: ['tally-header', isLegacyId ? 'id' : 'number', reference],
           }),
           queryClient.invalidateQueries({ queryKey: ['tally-summary', editId] }),
+          queryClient.invalidateQueries({ queryKey: ['receipt-workflow'] }),
+          queryClient.invalidateQueries({ queryKey: ['tally-handoff'] }),
         ])
 
+        await uploadReceipt(editId)
         const publicNumber = updated.tali_number ?? existing?.tali_number ?? tallyNumber
         navigate(publicNumber
           ? `/tally/${encodeURIComponent(String(publicNumber))}`
           : `/tally/id/${editId}`)
       } else {
         const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
+        setCreatedHeader(created)
+        await uploadReceipt(created.id_tali)
         navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
       }
     } catch (e) {
@@ -654,10 +688,27 @@ export function TallyHeaderForm() {
             <TextInput
               label="پیش پرداخت (ریال)"
               inputMode="numeric"
+              rightSectionWidth={78}
+              rightSectionPointerEvents="all"
+              rightSection={
+                <FileButton onChange={chooseReceipt} accept="image/jpeg,image/png,image/webp,application/pdf">
+                  {(props) => <Button {...props} type="button" size="compact-xs" disabled={saving}>آپلود فیش</Button>}
+                </FileButton>
+              }
               value={formatGroupedIntegerInput(form.prepayment)}
               onChange={(e) => set('prepayment', normalizeIntegerInput(e.currentTarget.value))}
               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
+            {receiptFile && <Group gap="xs" mt={4}>
+              <Text size="xs">{receiptFile.name} — با ذخیره تالی آپلود می‌شود</Text>
+              <Button size="compact-xs" variant="subtle" disabled={saving} onClick={() => setReceiptFile(null)}>انصراف</Button>
+            </Group>}
+            {savedReceipt && <Button size="compact-xs" variant="subtle" mt={4}
+              onClick={() => apiDownload(`/tally-header/${editId}/prepayment-receipt/file`, savedReceipt.name)
+                .catch(() => setFileError('دریافت فیش ناموفق بود'))}>
+              دریافت فیش: {savedReceipt.name}
+            </Button>}
+            {fileError && <Text size="xs" c="red">{fileError}</Text>}
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
@@ -668,7 +719,7 @@ export function TallyHeaderForm() {
               styles={{ input: { direction: 'ltr', textAlign: 'right' } }}
             />
           </Grid.Col>
-          <Grid.Col span={12}>
+          <Grid.Col span={{ base: 12, md: 6 }}>
             <Textarea
               label="توضیحات"
               value={form.description}
@@ -676,6 +727,14 @@ export function TallyHeaderForm() {
               minRows={3}
               autosize
             />
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <JalaliDate label="تاریخ خروج بار" clearable
+              value={form.date_cargo_exit}
+              onChange={(iso) => set('date_cargo_exit', iso)} />
+            <Text size="xs" c="dimmed" mt={4}>
+              در صورت ثبت، مبنای پایان محاسبه روزهای صورتحساب است؛ در غیر این صورت تاریخ روز صدور استفاده می‌شود.
+            </Text>
           </Grid.Col>
         </Grid>
 

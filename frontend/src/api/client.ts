@@ -138,3 +138,22 @@ export async function apiSend<T>(
   if (res.status === 204) return undefined as T // DELETE returns no body
   return res.json() as Promise<T>
 }
+/** Download an authenticated attachment without exposing the token in its URL. */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() })
+  if (res.status === 401) {
+    clearToken()
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new UnauthorizedError()
+  }
+  if (res.status === 403) throw await forbiddenError(res)
+  if (!res.ok) throw new Error('دریافت فیش ناموفق بود')
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

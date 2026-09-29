@@ -3,6 +3,7 @@ import { Select, type SelectProps } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '../api/client'
+import { normalizeSearchDigits } from '../utils/normalizeSearchDigits'
 
 /**
  * CommoditySelect — server-side autocomplete over FA_COMMODITY_CATALOG.
@@ -39,12 +40,13 @@ const optionLabel = (c: Commodity) =>
 export function CommoditySelect({ value, onPick, selected, ...rest }: Props) {
   const [search, setSearch] = useState('')
   const [debounced] = useDebouncedValue(search, 300)
-  const canSearch = debounced.trim().length >= 2
+  const query = normalizeSearchDigits(debounced).trim()
+  const canSearch = query.length >= 2
 
   const { data, isFetching } = useQuery({
-    queryKey: ['commodity-search', debounced],
+    queryKey: ['commodity-search', query],
     queryFn: () =>
-      apiGet<SearchResponse>(`/commodity?q=${encodeURIComponent(debounced)}&limit=20`),
+      apiGet<SearchResponse>(`/commodity?q=${encodeURIComponent(query)}&limit=20`),
     enabled: canSearch,
     staleTime: 60 * 1000,
   })

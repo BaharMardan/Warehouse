@@ -546,6 +546,7 @@ upper-named FA_ tables). For fields, the column defaults to FIELD.upper(); list 
 column whose stored name isn't that (lowercase/mixed-case, or a rename) in
 column_overrides with its exact spelling.
 """
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 
@@ -716,6 +717,7 @@ class InsuranceCompanyInput(BaseModel):
 # UPLOAD_DOCUMENT remains deferred. DESCRIPTION is exposed as plain text because
 # the Oracle connection is configured with fetch_lobs=False.
 class TaliHeaderInput(BaseModel):
+    date_cargo_exit: date | None = None  # تاریخ خروج بار
     prepayment: int | None = Field(default=None, ge=0, le=9007199254740991)
     discount: int | None = Field(default=None, ge=0, le=9007199254740991)  # تخفیف (ریال)
     has_transportation: Literal["yes", "no"] | None = None

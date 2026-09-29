@@ -152,15 +152,25 @@ def test_volumetric_storage_uses_the_given_pallets():
     assert charge.note == "56,003 × 1.1 (محوطه 10٪) × 1.2 × 10 پالت × 30 روز = 22,177,188"
 
 
-def test_container_storage_ignores_weight():
+def test_container_storage_uses_declared_weight_in_tons():
     charge = storage_charge("container", rate=804650, loc=location("بارانداز"), days=60,
                             weight_kg=25000)
-    assert charge.amount == Decimal(57934800)   # 804,650 x 1.2 x 1 x 60
+    assert charge.amount == Decimal(1448370000)   # 804,650 x 1.2 x 25 t x 60
+    assert charge.note == "804,650 × 1.2 (بارانداز 20٪) × 25,000 کیلوگرم ÷ 1,000 × 60 روز = 1,448,370,000"
+
+
+def test_container_storage_preserves_fractional_tons_and_rounds_rials():
+    charge = storage_charge("container", rate=56003, loc=location("مسقف"),
+                            days=30, weight_kg=100)
+    assert charge.amount == Decimal(252014)   # 0.1 t; 252,013.5 rounded half up
 
 
 @pytest.mark.parametrize("cargo, kwargs", [
     ("weight", {}),
     ("weight", {"weight_kg": 0}),
+    ("container", {}),
+    ("container", {"weight_kg": 0}),
+    ("container", {"weight_kg": -1}),
     ("volumetric", {}),
     ("volumetric", {"weight_kg": 1000}),
     ("unknown", {"weight_kg": 1000}),

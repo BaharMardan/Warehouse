@@ -309,6 +309,7 @@ from app.services.base import fetch_all, fetch_one
 from app.services.insurance_cover import insurance_cover
 from app.services import insurance_cover as cover_sql
 from app.services.container_excess import derived_rows
+from app.services.crane_charges import crane_rows, CRANE_CATALOG_SQL
 from decimal import Decimal
 from app.services.base import execute
 from pydantic import BaseModel
@@ -641,6 +642,12 @@ def _handling_rows(header_id: int, kind: str):
     rows = [row for row in fetch_all(STRIP_SQL, {"hid": header_id}) if row["service_kind"] == kind]
     weights = {row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in fetch_all(CONTAINER_WEIGHTS_SQL, {"hid": header_id})}
     catalog = {str(row["code"]): row for row in fetch_all(CONTAINER_EXCESS_CATALOG_SQL)}
+    if kind == "crane":
+        crane_catalog = {str(row["code"]): row for row in fetch_all(CRANE_CATALOG_SQL)}
+        try:
+            return crane_rows(rows, weights, crane_catalog)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     return derived_rows(rows, weights, catalog)
 
 TIME_STOP_SQL = """

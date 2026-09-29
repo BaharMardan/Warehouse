@@ -7,6 +7,7 @@ type Props = {
   onChange: (isoDate: string | null) => void
   label?: string
   compact?: boolean
+  clearable?: boolean
 }
 
 const MONTHS = [
@@ -40,8 +41,8 @@ function yearOptions(selectedYear: number) {
   return [...years].sort((a, b) => a - b).map((year) => ({ value: String(year), label: faDigits(year) }))
 }
 
-/** Click-to-open Jalali calendar. Operators can select its month, year, and day. */
-export function JalaliDate({ value, onChange, label, compact = false }: Props) {
+/** Keep calendar edits local until the operator confirms the complete date. */
+export function JalaliDate({ value, onChange, label, compact = false, clearable = false }: Props) {
   const initial = isoToParts(value)
   const today = new Date()
   const todayJalali = toJalaali(today.getFullYear(), today.getMonth() + 1, today.getDate())
@@ -49,10 +50,29 @@ export function JalaliDate({ value, onChange, label, compact = false }: Props) {
   const [viewYear, setViewYear] = useState(Number(initial.y) || todayJalali.jy)
   const [viewMonth, setViewMonth] = useState(Number(initial.m) || todayJalali.jm)
 
+  const [draftDay, setDraftDay] = useState<number | null>(Number(initial.d) || null)
+
+  const changeOpened = (nextOpened: boolean) => {
+    if (nextOpened) {
+      const saved = isoToParts(value)
+      setViewYear(Number(saved.y) || todayJalali.jy)
+      setViewMonth(Number(saved.m) || todayJalali.jm)
+      setDraftDay(Number(saved.d) || null)
+    }
+    setOpened(nextOpened)
+  }
+
+  const changeMonthOrYear = (year: number, month: number) => {
+    setViewYear(year)
+    setViewMonth(month)
+    setDraftDay(day => day == null ? null : Math.min(day, jalaaliMonthLength(year, month)))
+  }
+
   useEffect(() => {
     const next = isoToParts(value)
     if (next.y) setViewYear(Number(next.y))
     if (next.m) setViewMonth(Number(next.m))
+    setDraftDay(Number(next.d) || null)
   }, [value])
 
   const selected = isoToParts(value)
@@ -73,13 +93,13 @@ export function JalaliDate({ value, onChange, label, compact = false }: Props) {
 
   return (
     <Input.Wrapper label={label}>
-      <Popover opened={opened} onChange={setOpened} position="bottom-start" shadow="md" withinPortal>
+      <Popover opened={opened} onChange={changeOpened} position="bottom-start" shadow="md" withinPortal>
         <Popover.Target>
           <Button
             variant="default"
             fullWidth
             justify="flex-start"
-            onClick={() => setOpened((current) => !current)}
+            onClick={() => changeOpened(!opened)}
             styles={{
               root: {
                 marginTop: compact ? 0 : 4,
@@ -98,19 +118,21 @@ export function JalaliDate({ value, onChange, label, compact = false }: Props) {
           </Button>
         </Popover.Target>
         <Popover.Dropdown p={0} dir="rtl" style={{ minWidth: 300, overflow: 'hidden', borderRadius: 12 }}>
-          <div style={{ padding: 12, background: 'linear-gradient(135deg, #5f3dc4, #7950f2)', color: '#fff' }}>
-            <Text ta="center" fw={800} size="sm" mb="xs">انتخاب تاریخ</Text>
+          <div style={{ padding: 12, background: 'linear-gradient(135deg, #5f3dc4, #7950f2)' }}>
+            <Text ta="center" c="white" fw={800} size="sm" mb="xs">انتخاب تاریخ</Text>
             <Group gap="xs" grow>
             <Select
+              comboboxProps={{ withinPortal: false }}
               data={MONTHS.map((name, index) => ({ value: String(index + 1), label: name }))}
               value={String(viewMonth)}
-              onChange={(month) => setViewMonth(Number(month ?? viewMonth))}
+              onChange={(month) => changeMonthOrYear(viewYear, Number(month ?? viewMonth))}
               styles={{ input: { background: 'rgba(255,255,255,0.95)', border: 0, fontWeight: 700 } }}
             />
             <Select
+              comboboxProps={{ withinPortal: false }}
               data={years}
               value={String(viewYear)}
-              onChange={(year) => setViewYear(Number(year ?? viewYear))}
+              onChange={(year) => changeMonthOrYear(Number(year ?? viewYear), viewMonth)}
               searchable
               styles={{ input: { background: 'rgba(255,255,255,0.95)', border: 0, fontWeight: 700 } }}
             />
@@ -133,7 +155,7 @@ export function JalaliDate({ value, onChange, label, compact = false }: Props) {
           <SimpleGrid cols={7} spacing={4}>
             {cells.map((day, index) => {
               if (day == null) return <span key={`empty-${index}`} />
-              const active = Number(selected.y) === viewYear && Number(selected.m) === viewMonth && Number(selected.d) === day
+              const active = draftDay === day
               const isFriday = index % 7 === 6
               const isSaturday = index % 7 === 0
               return (
@@ -150,16 +172,29 @@ export function JalaliDate({ value, onChange, label, compact = false }: Props) {
                       ? { boxShadow: '0 4px 10px rgba(103,65,217,0.35)' }
                       : { background: isFriday ? '#fff0f0' : isSaturday ? '#edf6ff' : '#fff' },
                   }}
-                  onClick={() => {
-                  onChange(jalaliToIso(viewYear, viewMonth, day))
-                  setOpened(false)
-                  }}
+                  onClick={() => setDraftDay(day)}
                 >
                   {faDigits(day)}
                 </Button>
               )
             })}
           </SimpleGrid>
+          <Group justify="flex-end" gap="xs" mt="sm">
+            {clearable && <Button type="button" variant="subtle" size="xs" onClick={() => setDraftDay(null)}>
+              پاک کردن تاریخ
+            </Button>}
+            <Button type="button" variant="default" size="xs" onClick={() => changeOpened(false)}>
+              انصراف
+            </Button>
+            <Button type="button" color="violet" size="xs" disabled={draftDay == null && !clearable}
+              onClick={() => {
+                if (draftDay == null && !clearable) return
+                onChange(draftDay == null ? null : jalaliToIso(viewYear, viewMonth, draftDay))
+                setOpened(false)
+              }}>
+              ثبت
+            </Button>
+          </Group>
           </div>
         </Popover.Dropdown>
       </Popover>

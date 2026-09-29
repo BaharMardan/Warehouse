@@ -176,7 +176,7 @@ from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
 from app.services.base import execute, fetch_all, fetch_one
 from app.services.tally_numbering import allocate_next_tally_number
-from app.services.receipt_db import guarded_write
+from app.services.receipt_db import guarded_write, validate_header_dates
 
 
 router = APIRouter(prefix="/tally-header", tags=["tally_header"])
@@ -282,6 +282,7 @@ def create_tally_header(
     payload = item.model_dump()
     payload.pop("tali_number", None)
     params = _coerce_dates(payload)
+    validate_header_dates(params)
     params["actor_id"] = current_user["id"]
 
     with get_connection() as conn:

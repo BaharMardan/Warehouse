@@ -1,13 +1,27 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Center, Loader, Paper, Table, Text } from '@mantine/core'
-import { apiGet } from '../api/client'
+import { Alert, Button, Group, Modal, Center, Loader, Paper, Table, Text } from '@mantine/core'
+import { usePermissions } from '../auth/usePermissions'
+import { apiGet, apiSend, errorMessage } from '../api/client'
 import { BackButton } from '../components/BackButton'
 import { PageHeader } from '../components/PageHeader'
 import { InvoiceListRow, jalali, money } from './invoiceTypes'
 
 export function InvoiceListPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const { can } = usePermissions()
+  const [selected, setSelected] = useState<InvoiceListRow | null>(null)
+  const cancel = useMutation({
+    mutationFn: (id: number) => apiSend<void>(`/invoice/${id}`, 'DELETE'),
+    onSuccess: async (_, id) => {
+      qc.setQueryData<InvoiceListRow[]>(['invoice-list'], rows => rows?.filter(row => row.id_sorat !== id))
+      setSelected(null)
+      await qc.invalidateQueries()
+    },
+  })
+  const close = () => { if (!cancel.isPending) { setSelected(null); cancel.reset() } }
   const { data, isLoading, isError } = useQuery({
     queryKey: ['invoice-list'], queryFn: () => apiGet<InvoiceListRow[]>('/invoice/list'),
   })
@@ -24,6 +38,7 @@ export function InvoiceListPage() {
           <Table.Th>شماره صورتحساب</Table.Th><Table.Th>تاریخ صدور</Table.Th>
           <Table.Th>شماره تالی</Table.Th><Table.Th>فروشنده</Table.Th>
           <Table.Th>خریدار</Table.Th><Table.Th>مبلغ کل (ریال)</Table.Th>
+          {can('invoice.issue') && <Table.Th>عملیات</Table.Th>}
         </Table.Tr></Table.Thead>
         <Table.Tbody>{data.map(row => <Table.Tr key={row.id_sorat} style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/invoice/${row.id_sorat}`)}>
@@ -32,8 +47,23 @@ export function InvoiceListPage() {
           <Table.Td><bdi dir="ltr">{row.tali_number ?? '—'}</bdi></Table.Td>
           <Table.Td>{row.seller_name || '—'}</Table.Td><Table.Td>{row.buyer_name || '—'}</Table.Td>
           <Table.Td><bdi dir="ltr">{money(row.grand_total)}</bdi></Table.Td>
+          {can('invoice.issue') && <Table.Td>
+            <Button color="red" variant="light" size="xs" disabled={cancel.isPending}
+              onClick={event => { event.stopPropagation(); cancel.reset(); setSelected(row) }}>ابطال صورتحساب</Button>
+          </Table.Td>}
         </Table.Tr>)}</Table.Tbody>
       </Table></Table.ScrollContainer>}
     </Paper>
+    <Modal opened={selected !== null} onClose={close} title="ابطال صورتحساب" centered dir="rtl"
+      closeOnClickOutside={!cancel.isPending} closeOnEscape={!cancel.isPending} withCloseButton={!cancel.isPending}>
+      <Text>آیا از ابطال صورتحساب شماره {selected?.id_sorat} اطمینان دارید؟</Text>
+      <Text size="sm" c="dimmed" mt="sm">قبض و تالی حفظ می‌شوند و امکان صدور مجدد صورتحساب فراهم می‌شود.</Text>
+      {cancel.isError && <Alert color="red" mt="sm">{errorMessage(cancel.error, 'ابطال صورتحساب انجام نشد. دوباره تلاش کنید.')}</Alert>}
+      <Group justify="flex-end" mt="lg">
+        <Button variant="default" disabled={cancel.isPending} onClick={close}>انصراف</Button>
+        <Button color="red" loading={cancel.isPending}
+          onClick={() => { if (selected && !cancel.isPending) cancel.mutate(selected.id_sorat) }}>تأیید ابطال</Button>
+      </Group>
+    </Modal>
   </div>
 }

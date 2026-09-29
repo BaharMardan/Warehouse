@@ -564,7 +564,7 @@ export function TallyDetailPage() {
           >
             چاپ تالی
           </Button>
-          {can('tally.edit') && !handoff?.has_receipts && (
+          {can('tally.edit') && (
             <Button
               variant="light"
               leftSection={<PencilLine size={17} />}
@@ -609,6 +609,12 @@ export function TallyDetailPage() {
 
       <section className="tally-detail-summary-grid" aria-label="خلاصه اطلاعات تالی">
         <Paper className="tally-detail-summary-card" radius="lg">
+          <SummaryLine
+            icon={<FileText size={20} strokeWidth={1.8} />}
+            label="تاریخ خروج بار"
+            value={formatJalaliDate(header?.date_cargo_exit)}
+            tone="blue"
+          />
           <SummaryLine
             icon={<FileText size={20} strokeWidth={1.8} />}
             label="شماره کارنه / ترانزیت"

@@ -193,6 +193,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services.receipt_invoice import to_decimal
+from app.core.db import get_connection
+from app.services import receipt_db as db
 
 router = APIRouter(prefix="/invoice", tags=["invoice"])
 
@@ -285,3 +287,40 @@ def get_invoice(invoice_id: int):
     return {'header': _serialize_saved(header),
             'details': [_serialize_saved(row) for row in details],
             'grand_total': str(total)}
+
+@router.delete('/{invoice_id}', status_code=204)
+def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("invoice.issue"))):
+    """Soft-delete only the invoice; release its receipt for reissue atomically."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            header = db.one(cur, """SELECT "TALI_ID_HEADER" AS tally_id
+                FROM "FA_SORAT_HESAB_HEADER"
+                WHERE "ID_SORAT" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no'""",
+                {"id": invoice_id})
+            if header is None:
+                raise HTTPException(404, "صورتحساب یافت نشد")
+            # Use the same lock order as issuance before locking the invoice.
+            if header["tally_id"] is not None:
+                db.one(cur, """SELECT "ID_TALI" FROM "FA_TALI_HEADER"
+                    WHERE "ID_TALI" = :id FOR UPDATE""", {"id": header["tally_id"]})
+            header = db.one(cur, """SELECT "ID_GHABZ_ANBAR" AS ghabz_id
+                FROM "FA_SORAT_HESAB_HEADER"
+                WHERE "ID_SORAT" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no'
+                FOR UPDATE""", {"id": invoice_id})
+            if header is None:
+                raise HTTPException(404, "صورتحساب یافت نشد")
+            cur.execute("""UPDATE "FA_SORAT_HESAB_HEADER"
+                SET "SORAT_IS_DELETED" = 'yes', "SORAT_MODIFY_AT" = SYSDATE,
+                    "SORAT_MODIFY_BY" = :actor
+                WHERE "ID_SORAT" = :id""", {"id": invoice_id, "actor": user["id"]})
+            if header["ghabz_id"] is not None:
+                cur.execute("""UPDATE "fa_ghabz_anbar_header"
+                    SET "WORKFLOW_STATUS" = 'finalized',
+                        "INVOICE_ISSUED_AT" = NULL, "INVOICE_ISSUED_BY" = NULL
+                    WHERE "ID_ghabz" = :id AND "IS_DELETED" = 'no'
+                      AND "WORKFLOW_STATUS" = 'invoice_issued'
+                      AND NOT EXISTS (SELECT 1 FROM "FA_SORAT_HESAB_HEADER"
+                          WHERE "ID_GHABZ_ANBAR" = :id
+                            AND NVL("SORAT_IS_DELETED", 'no') = 'no')""",
+                    {"id": header["ghabz_id"]})
+        conn.commit()

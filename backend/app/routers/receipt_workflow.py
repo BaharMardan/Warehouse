@@ -1,4 +1,5 @@
 """Receipt transitions and invoices, serialized by the existing tally header lock."""
+from app.services.crane_charges import CRANE_CATALOG_SQL
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -242,7 +243,7 @@ STRIP_SQL = """
 SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
        j."service_kind" AS service_kind, j."number_hamel" AS number_hamel,
        j."NUMBER_SERVICE" AS number_service,
-       c."code" AS rate_code, c."title" AS rate_title,
+       CASE WHEN j."service_kind" = 'crane' THEN COALESCE(j."code", c."code") ELSE c."code" END AS rate_code, c."title" AS rate_title,
        c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous,
        (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_unloding")
           FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
@@ -316,6 +317,7 @@ def snapshot_services(cur, current):
             container_weights={row["number_hamel"]: Decimal(str(row["weight_kg"])) for row in
                                db.rows(cur, SERVICE_CONTAINER_WEIGHTS_SQL, {"tid": tid})},
             excess_catalog={str(row["code"]): row for row in db.rows(cur, CONTAINER_EXCESS_CATALOG_SQL)},
+            crane_catalog={str(row["code"]): row for row in db.rows(cur, CRANE_CATALOG_SQL)},
             freight_rate=settings.get("freight_rate", Decimal(0)),
             carrier_count=(db.one(cur, TRANSPORTATION_SQL, {"tid": tid}) or {}).get("carrier_count"),
             strict=True)
@@ -481,9 +483,12 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
                 db.conflict(str(exc))
             if tally["date_unloading"] is None:
                 db.conflict("تاریخ تخلیه تالی ثبت نشده است")
-            today = db.one(cur, TEHRAN_TODAY_SQL)["today"]
+            db.validate_header_dates(tally)
+            end_date = tally.get("date_cargo_exit")
+            if end_date is None:
+                end_date = db.one(cur, TEHRAN_TODAY_SQL)["today"]
             try:
-                days = billed_days(tally["date_unloading"], today)
+                days = billed_days(tally["date_unloading"], end_date)
             except ValueError as exc:
                 db.conflict(str(exc))
             lines = db.rows(cur, RECEIPT_STORAGE_SQL,

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Select, type SelectProps } from '@mantine/core'
 import { apiGet } from '../api/client'
+import { normalizeSearchDigits } from '../utils/normalizeSearchDigits'
 
 /**
  * StorageGroupSelect — the warehouse storage-price group picker (code_groupe_kala).
@@ -45,6 +46,11 @@ export function StorageGroupSelect({ value, onChange, ...rest }: Props) {
       value={value == null ? null : String(value)}
       onChange={(val) => onChange(val == null ? null : Number(val))}
       searchable
+      filter={({ options, search }) => {
+        const query = normalizeSearchDigits(search).trim().toLowerCase()
+        return options.filter(option => 'label' in option
+          && normalizeSearchDigits(option.label).toLowerCase().includes(query))
+      }}
       clearable
       nothingFoundMessage={isError ? 'خطا در بارگذاری' : 'گروهی یافت نشد'}
       placeholder={isLoading ? 'در حال بارگذاری…' : (rest.placeholder ?? 'انتخاب گروه قیمت انبار')}

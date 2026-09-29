@@ -85,7 +85,7 @@ type FieldCondition = {
 export interface FieldDef {
   key: string
   label: string
-  type?: 'text' | 'number' | 'select' | 'reference'
+  type?: 'text' | 'number' | 'numeric-string' | 'select' | 'reference'
   showWhen?: FieldCondition
   defaultValue?: unknown
   options?: Array<{ value: string; label: string }>
@@ -143,13 +143,13 @@ export function CrudFormModal({
     >
       <Stack gap="sm" dir="rtl">
         {visibleFields.map((f) => {
-          if (f.type === 'number') return (
+          if (f.type === 'number' || f.type === 'numeric-string') return (
             <NumberInput
               key={f.key}
               label={f.label}
               radius="md"
               value={values[f.key] as number | string}
-              onChange={(val) => set(f.key, val)}
+              onChange={(val) => set(f.key, f.type === 'numeric-string' ? String(val) : val)}
               thousandSeparator=","
             />
           )

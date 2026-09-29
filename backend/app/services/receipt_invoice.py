@@ -21,7 +21,7 @@ Storage per cargo type:
               invoice is refused rather than guessed.
   container   one row per container (NUMBER_HAMEL). A container split between
               detailed receipts is charged by this receipt's share of the
-              container's declared weight; a whole container counts as 1.
+              container's declared weight, converted from kilograms to tons.
 """
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -30,6 +30,7 @@ from typing import Optional
 
 from app.services import storage_calc as sc
 from app.services.container_excess import derived_rows
+from app.services.crane_charges import crane_rows
 from app.services.insurance_cover import InsuranceCover
 
 # --- shared service charges (snapshotted once per tally) ----------------------
@@ -107,12 +108,16 @@ def _weighted_total(prices, counts):
 
 
 def service_charges(*, other, strip, night, diamound, vehicle, container_weights, excess_catalog,
-                    freight_rate, carrier_count, strict=True) -> list[ServiceCharge]:
+                    freight_rate, carrier_count, strict=True, crane_catalog=None) -> list[ServiceCharge]:
     """The tally's shared service charges, frozen into FA_RECEIPT_SERVICE_POOL at
     the keeper's first final checklist. Inputs are the junction rows joined to
     their catalogs. Order: other services (when any), strip, stuffing, night
     stop, demurrage, entry, one row per crane service, transportation."""
-    strip = derived_rows(strip, container_weights, excess_catalog)
+    try:
+        strip = crane_rows(strip, container_weights, crane_catalog or {})
+        strip = derived_rows(strip, container_weights, excess_catalog)
+    except ValueError as exc:
+        raise ServiceTariffError(str(exc)) from exc
     if strict:
         values = [r["price"] for group in (other, night, diamound, vehicle) for r in group]
         values += [strip_price(r) for r in strip]
@@ -261,10 +266,10 @@ def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
                 raise ValueError(f"سهم وزنی این قبض از کانتینر {hamel} صفر است")
             share = Decimal(1) if linked >= total else (linked / total).quantize(SHARE_STEP)
             charge = sc.storage_charge("container", rate=line.get("storage_price"), loc=loc,
-                                       days=days, containers=share)
+                                       days=days, weight_kg=linked)
             rows.append(InvoiceRow("storage",
                                    f"هزینه انبارداری کانتینر {hamel} (کد کالای {line.get('kala_code')})",
-                                   charge.amount, charge.note, quantity=share))
+                                   charge.amount, charge.note, quantity=share, weight=linked))
         return rows
 
     raise ValueError("نوع بار تالی (وزنی، حجمی یا کانتینری) مشخص نشده است")

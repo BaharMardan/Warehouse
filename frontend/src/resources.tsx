@@ -2,6 +2,15 @@ import type { CrudConfig } from './components/CrudResource'
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './api/client'
 
+// Group the integer part without rounding fractional rates or large values.
+function rateDisplay(value: number | string | null) {
+  if (value == null || value === '') return '—'
+  const raw = String(value).trim()
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) return raw
+  const [integer, fraction] = raw.split('.')
+  return <bdi dir="ltr">{integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}{fraction == null ? '' : `.${fraction}`}</bdi>
+}
+
 // ---- کالا ----
 interface Kala {
   id_kala: number
@@ -111,9 +120,9 @@ const kalaPrice: CrudConfig<KalaPrice> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'goods_group', label: 'گروه کالا', field: 'goods_group' },
-    { key: 'storage_price', label: 'انبارداری', field: 'storage_price' },
-    { key: 'price_unloding', label: 'تخلیه', field: 'price_unloding' },
-    { key: 'price_loading', label: 'بارگیری', field: 'price_loading' },
+    { key: 'storage_price', label: 'انبارداری', field: 'storage_price', render: (row) => rateDisplay(row.storage_price) },
+    { key: 'price_unloding', label: 'تخلیه', field: 'price_unloding', render: (row) => rateDisplay(row.price_unloding) },
+    { key: 'price_loading', label: 'بارگیری', field: 'price_loading', render: (row) => rateDisplay(row.price_loading) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
@@ -312,14 +321,14 @@ const kalaDiamound: CrudConfig<KalaDiamound> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'price_gher_edari', label: 'در ساعات غیر اداری', field: 'price_gher_edari' },
-    { key: 'price_holiday', label: 'در روزهای تعطیل', field: 'price_holiday' },
+    { key: 'price_gher_edari', label: 'در ساعات غیر اداری', field: 'price_gher_edari', render: (row) => rateDisplay(row.price_gher_edari) },
+    { key: 'price_holiday', label: 'در روزهای تعطیل', field: 'price_holiday', render: (row) => rateDisplay(row.price_holiday) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'price_gher_edari', label: 'در ساعات غیر اداری' },
-    { key: 'price_holiday', label: 'در روزهای تعطیل' },
+    { key: 'price_gher_edari', label: 'در ساعات غیر اداری', type: 'numeric-string' },
+    { key: 'price_holiday', label: 'در روزهای تعطیل', type: 'numeric-string' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
@@ -335,12 +344,12 @@ const kalaOtherService: CrudConfig<KalaOtherService> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'price', label: 'قیمت', field: 'price' },
+    { key: 'price', label: 'قیمت', field: 'price', render: (row) => rateDisplay(row.price) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'price', label: 'قیمت' },
+    { key: 'price', label: 'قیمت', type: 'numeric-string' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
@@ -357,16 +366,16 @@ const kalaStrip: CrudConfig<KalaStrip> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'normal', label: 'عادی', field: 'normal' },
-    { key: 'non_standard', label: 'غیراستاندارد', field: 'non_standard' },
-    { key: 'dangerous', label: 'خطرناک', field: 'dangerous' },
+    { key: 'normal', label: 'عادی', field: 'normal', render: (row) => rateDisplay(row.normal) },
+    { key: 'non_standard', label: 'غیراستاندارد', field: 'non_standard', render: (row) => rateDisplay(row.non_standard) },
+    { key: 'dangerous', label: 'خطرناک', field: 'dangerous', render: (row) => rateDisplay(row.dangerous) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'normal', label: 'عادی' },
-    { key: 'non_standard', label: 'غیراستاندارد' },
-    { key: 'dangerous', label: 'خطرناک' },
+    { key: 'normal', label: 'عادی', type: 'numeric-string' },
+    { key: 'non_standard', label: 'غیراستاندارد', type: 'numeric-string' },
+    { key: 'dangerous', label: 'خطرناک', type: 'numeric-string' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
@@ -382,12 +391,12 @@ const kalaTimeStop: CrudConfig<KalaTimeStop> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'price', label: 'قیمت', field: 'price' },
+    { key: 'price', label: 'قیمت', field: 'price', render: (row) => rateDisplay(row.price) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'price', label: 'قیمت' },
+    { key: 'price', label: 'قیمت', type: 'numeric-string' },
     { key: 'description', label: 'توضیحات' },
   ],
 }
@@ -403,12 +412,12 @@ const kalaVehicleEnter: CrudConfig<KalaVehicleEnter> = {
   columns: [
     { key: 'code', label: 'کد', field: 'code' },
     { key: 'title', label: 'عنوان', field: 'title' },
-    { key: 'price', label: 'قیمت', field: 'price' },
+    { key: 'price', label: 'قیمت', field: 'price', render: (row) => rateDisplay(row.price) },
   ],
   fields: [
     { key: 'code', label: 'کد' },
     { key: 'title', label: 'عنوان' },
-    { key: 'price', label: 'قیمت' },
+    { key: 'price', label: 'قیمت', type: 'numeric-string' },
     { key: 'description', label: 'توضیحات' },
   ],
 }

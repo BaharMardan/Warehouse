@@ -1246,7 +1246,7 @@ const GROUPS: { key: GroupKey; label: string }[] = [
 ]
 
 type CellKind =
-  | 'commodity' | 'text' | 'term' | 'int' | 'decimal' | 'date'
+  | 'commodity' | 'text' | 'term' | 'int' | 'identifier' | 'decimal' | 'date'
   | 'anbar' | 'tagh' | 'zarib' | 'plate' | 'containerType' | 'containerNumber'
 
 type ColumnDef = {
@@ -1267,7 +1267,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'insured_value', label: 'ارزش کالای بیمه‌شده', group: 'kala', kind: 'decimal', width: 150 },
   { key: 'insurance_expiry_date', label: 'تاریخ اتمام بیمه', group: 'kala', kind: 'date', width: 145 },
   { key: 'weighte', label: 'وزن اظهار (kg)', group: 'baskol', kind: 'decimal', width: 100 },
-  { key: 'number_ghabze_bskol', label: 'شماره قبض باسکول', group: 'baskol', kind: 'int', width: 130 },
+  { key: 'number_ghabze_bskol', label: 'شماره قبض باسکول', group: 'baskol', kind: 'identifier', width: 130 },
   { key: 'weighte_baskol', label: 'وزن باسکول (kg)', group: 'baskol', kind: 'decimal', width: 110 },
   { key: 'id_anbar', label: 'انبار', group: 'mahal', kind: 'anbar', width: 130 },
   { key: 'id_tagh_anbar', label: 'طاق', group: 'mahal', kind: 'tagh', width: 110 },
@@ -1778,6 +1778,15 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
               </Stack>
             </Popover.Dropdown>
           </Popover>
+        )
+      case 'identifier':
+        return (
+          <TextInput
+            {...common}
+            inputMode="numeric" placeholder="—"
+            value={f[col.key] as string}
+            onChange={(e) => setField(col.key, normalizeIntegerInput(e.currentTarget.value))}
+          />
         )
       case 'int':
         return (
