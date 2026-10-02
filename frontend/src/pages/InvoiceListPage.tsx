@@ -42,7 +42,7 @@ export function InvoiceListPage() {
         </Table.Tr></Table.Thead>
         <Table.Tbody>{data.map(row => <Table.Tr key={row.id_sorat} style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/invoice/${row.id_sorat}`)}>
-          <Table.Td><bdi dir="ltr">{row.id_sorat}</bdi></Table.Td>
+          <Table.Td><bdi dir="ltr">{row.id_sorat}</bdi>{row.original_invoice_id && <Text size="xs" c="orange">باقی‌مانده — اصلی {row.original_invoice_id}</Text>}</Table.Td>
           <Table.Td>{jalali(row.created_at)}</Table.Td>
           <Table.Td><bdi dir="ltr">{row.tali_number ?? '—'}</bdi></Table.Td>
           <Table.Td>{row.seller_name || '—'}</Table.Td><Table.Td>{row.buyer_name || '—'}</Table.Td>

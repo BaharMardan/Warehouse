@@ -11,8 +11,10 @@
 # first-invoice tier timing are PROVISIONAL until the 547 golden case lands.
 # """
 # from decimal import Decimal
+import json
 
 # from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 # from app.auth.deps import get_current_user
 # from app.services.base import fetch_all, fetch_one
@@ -187,8 +189,10 @@ storage_calc.py, insurance_cover.py and receipt_invoice.py. This module reads
 them back from their persisted rows; it calculates nothing.
 """
 from decimal import Decimal
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
@@ -209,11 +213,13 @@ SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
                 NULLIF(TRIM(o."NAME" || ' ' || o."FAMILY"), '')) AS buyer_name,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
        s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
+       r."ORIGINAL_INVOICE_ID" AS original_invoice_id,
        (SELECT SUM(NVL(d."PRICE_DETAILS", 0) - NVL(d."TAKHFIF_DETAILS", 0))
           FROM "FA_SORA_HESAB_DETAILS" d
          WHERE d."ID_SORA_HEADER" = s."ID_SORAT"
            AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')) AS grand_total
 FROM "FA_SORAT_HESAB_HEADER" s
+LEFT JOIN "FA_REMAINING_INVOICE" r ON r."INVOICE_ID" = s."ID_SORAT"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 WHERE NVL(s."SORAT_IS_DELETED", 'no') = 'no'
@@ -244,8 +250,11 @@ SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
        s."NAMAYANDEH_COMPANY" AS representative_name,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
        s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
-       s."CALC_NOTE" AS calc_note, g."GHABZ_NUMBER" AS ghabz_number
+       r."ORIGINAL_INVOICE_ID" AS original_invoice_id,
+       s."CALC_NOTE" AS calc_note, g."GHABZ_NUMBER" AS ghabz_number,
+       r."SNAPSHOT_JSON" AS remaining_snapshot
 FROM "FA_SORAT_HESAB_HEADER" s
+LEFT JOIN "FA_REMAINING_INVOICE" r ON r."INVOICE_ID" = s."ID_SORAT"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
@@ -285,7 +294,8 @@ def get_invoice(invoice_id: int):
     details = fetch_all(INVOICE_DETAILS_SQL, {'invoice_id': invoice_id})
     total = sum(((to_decimal(row['price']) or Decimal(0))
                  - (to_decimal(row['discount']) or Decimal(0)) for row in details), Decimal(0))
-    return {'header': _serialize_saved({**header, **SELLER}),
+    remaining = json.loads(header.pop('remaining_snapshot', None) or 'null')
+    return {'remaining': remaining, 'header': _serialize_saved({**header, **SELLER}),
             'details': [_serialize_saved(row) for row in details],
             'grand_total': str(total)}
 
@@ -304,12 +314,17 @@ def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("inv
             if header["tally_id"] is not None:
                 db.one(cur, """SELECT "ID_TALI" FROM "FA_TALI_HEADER"
                     WHERE "ID_TALI" = :id FOR UPDATE""", {"id": header["tally_id"]})
-            header = db.one(cur, """SELECT "ID_GHABZ_ANBAR" AS ghabz_id
+            header = db.one(cur, """SELECT "ID_GHABZ_ANBAR" AS ghabz_id,
+                (SELECT COUNT(*) FROM "FA_REMAINING_INVOICE" r
+                 JOIN "FA_SORAT_HESAB_HEADER" child ON child."ID_SORAT" = r."INVOICE_ID"
+                 WHERE r."ORIGINAL_INVOICE_ID" = :id AND NVL(child."SORAT_IS_DELETED", 'no') = 'no') AS remaining_count
                 FROM "FA_SORAT_HESAB_HEADER"
                 WHERE "ID_SORAT" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no'
                 FOR UPDATE""", {"id": invoice_id})
             if header is None:
                 raise HTTPException(404, "صورتحساب یافت نشد")
+            if header.get("remaining_count", 0):
+                raise HTTPException(409, "ابتدا صورتحساب‌های باقی‌ماندهٔ وابسته را باطل کنید")
             cur.execute("""UPDATE "FA_SORAT_HESAB_HEADER"
                 SET "SORAT_IS_DELETED" = 'yes', "SORAT_MODIFY_AT" = SYSDATE,
                     "SORAT_MODIFY_BY" = :actor
@@ -325,3 +340,33 @@ def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("inv
                             AND NVL("SORAT_IS_DELETED", 'no') = 'no')""",
                     {"id": header["ghabz_id"]})
         conn.commit()
+
+
+class InvoiceKotazhUpdate(BaseModel):
+    buyer_kotath_code: str | None = Field(default=None, max_length=250)
+
+    @field_validator("buyer_kotath_code")
+    @classmethod
+    def normalize_code(cls, value):
+        value = value.strip() if value else None
+        # Existing Oracle column has a 250-byte capacity.
+        if value and len(value.encode("utf-8")) > 250:
+            raise ValueError("شماره کوتاژ بیش از حد طولانی است")
+        return value or None
+
+
+@router.put('/{invoice_id}/kotazh')
+def update_invoice_kotazh(invoice_id: int, payload: InvoiceKotazhUpdate,
+                          user: dict = Depends(require_permission("invoice.issue"))):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE "FA_SORAT_HESAB_HEADER"
+                SET "BUYER_KOTATH_CODE" = :code,
+                    "SORAT_MODIFY_AT" = SYSDATE, "SORAT_MODIFY_BY" = :actor
+                WHERE "ID_SORAT" = :id
+                  AND NVL("SORAT_IS_DELETED", 'no') = 'no'""",
+                {"id": invoice_id, "code": payload.buyer_kotath_code, "actor": user["id"]})
+            if cur.rowcount == 0:
+                raise HTTPException(404, "صورتحساب یافت نشد")
+        conn.commit()
+    return {"buyer_kotath_code": payload.buyer_kotath_code}

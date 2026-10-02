@@ -1,6 +1,7 @@
 import { toJalaali } from 'jalaali-js'
 
 export type InvoiceHeader = {
+  original_invoice_id?: number | null
   id_sorat: number; created_at: string | null; seller_name: string | null
   seller_address: string | null; seller_phone: string | null
   seller_economic_code: string | null; seller_national_id: string | null; seller_postal_code: string | null
@@ -21,8 +22,13 @@ export type InvoiceLine = {
   row_kind?: RowKind | null; calc_note?: string | null
 }
 export type RowKind = 'system' | 'storage' | 'service' | 'insurance' | 'tax' | 'prepayment' | 'discount'
-export type SavedInvoice = { header: InvoiceHeader; details: InvoiceLine[]; grand_total: string }
-export type InvoiceListRow = Pick<InvoiceHeader, 'id_sorat' | 'created_at' | 'seller_name' | 'buyer_id' | 'buyer_name' | 'tali_id' | 'tali_number' | 'ghabz_id' | 'is_accepted'> & { grand_total: string | null }
+export type RemainingSnapshot = {
+  original_invoice_id: number; receipt_id: number; tally_id: number; cargo: string
+  inputs: { days?: number; source_id: number; hscode: string; kala_code: string; amount: string; insurance_percent: string }
+  source: { description: string | null }; original_insurance: string
+}
+export type SavedInvoice = { remaining?: RemainingSnapshot | null; header: InvoiceHeader; details: InvoiceLine[]; grand_total: string }
+export type InvoiceListRow = Pick<InvoiceHeader, 'id_sorat' | 'created_at' | 'seller_name' | 'buyer_id' | 'buyer_name' | 'tali_id' | 'tali_number' | 'ghabz_id' | 'is_accepted'> & { grand_total: string | null; original_invoice_id?: number | null }
 
 export const money = (value: string | number | null | undefined) =>
   value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })

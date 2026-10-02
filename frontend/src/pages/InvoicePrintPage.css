@@ -89,6 +89,18 @@
   line-height: 1.5;
 }
 
+.invoice-print-buyer-fields {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  align-items: start;
+}
+
+.invoice-print-buyer-fields > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .invoice-print-wide {
   grid-column: span 3;
 }

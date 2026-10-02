@@ -42,7 +42,7 @@ export function InvoicePrintPage() {
             <div>
               <h1>
                 <span className="tally-print-screen-title">پیش‌نمایش</span>
-                <span className="tally-print-paper-title">صورتحساب</span>
+                <span className="tally-print-paper-title">{data.remaining ? 'صورتحساب باقی‌مانده' : 'صورتحساب'}</span>
                 <bdi dir="ltr">{h.id_sorat}</bdi>
               </h1>
               <p>چاپ روی کاغذ A4 با حالت افقی</p>
@@ -75,19 +75,16 @@ export function InvoicePrintPage() {
 
           <section className="invoice-print-box">
             <h2>مشخصات خریدار</h2>
-            <div className="invoice-print-fields">
+            <div className="invoice-print-fields invoice-print-buyer-fields">
               <span>نام خریدار: {shown(h.buyer_name)}</span>
               <span>شناسه ملی: {shown(h.buyer_national_id)}</span>
               <span>کد اقتصادی: {shown(h.buyer_economic_code)}</span>
-              <span>کد پستی: {shown(h.buyer_postal_code)}</span>
-              <span className="invoice-print-wide">
-                نشانی: {shown(h.buyer_address)}
-              </span>
               <span>شماره تماس: {shown(h.buyer_phone)}</span>
-              <span>شماره تالی: {shown(h.tali_number)}</span>
+              <span>شماره کوتاژ: <bdi dir="ltr">{shown(h.buyer_kotath_code)}</bdi></span>
               <span>
                 شماره قبض: <bdi dir="ltr">{shown(h.ghabz_number ?? h.buyer_ghabz_number ?? h.ghabz_id)}</bdi>
               </span>
+              <span>نشانی: {shown(h.buyer_address)}</span>
             </div>
           </section>
         </div>

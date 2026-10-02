@@ -9,7 +9,8 @@
 # from app.routers.commodity import router as commodity_router
 # from app.routers.owners import router as owners_router
 
-# from app.crud.registry import crud_routers
+# from app.routers.remaining_invoice import router as remaining_invoice_router
+from app.crud.registry import crud_routers
 
 # app = FastAPI(title="APEX Migration API")
 
@@ -59,6 +60,7 @@ from app.routers.settings import router as settings_router
 from app.routers.prepayment_receipt import router as prepayment_receipt_router
 from app.routers.receipt_workflow import router as receipt_workflow_router
 
+from app.routers.remaining_invoice import router as remaining_invoice_router
 from app.crud.registry import crud_routers
 
 app = FastAPI(title="APEX Migration API")
@@ -88,6 +90,7 @@ app.include_router(admin_router)
 app.include_router(tally_handoff_router)
 app.include_router(settings_router)
 app.include_router(receipt_workflow_router)
+app.include_router(remaining_invoice_router)
 app.include_router(prepayment_receipt_router)
 
 # app.include_router(items.router)
@@ -98,3 +101,4 @@ for router in crud_routers:
 @app.get("/")
 def root():
     return {"message": "API is running. Open /docs"}
+

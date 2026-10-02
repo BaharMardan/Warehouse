@@ -343,7 +343,7 @@ def get_workflow(receipt_id: int):
         with conn.cursor() as cur:
             current, siblings, _ = db.receipt(cur, receipt_id)
             invoice = db.one(cur, """SELECT MAX("ID_SORAT") AS id FROM "FA_SORAT_HESAB_HEADER"
-                WHERE "ID_GHABZ_ANBAR" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no' """,
+                WHERE "ID_GHABZ_ANBAR" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no' AND "ID_SORAT" NOT IN (SELECT "INVOICE_ID" FROM "FA_REMAINING_INVOICE") """,
                 {"id": receipt_id})
             return {**db.workflow(current, siblings), "invoice_id": invoice["id"],
                     "services_locked": any(r["status"] in ("finalized", "invoice_issued")
@@ -470,7 +470,7 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
         with conn.cursor() as cur:
             current, siblings, tally = db.receipt(cur, receipt_id, lock=True)
             prior = db.one(cur, """SELECT "ID_SORAT" AS id FROM "FA_SORAT_HESAB_HEADER"
-                WHERE "ID_GHABZ_ANBAR" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no' """,
+                WHERE "ID_GHABZ_ANBAR" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no' AND "ID_SORAT" NOT IN (SELECT "INVOICE_ID" FROM "FA_REMAINING_INVOICE") """,
                 {"id": receipt_id})
             if prior and current["status"] == "invoice_issued":
                 return {"invoice_id": prior["id"]}

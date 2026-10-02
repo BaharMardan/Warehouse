@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Badge, Button, Group, Modal, Paper, Stack, Table, Text } from '@mantine/core'
 import { useNavigate } from 'react-router-dom'
 import { apiGet, apiSend, errorMessage } from '../api/client'
+import { RemainingInvoiceModal } from './RemainingInvoiceModal'
 import { usePermissions } from '../auth/usePermissions'
 
 type Workflow = {
@@ -48,6 +49,7 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
   })
   // Issuing may need two answers, asked in order: the missing-customs error,
   // then the prepayment/discount question.
+  const [remainingOpen, setRemainingOpen] = useState(false)
   const [issueStep, setIssueStep] = useState<null | 'customs' | 'deductions'>(null)
   const [answers, setAnswers] = useState<IssueAnswers>({})
   const issueInvoice = (final: IssueAnswers) => {
@@ -112,6 +114,9 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
     </Modal>
     {placement === 'receipt' && state.invoice_id && can('invoice.view') && <Button color="red" variant="light"
       onClick={() => navigate(`/invoice/${state.invoice_id}`)}>مشاهده صورتحساب</Button>}
+    {placement === 'receipt' && state.invoice_id && can('invoice.issue') &&
+      <Button variant="light" color="orange" onClick={() => setRemainingOpen(true)}>صدور صورتحساب باقی‌مانده</Button>}
+    {remainingOpen && <RemainingInvoiceModal receiptId={id} close={() => setRemainingOpen(false)} />}
     {action.error && <Text c="red" size="sm">{errorMessage(action.error, 'عملیات انجام نشد')}</Text>}
 
   </>

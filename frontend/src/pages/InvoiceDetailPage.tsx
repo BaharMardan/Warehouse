@@ -1,3 +1,5 @@
+import { InvoiceKotazhInput } from '../components/InvoiceKotazhInput'
+import { RemainingInvoiceInfo } from '../components/RemainingInvoiceInfo'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { Button, Center, Group, Loader, Paper, SimpleGrid, Table, Text, Title } from '@mantine/core'
@@ -32,8 +34,10 @@ export function InvoiceDetailPage() {
         <Paper withBorder p="md"><Title order={4} c="red" mb="sm">مشخصات خریدار</Title>
           <Text>{data.header.buyer_name || '—'}</Text><Text size="sm">نشانی: {data.header.buyer_address || '—'}</Text>
           <Text size="sm">شماره تالی: {data.header.tali_number || '—'} | تاریخ: {jalali(data.header.created_at)}</Text>
-          {data.header.ghabz_number && <Text size="sm">شماره قبض انبار: <bdi dir="ltr">{data.header.ghabz_number}</bdi></Text>}</Paper>
+          {data.header.ghabz_number && <Text size="sm">شماره قبض انبار: <bdi dir="ltr">{data.header.ghabz_number}</bdi></Text>}
+          <InvoiceKotazhInput key={invoiceId} invoiceId={invoiceId} saved={data.header.buyer_kotath_code} /></Paper>
       </SimpleGrid>
+      <RemainingInvoiceInfo info={data.remaining} receiptNumber={data.header.ghabz_number ?? data.header.buyer_ghabz_number} />
       {invoiceSections(data.details).modern ? <ModernDetails data={data} /> :
       <Paper withBorder p="md"><Title order={4} mb="sm">جزئیات صورتحساب</Title>
         <Table.ScrollContainer minWidth={700}><Table striped styles={{ th: { backgroundColor: '#e03131', color: '#fff' } }}>

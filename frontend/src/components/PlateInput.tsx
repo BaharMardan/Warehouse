@@ -320,7 +320,7 @@ function normalizeDigits(s: string): string {
 function parse(value: string): Parts {
   const [iranPart, foreignPart] = (value ?? '').split('|')
   const p = (iranPart ?? '').split('-')
-  const result: Parts = { ...EMPTY, foreign: foreignPart || '' }
+  const result: Parts = { ...EMPTY, letter: value ? '' : 'ع', foreign: foreignPart || '' }
   
   if (p.length === 4) {
     const [l2, letter, m3, r2] = p
@@ -335,7 +335,8 @@ function parse(value: string): Parts {
 }
 
 function serialize(p: Parts): string {
-  const hasIran = Boolean(p.l2 || p.letter || p.m3 || p.r2)
+  // A suggested letter alone must not create a plate, including foreign-only entries.
+  const hasIran = Boolean(p.l2 || p.m3 || p.r2 || (p.letter && p.letter !== 'ع'))
   const iranStr = hasIran ? `${p.l2}-${p.letter}-${p.m3}-${p.r2}` : ''
   
   if (p.foreign && iranStr) return `${iranStr}|${p.foreign}`
