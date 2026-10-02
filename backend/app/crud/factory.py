@@ -165,6 +165,8 @@ def _guard(requirement: str):
     return require_permission(requirement)
 
 
+from app.services.display_order import DisplayOrderInput, apply_order, read_order, save_order
+
 def make_crud_router(
     *,
     prefix: str,
@@ -225,9 +227,19 @@ def make_crud_router(
     update_guard = _guard(access.update)
     delete_guard = _guard(access.delete)
 
+    # Shared ordering is available only for base-data lookup resources.
+    reorderable = access.update == "base_data.edit"
+
     @router.get("", dependencies=[Depends(read_guard)])
     def list_rows():
-        return fetch_all(p["list"])
+        rows = fetch_all(p["list"])
+        return apply_order(rows, pk, read_order(prefix)) if reorderable else rows
+
+    if reorderable:
+        @router.put("/display-order")
+        def update_display_order(item: DisplayOrderInput, current_user: dict = Depends(update_guard)):
+            return save_order(prefix, p["list"], pk, item.ids, current_user["id"])
+
     
     @router.get("/{row_id}", dependencies=[Depends(read_guard)])
     def get_row(row_id: int):

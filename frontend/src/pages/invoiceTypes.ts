@@ -42,12 +42,26 @@ const CHARGE_KINDS: RowKind[] = ['system', 'storage', 'service', 'insurance']
 
 const net = (line: InvoiceLine) => Number(line.price ?? 0) - Number(line.discount ?? 0)
 
+// Older service snapshots preserve their count at the end of the description.
+// Normalize for both the detail page and print without changing saved invoices.
+function serviceQuantityColumns(line: InvoiceLine): InvoiceLine {
+  if (line.row_kind !== 'service' || !line.description?.startsWith('سایر خدمات — ')) return line
+  const match = /^(.*) — تعداد ([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)$/.exec(line.description)
+  if (!match) return line
+  const count = Number(match[2].replace(/,/g, ''))
+  if (!Number.isFinite(count)) return line
+  return { ...line, description: match[1], quantity: line.quantity ?? count }
+}
+
 export function invoiceSections(details: InvoiceLine[]) {
   const modern = details.some((line) => line.row_kind != null)
+  const visible = details.filter((line) => line.price == null || net(line) !== 0).map(serviceQuantityColumns)
   const charges = modern
-    ? details.filter((line) => line.row_kind == null || CHARGE_KINDS.includes(line.row_kind))
-    : details
-  const summary = details.filter((line) => line.row_kind != null && !CHARGE_KINDS.includes(line.row_kind))
+    ? visible.filter((line) => line.row_kind == null || CHARGE_KINDS.includes(line.row_kind))
+    : visible
+  const summaryOrder: Partial<Record<RowKind, number>> = { discount: 0, tax: 1, prepayment: 2 }
+  const summary = visible.filter((line) => line.row_kind != null && !CHARGE_KINDS.includes(line.row_kind))
+    .sort((a, b) => (summaryOrder[a.row_kind!] ?? 3) - (summaryOrder[b.row_kind!] ?? 3))
   return {
     modern,
     charges,

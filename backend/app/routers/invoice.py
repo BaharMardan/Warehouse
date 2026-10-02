@@ -192,6 +192,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
+from app.services.invoice_seller import SELLER
 from app.services.receipt_invoice import to_decimal
 from app.core.db import get_connection
 from app.services import receipt_db as db
@@ -273,7 +274,7 @@ def _serialize_saved(row: dict) -> dict:
 
 @router.get('/list', dependencies=[Depends(require_permission("invoice.view"))])
 def list_invoices():
-    return [_serialize_saved(row) for row in fetch_all(INVOICE_LIST_SQL)]
+    return [_serialize_saved({**row, "seller_name": SELLER["seller_name"]}) for row in fetch_all(INVOICE_LIST_SQL)]
 
 
 @router.get('/{invoice_id}', dependencies=[Depends(require_permission("invoice.view"))])
@@ -284,7 +285,7 @@ def get_invoice(invoice_id: int):
     details = fetch_all(INVOICE_DETAILS_SQL, {'invoice_id': invoice_id})
     total = sum(((to_decimal(row['price']) or Decimal(0))
                  - (to_decimal(row['discount']) or Decimal(0)) for row in details), Decimal(0))
-    return {'header': _serialize_saved(header),
+    return {'header': _serialize_saved({**header, **SELLER}),
             'details': [_serialize_saved(row) for row in details],
             'grand_total': str(total)}
 

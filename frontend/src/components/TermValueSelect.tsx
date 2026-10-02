@@ -34,10 +34,6 @@ export function TermValueSelect({
   const options = useMemo(() => {
     const rows = (data ?? [])
       .filter((row) => Number(row.category_id) === categoryId && row.value?.trim())
-      .sort((a, b) =>
-        (a.order_no ?? Number.MAX_SAFE_INTEGER) - (b.order_no ?? Number.MAX_SAFE_INTEGER)
-        || a.sys_term_id - b.sys_term_id,
-      )
       .map((row) => ({ value: row.value!.trim(), label: row.value!.trim() }))
 
     for (const fallback of fallbackValues) {

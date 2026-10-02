@@ -1,4 +1,5 @@
 """Receipt transitions and invoices, serialized by the existing tally header lock."""
+from app.services.invoice_seller import SELLER
 from app.services.crane_charges import CRANE_CATALOG_SQL
 from decimal import Decimal, ROUND_HALF_UP
 from fastapi import APIRouter, Depends, HTTPException
@@ -122,6 +123,9 @@ RECEIPT_STORAGE_SQL = """
 SELECT d."ID_TALI_DETAILS" AS id, d."HSCODE" AS hscode,
        d."DESCRIPTION_KALA" AS description, d."CODE_GROUPE_KALA" AS goods_group,
        p."CODE" AS kala_code, p."storage_price" AS storage_price,
+       (SELECT e."storage_price" FROM "fa_kala_price" e
+        WHERE e."CODE" = CASE p."CODE" WHEN '118' THEN '119' WHEN '120' THEN '121' END
+          AND e."IS_DELETED" = 'no') AS excess_storage_price,
        d."ZARIB_MAHAL" AS zarib_mahal, d."NUMBER_HAMEL" AS number_hamel,
        d."NUMBER_KALA" * m."QUANTITY_SHARE" AS quantity,
        d."WEIGHTE" * m."WEIGHT_SHARE" AS weight_kg
@@ -234,10 +238,11 @@ def get_pool(cur, tid):
 # Read once, at the keeper's first final checklist, and frozen into
 # FA_RECEIPT_SERVICE_POOL. Priced by receipt_invoice.service_charges.
 OTHER_SERVICE_SQL = """
-SELECT c."price" AS price, j."NUMBER_SERVICE" AS number_service
+SELECT c."title" AS title, c."price" AS price, j."NUMBER_SERVICE" AS number_service
 FROM "fa_tali_kala_other_service" j
 LEFT JOIN "fa_kala_other_service" c ON c."id_kala_other_service" = j."kala_other_service_id"
 WHERE j."tali_id" = :tid AND j."IS_DELETED" = 'no'
+ORDER BY j."id_tali_kala_other_service"
 """
 STRIP_SQL = """
 SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
@@ -577,11 +582,12 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
             cur.execute("""INSERT INTO "FA_SORAT_HESAB_HEADER"
                 ("TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID",
                  "BUYER_COMPANY_ADDRESS", "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
-                 "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE")
+                 "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE",
+                 "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI")
                 VALUES (:tid, :rid, :buyer, :address, :phone, :economic, :national, SYSDATE, :actor,
-                        'no', 'no', :calc_note)
+                        'no', 'no', :calc_note, :seller_name, :seller_address, :seller_national_id)
                 RETURNING "ID_SORAT" INTO :new_id""",
-                {"tid": current["tally_id"], "rid": receipt_id, "buyer": tally["id_product_ownear"],
+                {**SELLER, "tid": current["tally_id"], "rid": receipt_id, "buyer": tally["id_product_ownear"],
                  "address": buyer.get("address"), "phone": buyer.get("phone"),
                  "economic": buyer.get("economic_code"), "national": buyer.get("national_id"),
                  "actor": user["id"], "calc_note": ri.header_note(cargo, days), "new_id": output})

@@ -40,7 +40,7 @@ export function InvoiceDetailPage() {
           <Table.Thead><Table.Tr><Table.Th>ردیف</Table.Th><Table.Th>شرح</Table.Th>
             <Table.Th>تعداد</Table.Th><Table.Th>وزن</Table.Th><Table.Th>مبلغ کل</Table.Th>
             <Table.Th>تخفیف</Table.Th><Table.Th>مبلغ خالص</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>{data.details.map((line, index) => <Table.Tr key={line.id_detail}>
+          <Table.Tbody>{invoiceSections(data.details).charges.map((line, index) => <Table.Tr key={line.id_detail}>
             <Table.Td>{index + 1}</Table.Td><Table.Td>{line.description || '—'}</Table.Td>
             <Table.Td>{line.quantity ?? '—'}</Table.Td><Table.Td>{line.weight ?? '—'}</Table.Td>
             <Table.Td>{money(line.price)}</Table.Td><Table.Td>{money(line.discount)}</Table.Td>
@@ -54,7 +54,7 @@ export function InvoiceDetailPage() {
 }
 
 // 1405 invoices: every charge with how it was calculated, then the summary
-// «جمع هزینه‌ها + مالیات − پیش‌پرداخت − تخفیف = قابل پرداخت» for the operator's check.
+// «جمع هزینه‌ها − تخفیف + مالیات − پیش‌پرداخت = قابل پرداخت» for the operator's check.
 function ModernDetails({ data }: { data: SavedInvoice }) {
   const { charges, subtotal, summary } = invoiceSections(data.details)
   return <Paper withBorder p="md"><Title order={4} mb="xs">جزئیات صورتحساب</Title>

@@ -199,6 +199,7 @@ import {
   ThemeIcon, Stack, Center,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
+import { useSharedOrder } from '../utils/useSharedOrder'
 import { DataTable, type Column } from './DataTable'
 import { CrudFormModal, type FieldDef } from './CrudFormModal'
 import { PageHeader } from './PageHeader'
@@ -277,17 +278,25 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
       filters.every(([key, expected]) => String(row[key] ?? '') === String(expected ?? '')),
     )
   }, [data, config.listFilter])
+  const order = useSharedOrder(config.path, records, row => String(row[config.pkField]), canEdit,
+    async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: [config.queryKey] }),
+        qc.invalidateQueries({ queryKey: ['refselect', config.path] }),
+        qc.invalidateQueries({ queryKey: ['term-values'] }),
+      ])
+    })
   const searchable = useMemo(
     () => config.columns.filter((c) => c.field).map((c) => c.field as keyof T),
     [config.columns],
   )
   const filtered = useMemo(() => {
     const q = normalizeDigits(debounced.trim().toLowerCase())
-    if (!q) return records
-    return records.filter((row) =>
+    if (!q) return order.ordered
+    return order.ordered.filter((row) =>
       normalizeDigits(searchable.map((f) => String(row[f] ?? '')).join(' ').toLowerCase()).includes(q),
     )
-  }, [records, debounced, searchable])
+  }, [order.ordered, debounced, searchable])
 
   const columns: Column<T>[] = [
     ...config.columns,
@@ -383,8 +392,19 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
         </Group>
       </Paper>
 
+      <Group justify="space-between" mb="xs">
+        <Text size="sm" c="dimmed"></Text>
+        {order.pending && <Text size="sm">در حال ذخیرهٔ چینش…</Text>}
+      </Group>
+      {order.error && <Text role="alert" c="red">{order.error}</Text>}
       <DataTable
         columns={canEdit ? columns : config.columns}
+        rowProps={row => {
+          const id = String(row[config.pkField])
+          const drag = order.handleProps(id)
+          const drop = order.itemProps(id)
+          return { ...drag, ...drop, style: { ...drag.style, ...drop.style } }
+        }}
         data={isLoading ? undefined : filtered}
         isLoading={isLoading}
         error={error}

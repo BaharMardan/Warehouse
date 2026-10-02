@@ -116,7 +116,7 @@
 //   )
 // }
 
-import type { ReactNode, CSSProperties } from 'react'
+import type { ReactNode, CSSProperties, HTMLAttributes } from 'react'
 import {
   Table,
   Text,
@@ -145,6 +145,7 @@ interface DataTableProps<T> {
   getRowKey: (row: T) => string | number
   onRowClick?: (row: T) => void
   emptyContent?: ReactNode
+  rowProps?: (row: T) => HTMLAttributes<HTMLTableRowElement>
   minWidth?: number
 }
 
@@ -156,6 +157,7 @@ export function DataTable<T>({
   getRowKey,
   onRowClick,
   emptyContent,
+  rowProps,
   minWidth = 720,
 }: DataTableProps<T>) {
   const shell = (child: ReactNode) => (
@@ -290,11 +292,8 @@ export function DataTable<T>({
                   ? () => onRowClick(row)
                   : undefined
               }
-              style={
-                onRowClick
-                  ? { cursor: 'pointer' }
-                  : undefined
-              }
+              {...rowProps?.(row)}
+              style={{ ...(onRowClick ? { cursor: 'pointer' } : {}), ...rowProps?.(row).style }}
             >
               {columns.map((column) => (
                 <Table.Td

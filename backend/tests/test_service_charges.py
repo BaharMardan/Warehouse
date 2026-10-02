@@ -45,13 +45,13 @@ CATALOG = [{"id": 42, "code": c, "title": "excess", "normal": "10", "non_standar
 L = ri.SERVICE_LABELS
 EXPECTED = {
     "invoice_calc_selfcheck": [
-        (L["other_service"], 3, "400"), (L["strip"], None, "0"), (L["stuffing"], None, "0"),
+        ("سایر خدمات — سایر خدمات — تعداد 2", 2, "200"),
+        ("سایر خدمات — سایر خدمات — تعداد 1", 1, "200"), (L["strip"], None, "0"), (L["stuffing"], None, "0"),
         (L["night_stop"], 3, "2732400"), (L["diamound"], 1, "2447500"), (L["vehicle_enter"], None, "0")],
     "strip_stuffing_crane_transport": [
         (L["strip"], 3, "3940923.5"), (L["stuffing"], 1, "123.25"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], 1, "935000"),
         (f'{L["crane"]} — full', 1, "100"),
-        (f'{L["crane"]} — empty', 1, "50"),
         (L["transportation"], 2, "3000000")],
     "container_excess": [
         (L["strip"], 6, "3162"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
@@ -94,3 +94,32 @@ def test_no_storage_or_tier_logic_remains():
     source = open(module.__file__, encoding="utf-8").read()
     for retired in ("price_30_day", "price_60_day", "price_90_day", "pick_tier", "tier_used"):
         assert retired not in source
+
+
+def test_other_services_keep_each_name_quantity_and_amount_in_invoice():
+    case = {**CASES["invoice_calc_selfcheck"], "other": [
+        {"title": "برچسب", "number_service": 5, "price": "100"},
+        {"title": "پالتیزاسیون", "number_service": 10, "price": "200"},
+    ]}
+    charges = run(case)[:2]
+    assert [(c.description, c.quantity, c.price) for c in charges] == [
+        ("سایر خدمات — برچسب — تعداد 5", 5, Decimal(500)),
+        ("سایر خدمات — پالتیزاسیون — تعداد 10", 10, Decimal(2000)),
+    ]
+    # Match the persisted pool contract, which stores description and total.
+    allocated = [{"line_no": i + 1, "description": c.description,
+                  "total": c.price, "amount": c.price} for i, c in enumerate(charges)]
+    rows = ri.service_rows(allocated, Decimal(1))
+    assert [r.description for r in rows] == [c.description for c in charges]
+    assert [r.price for r in rows] == [Decimal(500), Decimal(2000)]
+    assert all(ri.service_rank(r.description) == ri.service_rank(L["other_service"]) for r in rows)
+
+
+def test_other_service_fractional_quantity_is_not_truncated():
+    case = {**CASES["invoice_calc_selfcheck"], "other": [
+        {"title": "خدمت", "number_service": "2.5", "price": "100"},
+    ]}
+    charge = run(case)[0]
+    assert charge.quantity == Decimal("2.5")
+    assert charge.price == Decimal(250)
+    assert "تعداد 2.5" in charge.description

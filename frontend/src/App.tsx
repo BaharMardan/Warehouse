@@ -79,6 +79,7 @@ import { GhabzPrintPage } from './pages/GhabzPrintPage'
 import { GhabzHeaderForm } from './pages/GhabzHeaderForm'
 import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
 import { OwnersPage } from './pages/OwnersPage'
+import { AbandonedPage } from './pages/AbandonedPage'
 import { HomePage } from './pages/HomePage'
 import { KartablPage } from './pages/KartablPage'
 import { BaseDataPage } from './pages/BaseDataPage'
@@ -116,6 +117,7 @@ function AppRoutes() {
         <Route element={<AppLayout />}>
           {/* Landing page after login: the Odoo-style module launcher. */}
           <Route index element={<HomePage />} />
+          <Route path="/abandoned" element={<RequirePermission code="abandoned.view"><AbandonedPage /></RequirePermission>} />
           <Route path="/base-data" element={<BaseDataPage />} />
           {/* /kala is now the commodity catalog (FA_COMMODITY_CATALOG), not the old
               FA_KALA CRUD grid — render the custom page instead of the generic CrudResource. */}

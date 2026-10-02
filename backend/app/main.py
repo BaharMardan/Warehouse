@@ -44,6 +44,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth.router import router as auth_router
+from app.routers.abandoned import router as abandoned_router
 from app.routers import health
 from app.routers.tally import router as tally_router
 from app.routers.tally_header import router as tally_header_router
@@ -74,6 +75,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(abandoned_router)
 app.include_router(auth_router)
 app.include_router(tally_router)
 app.include_router(tally_header_router)

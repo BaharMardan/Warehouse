@@ -139,16 +139,11 @@
   font-weight: 700;
 }
 
-/* 1405 invoices: a calculation column and summary rows. The legacy table keeps
+/* 1405 invoices: five columns and summary rows. The legacy table keeps
    the widths above; these override them only on .invoice-print-table-calc. */
-.invoice-print-calc-header {
-  margin: 4mm 0 0;
-  color: #7a4b4b;
-}
-
 .invoice-print-table-calc th:nth-child(2),
 .invoice-print-table-calc td:nth-child(2) {
-  width: 22%;
+  width: 58%;
 }
 
 .invoice-print-table-calc th:nth-child(3),
@@ -161,18 +156,6 @@
 .invoice-print-table-calc th:nth-child(5),
 .invoice-print-table-calc td:nth-child(5) {
   width: 12%;
-}
-
-.invoice-print-table-calc th:last-child,
-.invoice-print-table-calc td.invoice-print-calc {
-  width: 44%;
-  text-align: right;
-}
-
-.invoice-print-calc {
-  color: #5c4040;
-  font-size: 8.5px;
-  line-height: 1.6;
 }
 
 .invoice-print-subtotal td,

@@ -189,13 +189,13 @@ def test_storage_requires_a_rate():
 
 def test_insurance_without_policy_uses_full_customs_value():
     charge = insurance_charge(1_000_000_000, None, 30)
-    assert charge.amount == Decimal(16500000)
-    assert charge.note == "1,000,000,000 × 0.00055 × 30 روز (بدون بیمه) = 16,500,000"
+    assert charge.amount == Decimal(550000)
+    assert charge.note == "1,000,000,000 × 0.00055 × 1 ماه (بدون بیمه) = 550,000"
 
 
 def test_insurance_under_insured_uses_the_shortfall():
     charge = insurance_charge(1_200_000_000, 1_000_000_000, 60)
-    assert charge.amount == Decimal(6600000)   # 200,000,000 x 0.00055 x 60
+    assert charge.amount == Decimal(220000)   # 200,000,000 x 0.00055 x 2
 
 
 @pytest.mark.parametrize("insured", [1_000_000_000, 1_500_000_000])
@@ -210,10 +210,10 @@ def test_insurance_requires_customs_value():
 
 # --- totals ------------------------------------------------------------------------------------
 
-def test_totals_add_tax_before_deductions():
+def test_totals_tax_after_discount_before_prepayment():
     totals = invoice_totals([Decimal(600000), Decimal(400000)], "10",
                             prepayment=200000, discount=50000)
-    assert (totals.subtotal, totals.tax, totals.payable) == (1000000, 100000, 850000)
+    assert (totals.subtotal, totals.tax, totals.payable) == (1000000, 95000, 845000)
 
 
 def test_totals_round_tax_and_default_missing_deductions():
@@ -225,3 +225,17 @@ def test_totals_round_tax_and_default_missing_deductions():
 def test_totals_reject_negative_deductions():
     with pytest.raises(ValueError):
         invoice_totals([Decimal(1)], 10, prepayment=-1)
+
+
+@pytest.mark.parametrize("discount,prepayment,tax,payable", [
+    (0, 0, 100, 1100), (100, 0, 90, 990), (0, 200, 100, 900),
+    (100, 200, 90, 790), (1000, 0, 0, 0),
+])
+def test_discount_tax_and_prepayment_order(discount, prepayment, tax, payable):
+    totals = invoice_totals([Decimal(1000)], 10, prepayment, discount)
+    assert (totals.tax, totals.payable) == (tax, payable)
+
+
+def test_discount_cannot_exceed_charges():
+    with pytest.raises(ValueError):
+        invoice_totals([Decimal(1000)], 10, discount=1001)

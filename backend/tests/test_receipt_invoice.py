@@ -93,23 +93,24 @@ def test_volumetric_requires_pallets():
 
 # --- container ----------------------------------------------------------------------------
 
-def test_whole_container_is_charged_by_declared_weight():
-    rows = ri.storage_rows("container", [line(kala_code="118", storage_price=804650)], 30,
+def test_whole_container_is_charged_by_device_and_excess():
+    rows = ri.storage_rows("container", [line(kala_code="118", storage_price=804650, excess_storage_price=80465)], 30,
                            container_weights={"MSKU1234567": Decimal(100000)})
     assert rows[0].description == "هزینه انبارداری کانتینر MSKU1234567 (کد کالای 118)"
     assert rows[0].quantity == Decimal(1)
     assert rows[0].weight == Decimal(100000)
-    assert rows[0].price == Decimal(3620925000)    # 804,650 x 1.5 x 100 t x 30
+    assert rows[0].price == Decimal(362092500)    # (804,650 + 90 x 80,465) x 1.5 x 30
 
 
 def test_split_container_is_charged_by_this_receipts_weight_share():
-    rows = ri.storage_rows("container", [line(kala_code="118", storage_price=804650,
+    rows = ri.storage_rows("container", [line(kala_code="118", storage_price=804650, excess_storage_price=80465,
                                               weight_kg=Decimal(30000))], 30,
                            container_weights={"MSKU1234567": Decimal(100000)})
     assert rows[0].quantity == Decimal("0.3")
     assert rows[0].weight == Decimal(30000)
-    assert rows[0].price == Decimal(1086277500)    # 804,650 x 1.5 x 30 t x 30
-    assert "30,000 کیلوگرم ÷ 1,000" in rows[0].note
+    assert rows[0].price == Decimal(108627750)    # 30% of the physical container charge
+    assert "90 تن مازاد" in rows[0].note
+    assert "سهم این قبض 0.3" in rows[0].note
 
 
 def test_each_container_gets_its_own_row():
@@ -181,17 +182,17 @@ def service_row(amount):
     return ri.InvoiceRow("service", SERVICE_LABELS["diamound"], Decimal(amount), "", service_line=1)
 
 
-def test_invoice_rows_in_spec_order_with_tax_then_deductions():
+def test_invoice_rows_discount_then_tax_then_prepayment():
     rows, totals = ri.build_invoice(system_rate=50000, storage=[storage_row(600000)],
                                     services=[service_row(350000)], tax_rate=10,
                                     prepayment=200000, discount=50000, apply_deductions=True,
                                     receipt_label="1405_1503_2")
-    assert [r.kind for r in rows] == ["system", "storage", "service", "tax", "prepayment", "discount"]
-    assert [r.price for r in rows] == [50000, 600000, 350000, 100000, -200000, -50000]
-    assert sum(r.price for r in rows) == totals.payable == Decimal(850000)
-    assert rows[3].note == "10٪ × 1,000,000 = 100,000"
-    assert rows[4].note == "پیش‌پرداخت سربرگ تالی، اعمال‌شده روی قبض \u20661405_1503_2\u2069 = 200,000"
-    assert rows[5].note == "تخفیف سربرگ تالی، اعمال‌شده روی قبض \u20661405_1503_2\u2069 = 50,000"
+    assert [r.kind for r in rows] == ["system", "storage", "service", "discount", "tax", "prepayment"]
+    assert [r.price for r in rows] == [50000, 600000, 350000, -50000, 95000, -200000]
+    assert sum(r.price for r in rows) == totals.payable == Decimal(845000)
+    assert rows[4].note == "10٪ × 950,000 = 95,000"
+    assert rows[5].note == "پیش‌پرداخت سربرگ تالی، اعمال‌شده روی قبض \u20661405_1503_2\u2069 = 200,000"
+    assert rows[3].note == "تخفیف سربرگ تالی، اعمال‌شده روی قبض \u20661405_1503_2\u2069 = 50,000"
 
 
 def test_skipped_deductions_leave_no_rows():
@@ -227,8 +228,8 @@ def insured(cover, ceiling=Decimal(5_000_000_000), used=Decimal(0)):
 
 def test_insurance_without_policy_charges_the_receipts_customs_value():
     row = ri.insurance_row(1_000_000_000, UNINSURED, 0, 30)
-    assert (row.kind, row.description, row.price) == ("insurance", "هزینه بیمه", Decimal(16500000))
-    assert row.note == "1,000,000,000 × 0.00055 × 30 روز (بدون بیمه) = 16,500,000"
+    assert (row.kind, row.description, row.price) == ("insurance", "هزینه بیمه", Decimal(550000))
+    assert row.note == "1,000,000,000 × 0.00055 × 1 ماه (بدون بیمه) = 550,000"
 
 
 @pytest.mark.parametrize("cover", [UNINSURED, "insured"])
@@ -242,7 +243,7 @@ def test_missing_customs_value_is_a_visible_zero_row(cover):
 
 def test_partly_missing_customs_is_explained_in_the_note():
     row = ri.insurance_row(1_000_000_000, UNINSURED, 0, 30, missing=["7209"])
-    assert row.price == Decimal(16500000)
+    assert row.price == Decimal(550000)
     assert "ارزش گمرکی ردیف‌های 7209 ثبت نشده و صفر حساب شد" in row.note
 
 
@@ -254,12 +255,12 @@ def test_covered_receipt_with_missing_rows_keeps_a_zero_row():
 def test_insured_without_recorded_ceiling_charges_the_full_value_and_says_why():
     missing = InsuranceCover(True, Decimal(0), None, Decimal(0), Decimal(0), (("B-1", "S-1"),))
     row = ri.insurance_row(1_000_000_000, missing, 0, 30)
-    assert row.price == Decimal(16500000)
+    assert row.price == Decimal(550000)
     assert row.note == (
-        "1,000,000,000 × 0.00055 × 30 روز (کل ارزش گمرکی قبض؛ تالی بیمه‌دار ثبت شده است "
+        "1,000,000,000 × 0.00055 × 1 ماه (کل ارزش گمرکی قبض؛ تالی بیمه‌دار ثبت شده است "
         "(بیمه‌نامه «\u2066B-1\u2069» / ثبت سفارش «\u2066S-1\u2069») ولی ارزش کالای بیمه‌شده نه در ردیف‌های این تالی و نه در "
         "تالی‌های هم‌بیمه‌نامه ثبت نشده است؛ چون سقف بیمه معلوم نیست، کل ارزش گمرکی این قبض مبنای "
-        "محاسبه قرار گرفت) = 16,500,000")
+        "محاسبه قرار گرفت) = 550,000")
 
 
 def test_fully_covered_receipt_has_no_insurance_row():
@@ -268,15 +269,15 @@ def test_fully_covered_receipt_has_no_insurance_row():
 
 def test_under_insured_receipt_pays_only_the_real_shortfall():
     row = ri.insurance_row(1_200_000_000, insured(1_000_000_000, used=Decimal(4_000_000_000)), 0, 60)
-    assert row.price == Decimal(6600000)   # 200,000,000 x 0.00055 x 60
-    assert row.note == ("200,000,000 × 0.00055 × 60 روز (ارزش گمرکی 1,200,000,000 − پوشش باقی‌مانده "
+    assert row.price == Decimal(220000)   # 200,000,000 x 0.00055 x 2
+    assert row.note == ("200,000,000 × 0.00055 × 2 ماه (ارزش گمرکی 1,200,000,000 − پوشش باقی‌مانده "
                         "1,000,000,000؛ سقف بیمه‌نامه 5,000,000,000؛ مصرف تالی‌های قبلی 4,000,000,000)"
-                        " = 6,600,000")
+                        " = 220,000")
 
 
 def test_earlier_invoiced_receipts_of_the_tally_use_its_cover_first():
     row = ri.insurance_row(500_000_000, insured(1_000_000_000), 700_000_000, 30)
-    assert row.price == Decimal(3300000)   # (500M - 300M left) x 0.00055 x 30
+    assert row.price == Decimal(110000)   # (500M - 300M left) x 0.00055 x 1
     assert "مصرف قبض‌های قبلی همین تالی 700,000,000" in row.note
 
 
@@ -285,3 +286,49 @@ def test_insurance_sits_between_services_and_tax():
     rows, _ = ri.build_invoice(system_rate=0, storage=[storage_row(1000)],
                                services=[service_row(500)], tax_rate=10, insurance=insurance)
     assert [r.kind for r in rows] == ["system", "storage", "service", "insurance", "tax"]
+
+
+@pytest.mark.parametrize("code,rate,extra,weight,expected_excess,expected", [
+    ("120", 1906300, 160930, 20400, 6, 206775360),
+    ("120", 1906300, 160930, 15000, 0, 137253600),
+    ("120", 1906300, 160930, 15001, 1, 148840560),
+    ("118", 804650, 80465, 10000, 0, 57934800),
+    ("118", 804650, 80465, 10400, 1, 63728280),
+    ("118", 804650, 80465, 20400, 11, 121663080),
+])
+def test_container_base_and_rounded_excess(code, rate, extra, weight, expected_excess, expected):
+    rows = ri.storage_rows("container", [line(kala_code=code, storage_price=rate,
+        excess_storage_price=extra, weight_kg=Decimal(weight), zarib_mahal="بارانداز")],
+        60, container_weights={"MSKU1234567": weight})
+    assert len(rows) == 1
+    assert rows[0].price == Decimal(expected)
+    assert "× 1 دستگاه" in rows[0].note
+    if expected_excess:
+        assert f"× {expected_excess} تن مازاد" in rows[0].note
+    else:
+        assert "تن مازاد" not in rows[0].note
+
+
+@pytest.mark.parametrize("bad_rate", [None, "", "bad", -1, "NaN", "Infinity"])
+def test_container_excess_requires_valid_tariff(bad_rate):
+    with pytest.raises(ValueError, match="مازاد"):
+        ri.storage_rows("container", [line(kala_code="120", storage_price=1906300,
+            excess_storage_price=bad_rate, weight_kg=Decimal(20400))],
+            60, container_weights={"MSKU1234567": 20400})
+
+
+def test_split_container_allocates_base_and_excess_without_charging_twice():
+    amounts = []
+    for weight in (10200, 10200):
+        rows = ri.storage_rows("container", [line(kala_code="120", storage_price=1906300,
+            excess_storage_price=160930, weight_kg=Decimal(weight), zarib_mahal="بارانداز")],
+            60, container_weights={"MSKU1234567": 20400})
+        assert rows[0].quantity == Decimal("0.5")
+        amounts.append(rows[0].price)
+    assert sum(amounts) == Decimal(206775360)
+
+
+def test_screenshot_insurance_uses_two_months():
+    row = ri.insurance_row(671695063084, insured(3870986209), 0, 60)
+    assert row.price == Decimal(734606485)
+    assert "× 2 ماه" in row.note

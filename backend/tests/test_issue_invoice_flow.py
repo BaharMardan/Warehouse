@@ -97,15 +97,15 @@ def test_yes_applies_prepayment_and_discount_on_this_invoice(wired):
     result = api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=True))
     assert result == {"invoice_id": 555}
     rows = saved_rows(cur)
-    assert [r["kind"] for r in rows] == ["system", "storage", "service", "tax", "prepayment", "discount"]
+    assert [r["kind"] for r in rows] == ["system", "storage", "service", "discount", "tax", "prepayment"]
     # 31 days with Farvardin 31 inside -> 30 days; 30 t at مسقف
     assert rows[1]["price"] == Decimal(75604050)          # 56,003 x 1.5 x 30 t x 30
     assert rows[2]["price"] == Decimal(300000)            # 30% of the frozen 1,000,000
     subtotal = Decimal(100000 + 75604050 + 300000)
-    assert rows[3]["price"] == Decimal(7600405)           # 10% of 76,004,050
-    assert [r["price"] for r in rows[4:]] == [-200000, -50000]
-    assert all("اعمال‌شده روی قبض \u20661405_1503_2\u2069" in r["note"] for r in rows[4:])
-    assert sum(r["price"] for r in rows) == subtotal + Decimal(7600405) - 250000
+    assert rows[4]["price"] == Decimal(7595405)           # 10% of (76,004,050 - 50,000)
+    assert [rows[3]["price"], rows[5]["price"]] == [-50000, -200000]
+    assert all("اعمال‌شده روی قبض \u20661405_1503_2\u2069" in r["note"] for r in (rows[3], rows[5]))
+    assert sum(r["price"] for r in rows) == subtotal + Decimal(7595405) - 250000
     header_params = cur.execute.call_args_list[0].args[1]
     assert header_params["calc_note"].startswith("نوع بار: وزنی؛ 1405/01/01 تا 1405/02/01")
     conn.commit.assert_called_once()
@@ -121,7 +121,7 @@ def test_general_receipt_applies_deductions_without_asking(wired):
     state, _, cur = wired
     state["current"] = {**receipt("yes"), "allocation_ratio": Decimal(1)}
     api.issue_invoice(1, {"id": 1})
-    assert [r["kind"] for r in saved_rows(cur)][-2:] == ["prepayment", "discount"]
+    assert [r["kind"] for r in saved_rows(cur)][-3:] == ["discount", "tax", "prepayment"]
 
 
 def test_deductions_already_applied_are_not_asked_again(wired):
@@ -148,8 +148,8 @@ def test_insurance_shortfall_after_an_earlier_tally(wired):
     api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     rows = saved_rows(cur)
     assert [r["kind"] for r in rows] == ["system", "storage", "service", "insurance", "tax"]
-    # this receipt: 300,000,000 of value, 200,000,000 cover left -> 100,000,000 x 0.00055 x 30
-    assert rows[3]["price"] == Decimal(1650000)
+    # this receipt: 300,000,000 of value, 200,000,000 cover left -> 100,000,000 x 0.00055 x 1
+    assert rows[3]["price"] == Decimal(55000)
     assert "مصرف تالی‌های قبلی 4,800,000,000" in rows[3]["note"]
 
 
@@ -158,7 +158,7 @@ def test_uninsured_tally_is_charged_on_the_receipts_customs_value(wired):
     state["headers"] = [{**state["headers"][0], "is_bimeh": "خیر"}]
     api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     insurance = [r for r in saved_rows(cur) if r["kind"] == "insurance"]
-    assert insurance[0]["price"] == Decimal(4950000)   # 300,000,000 x 0.00055 x 30
+    assert insurance[0]["price"] == Decimal(165000)   # 300,000,000 x 0.00055 x 1
 
 
 def test_missing_customs_needs_confirmation_with_a_clear_error(wired):
@@ -180,3 +180,35 @@ def test_confirmed_missing_customs_issues_with_a_zero_insurance_row(wired):
                                                            confirm_missing_customs=True))
     insurance = [r for r in saved_rows(cur) if r["kind"] == "insurance"]
     assert insurance[0]["price"] == 0 and "(ردیف‌ها: 7208)" in insurance[0]["note"]
+
+
+@pytest.mark.parametrize("code,rate,extra,expected", [
+    ("120", 1906300, 160930, 206775360),
+    ("118", 804650, 80465, 121663080),
+])
+def test_issue_container_invoice_saves_base_plus_excess(wired, monkeypatch, code, rate, extra, expected):
+    state, conn, cur = wired
+    tally = {**TALLY, "is_volumetric": "container",
+             "date_unloading": from_jalali(1405, 5, 31),
+             "date_cargo_exit": from_jalali(1405, 7, 5)}
+    monkeypatch.setattr(receipt_db, "receipt",
+                        lambda *a, **k: (state["current"], [state["current"]], tally))
+    original_rows = receipt_db.rows
+
+    def rows(cursor, sql, params=None):
+        if sql == api.RECEIPT_STORAGE_SQL:
+            return [{**LINE, "kala_code": code, "storage_price": rate,
+                     "excess_storage_price": extra, "weight_kg": Decimal(20400),
+                     "number_hamel": "A", "zarib_mahal": "بارانداز"}]
+        if sql == api.CONTAINER_WEIGHTS_SQL:
+            return [{"number_hamel": "A", "weight_kg": Decimal(20400)}]
+        return original_rows(cursor, sql, params)
+
+    monkeypatch.setattr(receipt_db, "rows", rows)
+    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    storage = [row for row in saved_rows(cur) if row["kind"] == "storage"]
+    assert len(storage) == 1
+    assert storage[0]["price"] == Decimal(expected)
+    assert "تن مازاد" in storage[0]["note"]
+    assert "60 روز" in storage[0]["note"]
+    conn.commit.assert_called_once()

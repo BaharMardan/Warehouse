@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { apiGet } from '../api/client'
 import { IconPrint } from '../components/icons'
-import { SavedInvoice, invoiceSections, jalali, money, quantity, signedMoney } from './invoiceTypes'
+import { InvoiceLine, SavedInvoice, invoiceSections, jalali, money, quantity, signedMoney } from './invoiceTypes'
 import './TallyPrintPage.css'
 import './InvoicePrintPage.css'
 
@@ -67,12 +67,9 @@ export function InvoicePrintPage() {
             <div className="invoice-print-fields">
               <span>نام شرکت: {shown(h.seller_name)}</span>
               <span>شناسه ملی: {shown(h.seller_national_id)}</span>
-              <span>کد اقتصادی: {shown(h.seller_economic_code)}</span>
-              <span>کد پستی: {shown(h.seller_postal_code)}</span>
               <span className="invoice-print-wide">
                 نشانی: {shown(h.seller_address)}
               </span>
-              <span>شماره تماس: {shown(h.seller_phone)}</span>
             </div>
           </section>
 
@@ -108,7 +105,7 @@ export function InvoicePrintPage() {
             </tr>
           </thead>
           <tbody>
-            {data.details.map((line, index) => (
+            {invoiceSections(data.details).charges.map((line, index) => (
               <tr key={line.id_detail}>
                 <td>{index + 1}</td>
                 <td>{shown(line.description)}</td>
@@ -138,23 +135,41 @@ export function InvoicePrintPage() {
 
         <footer className="invoice-print-footer">
           <div>مدیر عملیات<br />{h.manager_name || ' '}</div>
-          <div>واحد مالی<br />{h.finance_name || ' '}</div>
+          <div>مدیر مالی<br />{h.finance_name || ' '}</div>
+          <div>مدیر عامل<br />{h.manager_name || ' '}</div> 
           <div>نماینده صاحب کالا<br />{h.representative_name || ' '}</div>
-          <div>صادرکننده صورتحساب</div>
+          {/* <div>صادرکننده صورتحساب</div> */}
         </footer>
       </section>
     </main>
   )
 }
-// 1405 invoices: each charge with how it was calculated, then the summary rows
-// «جمع هزینه‌ها + مالیات − پیش‌پرداخت − تخفیف = مبلغ قابل پرداخت».
+// Combine crane charges only for printing; saved details and totals stay intact.
+function printCharges(charges: InvoiceLine[]): InvoiceLine[] {
+  const label = 'هزینه جابه‌جایی کانتینر با جرثقیل'
+  const result: InvoiceLine[] = []
+  let crane: InvoiceLine | undefined
+  for (const line of charges) {
+    if (line.row_kind !== 'service' || !line.description?.startsWith(label)) {
+      result.push(line)
+      continue
+    }
+    if (!crane) {
+      crane = { ...line, description: label, quantity: null, weight: null, calc_note: null }
+      result.push(crane)
+    } else {
+      crane.price = String(Number(crane.price ?? 0) + Number(line.price ?? 0))
+    }
+  }
+  return result
+}
+
+// 1405 invoices: compact charges followed by summary rows
+// «جمع هزینه‌ها − تخفیف + مالیات − پیش‌پرداخت = مبلغ قابل پرداخت».
 function ModernTable({ data }: { data: SavedInvoice }) {
   const { charges, subtotal, summary } = invoiceSections(data.details)
   return (
     <>
-      {data.header.calc_note && (
-        <p className="invoice-print-calc-header">{data.header.calc_note}</p>
-      )}
       <table className="invoice-print-table invoice-print-table-calc">
         <thead>
           <tr>
@@ -163,36 +178,31 @@ function ModernTable({ data }: { data: SavedInvoice }) {
             <th>تعداد</th>
             <th>وزن (کیلوگرم)</th>
             <th>مبلغ (ریال)</th>
-            <th>نحوه محاسبه</th>
           </tr>
         </thead>
         <tbody>
-          {charges.map((line, index) => (
+          {printCharges(charges).map((line, index) => (
             <tr key={line.id_detail}>
               <td>{index + 1}</td>
               <td>{shown(line.description)}</td>
               <td><bdi dir="ltr">{quantity(line.quantity)}</bdi></td>
               <td><bdi dir="ltr">{quantity(line.weight)}</bdi></td>
               <td><bdi dir="ltr">{money(line.price)}</bdi></td>
-              <td className="invoice-print-calc">{shown(line.calc_note)}</td>
             </tr>
           ))}
           <tr className="invoice-print-subtotal">
             <td colSpan={4}>جمع هزینه‌ها</td>
             <td><bdi dir="ltr">{money(subtotal)}</bdi></td>
-            <td />
           </tr>
           {summary.map((line) => (
             <tr key={line.id_detail} className="invoice-print-summary">
               <td colSpan={4}>{shown(line.description)}</td>
               <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
-              <td className="invoice-print-calc">{shown(line.calc_note)}</td>
             </tr>
           ))}
           <tr className="invoice-print-total">
             <td colSpan={4}>مبلغ قابل پرداخت</td>
             <td><bdi dir="ltr">{money(data.grand_total)}</bdi></td>
-            <td />
           </tr>
         </tbody>
       </table>

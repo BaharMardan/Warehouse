@@ -193,6 +193,15 @@ export interface AppModule {
 
 export const modules: AppModule[] = [
   {
+    key: 'abandoned',
+    title: 'متروکه',
+    description: 'کالاهای متروکه و هشدار نزدیک‌شدن به ۹۰ روز',
+    route: '/abandoned',
+    icon: IconReceipt,
+    color: 'yellow',
+    permission: 'abandoned.view',
+  },
+  {
     key: 'kartabl',
     title: 'کارتابل',
     description: 'پیگیری پرونده‌ها از تالی تا صورتحساب',

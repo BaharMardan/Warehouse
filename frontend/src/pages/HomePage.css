@@ -220,3 +220,7 @@
 .hp-tile--settings .hp-tile-icon svg {
   filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.22));
 }
+
+.hp-aging-badge { position: absolute; top: 12px; right: 12px; min-width: 30px; height: 28px; font-size: 14px; }
+
+.hp-tile--abandoned { position: relative; }
