@@ -1188,18 +1188,78 @@ def update_ghabz_extras(
     return result
 
 
+
+# Grouped receipt goods retain only a representative carrier. Read the full
+# carrier set independently, preferring explicit receipt-to-tally allocations.
+CARRIERS_SQL = """
+WITH source_carriers AS (
+    SELECT DISTINCT TRIM(t."NUMBER_HAMEL") AS number_hamel
+    FROM "fa_ghabz_anbar_header" h
+    JOIN "FA_TALI_DETAILES" t ON t."ID_HEADERS_TALI" = h."TALI_ID"
+    WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no'
+      AND t."IS_DELETED" = 'no' AND TRIM(t."NUMBER_HAMEL") IS NOT NULL
+      AND (
+        EXISTS (SELECT 1 FROM "FA_GHABZ_TALLY_SOURCE" m
+                WHERE m."RECEIPT_ID" = h."ID_ghabz"
+                  AND m."TALLY_DETAIL_ID" = t."ID_TALI_DETAILS"
+                  AND (m."QUANTITY_SHARE" > 0 OR m."WEIGHT_SHARE" > 0 OR m."BASKOL_SHARE" > 0))
+        OR (NOT EXISTS (SELECT 1 FROM "FA_GHABZ_TALLY_SOURCE" m
+                        WHERE m."RECEIPT_ID" = h."ID_ghabz")
+            AND (h."IS_MASTER" = 'yes' OR EXISTS (
+                SELECT 1 FROM "FA_ghabz_anbar_DETAILES" d
+                WHERE d."ID_GHABZ_ANBAR_HEADAR" = h."ID_ghabz" AND d."IS_DELETED" = 'no'
+                  AND UPPER(TRIM(d."HSCODE")) = UPPER(TRIM(t."HSCODE"))
+            )))
+      )
+)
+SELECT number_hamel FROM source_carriers
+UNION
+SELECT TRIM(d."NUMBER_HAMEL") AS number_hamel
+FROM "FA_ghabz_anbar_DETAILES" d
+JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
+WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no' AND d."IS_DELETED" = 'no'
+  AND TRIM(d."NUMBER_HAMEL") IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM source_carriers)
+ORDER BY number_hamel
+"""
+
+
 @router.get("/{header_id}/summary", dependencies=[Depends(require_permission("ghabz.view"))])
 def get_ghabz_summary(header_id: int):
     """One receipt's header with FK names resolved, for the detail and print screens."""
     rows = fetch_all(SUMMARY_SQL, {"hid": header_id})
     if not rows:
         raise HTTPException(status_code=404, detail="قبض انبار یافت نشد")
-    return rows[0]
+    carriers = fetch_all(CARRIERS_SQL, {"hid": header_id})
+    return {**rows[0], "carriers": list(dict.fromkeys(
+        str(row["number_hamel"]).strip() for row in carriers if row.get("number_hamel")
+    ))}
+
+
+# Reuse the receipt allocation rules, restricted to the selected goods group.
+LINE_CARRIERS_SQL = CARRIERS_SQL.replace(
+    'AND t."IS_DELETED" = \'no\'',
+    'AND UPPER(TRIM(t."HSCODE")) = :hscode AND t."IS_DELETED" = \'no\'',
+).replace(
+    'AND TRIM(d."NUMBER_HAMEL") IS NOT NULL',
+    'AND UPPER(TRIM(d."HSCODE")) = :hscode AND TRIM(d."NUMBER_HAMEL") IS NOT NULL',
+)
 
 
 @router.get("/{header_id}/details", dependencies=[Depends(require_permission("ghabz.view"))])
 def list_ghabz_details(header_id: int):
-    return fetch_all(DETAILS_SQL, {"hid": header_id})
+    rows = fetch_all(DETAILS_SQL, {"hid": header_id})
+    by_hscode = {}
+    for row in rows:
+        hscode = str(row.get("hscode") or "").strip().upper()
+        if hscode and hscode not in by_hscode:
+            carriers = fetch_all(LINE_CARRIERS_SQL, {"hid": header_id, "hscode": hscode})
+            by_hscode[hscode] = list(dict.fromkeys(
+                str(item["number_hamel"]).strip() for item in carriers if item.get("number_hamel")
+            ))
+        fallback = str(row.get("number_hamel") or "").strip()
+        row["carriers"] = by_hscode.get(hscode, [fallback] if fallback else [])
+    return rows
 
 
 @router.post("/from-tally/{tali_id}/master", status_code=201)

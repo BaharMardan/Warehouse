@@ -278,7 +278,7 @@
 //           </div>
 
 //           <div className="tally-print-brand">
-//             <IndustrialEstateMark />
+//             <CompanyLogo />
 //             <div className="tally-print-brand-copy">
 //               <strong>شرکت آسان تجارت فلات شرق</strong>
 //               <span>شرکت شهرک‌های صنعتی</span>
@@ -521,6 +521,7 @@
 // }
 
 
+import { CompanyLogo } from '../components/CompanyLogo'
 import { useEffect, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Center, Loader, Text } from '@mantine/core'
@@ -684,17 +685,6 @@ function InfoLine({
   )
 }
 
-function IndustrialEstateMark() {
-  return (
-    <div className="tally-print-brand-mark" aria-label="شهرک صنعتی توس">
-      <svg viewBox="0 0 64 64" aria-hidden>
-        <circle cx="32" cy="23" r="17" fill="none" stroke="currentColor" strokeWidth="2.5" />
-        <path d="M15 23h34M32 6c-7 6-10 11-10 17s3 12 10 17M32 6c7 6 10 11 10 17s-3 12-10 17M18 15c8 4 20 4 28 0M18 31c8-4 20-4 28 0" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M13 39l19 10 19-10v10L32 59 13 49z" fill="currentColor" />
-      </svg>
-    </div>
-  )
-}
 
 function CheckBox({ checked, label }: { checked: boolean; label: string }) {
   return (
@@ -754,7 +744,7 @@ function TallySheet({
           </div>
 
           <div className="tally-print-brand">
-            <IndustrialEstateMark />
+            <CompanyLogo />
             <div className="tally-print-brand-copy">
               <strong>شرکت آسان تجارت فلات شرق</strong>
               {/* <span>شرکت شهرک‌های صنعتی</span> */}

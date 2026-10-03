@@ -59,19 +59,29 @@ function serviceQuantityColumns(line: InvoiceLine): InvoiceLine {
   return { ...line, description: match[1], quantity: line.quantity ?? count }
 }
 
+// Keep legacy and new invoice labels consistent without altering stored rows.
+export const invoiceDescription = (value: string | null | undefined) =>
+  value?.replace(/(^|\s)هزینه(?:‌ی|ٔ|ی)?(?:\s+کل)?(?=\s|$)\s*/g, '$1').trim() ?? ''
+
 export function invoiceSections(details: InvoiceLine[]) {
   const modern = details.some((line) => line.row_kind != null)
-  const visible = details.filter((line) => line.price == null || net(line) !== 0).map(serviceQuantityColumns)
+  const visible = details.filter((line) => line.price == null || net(line) !== 0).map((line) => serviceQuantityColumns({ ...line, description: invoiceDescription(line.description) }))
   const charges = modern
     ? visible.filter((line) => line.row_kind == null || CHARGE_KINDS.includes(line.row_kind))
     : visible
   const summaryOrder: Partial<Record<RowKind, number>> = { discount: 0, tax: 1, prepayment: 2 }
   const summary = visible.filter((line) => line.row_kind != null && !CHARGE_KINDS.includes(line.row_kind))
     .sort((a, b) => (summaryOrder[a.row_kind!] ?? 3) - (summaryOrder[b.row_kind!] ?? 3))
+  const subtotal = charges.reduce((total, line) => total + net(line), 0)
+  const adjustments = summary.filter((line) => line.row_kind !== 'prepayment')
+  const prepayments = summary.filter((line) => line.row_kind === 'prepayment')
   return {
     modern,
     charges,
-    subtotal: charges.reduce((total, line) => total + net(line), 0),
+    subtotal,
+    adjustments,
+    prepayments,
+    totalBeforePrepayment: subtotal + adjustments.reduce((total, line) => total + net(line), 0),
     summary,
   }
 }

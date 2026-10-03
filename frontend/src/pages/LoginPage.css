@@ -1,0 +1,23 @@
+.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  display: grid;
+  align-items: start;
+  padding: clamp(48px, 10vh, 100px) 16px 48px;
+  background-color: #52667b;
+  background-image: linear-gradient(rgba(18, 36, 55, 0.18), rgba(18, 36, 55, 0.32)), url('../assets/warehouse-login.jpg');
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.login-page-container {
+  width: 100%;
+  padding: 0;
+}
+
+.login-page-card {
+  background: var(--mantine-color-body);
+  border-color: rgba(255, 255, 255, 0.55);
+}

@@ -30,6 +30,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from app.services import storage_calc as sc
+from app.services.invoice_handling import selected_labels, handling_labels
 from app.services.container_excess import derived_rows
 from app.services.crane_charges import crane_rows
 from app.services.insurance_cover import InsuranceCover
@@ -149,7 +150,8 @@ def service_charges(*, other, strip, night, diamound, vehicle, container_weights
     )
     for key, prices, counts in groups:
         total, count, _ = _weighted_total(prices, counts)
-        charges.append(ServiceCharge(SERVICE_LABELS[key], count, total))
+        labels = selected_labels(strip, key) if key in ("strip", "stuffing") else []
+        charges.append(ServiceCharge(" و ".join(labels) if labels else SERVICE_LABELS[key], count, total))
     for row in strip:
         if row["service_kind"] != "crane":
             continue
@@ -290,6 +292,9 @@ def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
 
 def service_rank(description) -> int:
     text = str(description or "")
+    labels = handling_labels(text)
+    if labels:
+        return 0 if any(label in ("استریپ", "تخلیه") for label in labels) else 1
     if text.startswith("سایر خدمات — "):
         return SERVICE_ORDER.index(SERVICE_LABELS["other_service"])
     for index, label in enumerate(SERVICE_ORDER):

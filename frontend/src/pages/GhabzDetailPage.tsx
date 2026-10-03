@@ -189,7 +189,7 @@
 //             <Grid.Col span={6}><TextInput label="وزن اسناد" readOnly value={selectedLine.weighte_asnad ?? '—'} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="وزن باسکول" readOnly value={selectedLine.weighte_baskol ?? '—'} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="طاق" readOnly value={selectedLine.tagh_name ?? '—'} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="شماره حامل" readOnly value={selectedLine.number_hamel ?? '—'} /></Grid.Col>
+//             <Grid.Col span={12}><Textarea label="شماره‌های حامل" readOnly autosize minRows={2} maxRows={8} value={(selectedLine.carriers ?? [selectedLine.number_hamel ?? '']).filter(Boolean).join('\n') || '—'} /></Grid.Col>
 //           </Grid>
 //         )}
 //       </Modal>
@@ -419,7 +419,7 @@
 //             <Grid.Col span={6}><TextInput label="وزن اسناد" readOnly value={selectedLine.weighte_asnad ?? '—'} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="وزن باسکول" readOnly value={selectedLine.weighte_baskol ?? '—'} /></Grid.Col>
 //             <Grid.Col span={6}><TextInput label="طاق" readOnly value={selectedLine.tagh_name ?? '—'} /></Grid.Col>
-//             <Grid.Col span={6}><TextInput label="شماره حامل" readOnly value={selectedLine.number_hamel ?? '—'} /></Grid.Col>
+//             <Grid.Col span={12}><Textarea label="شماره‌های حامل" readOnly autosize minRows={2} maxRows={8} value={(selectedLine.carriers ?? [selectedLine.number_hamel ?? '']).filter(Boolean).join('\n') || '—'} /></Grid.Col>
 //           </Grid>
 //         )}
 //       </Modal>
@@ -453,6 +453,7 @@ type DetailRow = {
   number_kantiner: number | null
   weighte_asnad: number | null
   weighte_baskol: number | null
+  carriers?: string[]
   number_hamel: string | null
   id_tagh_anbar: number | null
   tagh_name: string | null
@@ -696,7 +697,7 @@ export function GhabzDetailPage() {
             <Grid.Col span={6}><TextInput label="وزن اسناد" readOnly value={selectedLine.weighte_asnad ?? '—'} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="وزن باسکول" readOnly value={selectedLine.weighte_baskol ?? '—'} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="طاق" readOnly value={selectedLine.tagh_name ?? '—'} /></Grid.Col>
-            <Grid.Col span={6}><TextInput label="شماره حامل" readOnly value={selectedLine.number_hamel ?? '—'} /></Grid.Col>
+            <Grid.Col span={12}><Textarea label="شماره‌های حامل" readOnly autosize minRows={2} maxRows={8} value={(selectedLine.carriers ?? [selectedLine.number_hamel ?? '']).filter(Boolean).join('\n') || '—'} /></Grid.Col>
           </Grid>
         )}
       </Modal>

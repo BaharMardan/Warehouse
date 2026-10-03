@@ -199,9 +199,11 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
   function craneBox() {
     const size = crane.code === '118' ? '20' : crane.code === '120' ? '40' : null
     const excessCode = size === '20' ? '119' : '121'
+    const emptyCode = size === '20' ? '122' : '123'
     const excess = size == null ? 0 : Math.ceil(Math.max(0, declaredWeight - (size === '20' ? 10000 : 15000)) / 1000)
     const main = craneCatalog.find(row => row.code === crane.code)?.price_unloding
     const extra = craneCatalog.find(row => row.code === excessCode)?.price_unloding
+    const empty = craneCatalog.find(row => row.code === emptyCode)?.price_loading
     const money = (value: number | null | undefined) => value == null ? 'ثبت نشده' : `${Number(value).toLocaleString('fa-IR')} ریال`
     return <Paper withBorder radius="md" p="md"><Stack gap="sm">
       <Text fw={700}>آیا جابه‌جایی کانتینر با جرثقیل انجام می‌شود؟</Text>
@@ -219,8 +221,9 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
         {size && <Stack gap={4}>
           <Text size="sm">تخلیه کانتینر پُر: {money(main)}</Text>
           <Text size="sm">مازاد وزن: {excess.toLocaleString('fa-IR')} تن × {money(extra)}</Text>
-          {main != null && (excess === 0 || extra != null) &&
-            <Text size="sm" fw={700}>جمع جرثقیل: {money(Number(main) + excess * Number(extra ?? 0))}</Text>}
+          <Text size="sm">بارگیری کانتینر خالی: {money(empty)}</Text>
+          {main != null && empty != null && (excess === 0 || extra != null) &&
+            <Text size="sm" fw={700}>جمع جرثقیل: {money(Number(main) + excess * Number(extra ?? 0) + Number(empty))}</Text>}
         </Stack>}
       </>}
     </Stack></Paper>

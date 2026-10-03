@@ -40,7 +40,7 @@ export function InvoiceDetailPage() {
       <RemainingInvoiceInfo info={data.remaining} receiptNumber={data.header.ghabz_number ?? data.header.buyer_ghabz_number} />
       {invoiceSections(data.details).modern ? <ModernDetails data={data} /> :
       <Paper withBorder p="md"><Title order={4} mb="sm">جزئیات صورتحساب</Title>
-        <Table.ScrollContainer minWidth={700}><Table striped styles={{ th: { backgroundColor: '#e03131', color: '#fff' } }}>
+        <Table.ScrollContainer minWidth={700}><Table striped fz="md" styles={{ th: { backgroundColor: '#e03131', color: '#fff' } }}>
           <Table.Thead><Table.Tr><Table.Th>ردیف</Table.Th><Table.Th>شرح</Table.Th>
             <Table.Th>تعداد</Table.Th><Table.Th>وزن</Table.Th><Table.Th>مبلغ کل</Table.Th>
             <Table.Th>تخفیف</Table.Th><Table.Th>مبلغ خالص</Table.Th></Table.Tr></Table.Thead>
@@ -58,12 +58,12 @@ export function InvoiceDetailPage() {
 }
 
 // 1405 invoices: every charge with how it was calculated, then the summary
-// «جمع هزینه‌ها − تخفیف + مالیات − پیش‌پرداخت = قابل پرداخت» for the operator's check.
+// «جمع مبالغ − تخفیف + مالیات − پیش‌پرداخت = قابل پرداخت» for the operator's check.
 function ModernDetails({ data }: { data: SavedInvoice }) {
-  const { charges, subtotal, summary } = invoiceSections(data.details)
+  const { charges, subtotal, adjustments, prepayments, totalBeforePrepayment } = invoiceSections(data.details)
   return <Paper withBorder p="md"><Title order={4} mb="xs">جزئیات صورتحساب</Title>
     {data.header.calc_note && <Text size="sm" c="dimmed" mb="sm">{data.header.calc_note}</Text>}
-    <Table.ScrollContainer minWidth={900}><Table striped verticalSpacing="xs" styles={headStyles}>
+    <Table.ScrollContainer minWidth={900}><Table striped fz="md" verticalSpacing="xs" styles={headStyles}>
       <Table.Thead><Table.Tr><Table.Th w={50}>ردیف</Table.Th><Table.Th>شرح</Table.Th>
         <Table.Th>تعداد</Table.Th><Table.Th>وزن (کیلوگرم)</Table.Th><Table.Th>مبلغ (ریال)</Table.Th>
         <Table.Th w="38%">نحوه محاسبه</Table.Th></Table.Tr></Table.Thead>
@@ -72,17 +72,24 @@ function ModernDetails({ data }: { data: SavedInvoice }) {
         <Table.Td><bdi dir="ltr">{quantity(line.quantity)}</bdi></Table.Td>
         <Table.Td><bdi dir="ltr">{quantity(line.weight)}</bdi></Table.Td>
         <Table.Td><bdi dir="ltr">{money(line.price)}</bdi></Table.Td>
-        <Table.Td><Text size="xs" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
+        <Table.Td><Text size="sm" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
       </Table.Tr>)}</Table.Tbody>
       <Table.Tbody>
-        <Table.Tr><Table.Td colSpan={4} fw={700}>جمع هزینه‌ها</Table.Td>
+        <Table.Tr style={{ borderBottom: '2px solid #c92a2a' }}><Table.Td colSpan={4} fw={700}>جمع مبالغ</Table.Td>
           <Table.Td fw={700}><bdi dir="ltr">{money(subtotal)}</bdi></Table.Td><Table.Td /></Table.Tr>
-        {summary.map((line) => <Table.Tr key={line.id_detail}>
+        {adjustments.map((line) => <Table.Tr key={line.id_detail}>
           <Table.Td colSpan={4}>{line.description}</Table.Td>
           <Table.Td><bdi dir="ltr">{signedMoney(line.price)}</bdi></Table.Td>
-          <Table.Td><Text size="xs" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
+          <Table.Td><Text size="sm" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
         </Table.Tr>)}
-        <Table.Tr style={{ backgroundColor: '#fff1f1' }}><Table.Td colSpan={4} fw={800}>مبلغ قابل پرداخت</Table.Td>
+        <Table.Tr style={{ borderTop: '2px solid #c92a2a' }}><Table.Td colSpan={4} fw={700}>جمع کل</Table.Td>
+          <Table.Td fw={700}><bdi dir="ltr">{money(totalBeforePrepayment)}</bdi></Table.Td><Table.Td /></Table.Tr>
+        {prepayments.map((line) => <Table.Tr key={line.id_detail}>
+          <Table.Td colSpan={4}>{line.description}</Table.Td>
+          <Table.Td><bdi dir="ltr">{signedMoney(line.price)}</bdi></Table.Td>
+          <Table.Td><Text size="sm" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
+        </Table.Tr>)}
+        <Table.Tr style={{ backgroundColor: '#fff1f1', borderTop: '4px solid #c92a2a' }}><Table.Td colSpan={4} fw={800}>مبلغ قابل پرداخت</Table.Td>
           <Table.Td fw={800}><bdi dir="ltr">{money(data.grand_total)}</bdi></Table.Td><Table.Td /></Table.Tr>
       </Table.Tbody>
     </Table></Table.ScrollContainer>

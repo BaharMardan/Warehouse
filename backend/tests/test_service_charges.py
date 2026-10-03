@@ -49,12 +49,13 @@ EXPECTED = {
         ("سایر خدمات — سایر خدمات — تعداد 1", 1, "200"), (L["strip"], None, "0"), (L["stuffing"], None, "0"),
         (L["night_stop"], 3, "2732400"), (L["diamound"], 1, "2447500"), (L["vehicle_enter"], None, "0")],
     "strip_stuffing_crane_transport": [
-        (L["strip"], 3, "3940923.5"), (L["stuffing"], 1, "123.25"), (L["night_stop"], None, "0"),
+        ("استریپ و تخلیه", 3, "3940923.5"), ("بارگیری", 1, "123.25"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], 1, "935000"),
         (f'{L["crane"]} — full', 1, "100"),
+        (f'{L["crane"]} — empty', 1, "50"),
         (L["transportation"], 2, "3000000")],
     "container_excess": [
-        (L["strip"], 6, "3162"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
+        ("استریپ", 6, "3162"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], None, "0")],
 }
 

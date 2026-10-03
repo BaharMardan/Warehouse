@@ -21,7 +21,7 @@
   min-height: 198mm;
   overflow: visible;
   border-color: rgba(224, 49, 49, 0.22);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .invoice-print-page .invoice-print-heading {
@@ -78,7 +78,7 @@
   padding: 2mm 3mm;
   border-bottom: 1px solid #e4bcbc;
   color: #c92a2a;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .invoice-print-fields {
@@ -151,6 +151,10 @@
   font-weight: 700;
 }
 
+.invoice-print-payable td {
+  border-top: 4px solid #c92a2a;
+}
+
 /* 1405 invoices: five columns and summary rows. The legacy table keeps
    the widths above; these override them only on .invoice-print-table-calc. */
 .invoice-print-table-calc th:nth-child(2),
@@ -176,6 +180,7 @@
 }
 
 .invoice-print-subtotal td {
+  border-bottom: 2px solid #c92a2a;
   font-weight: 700;
 }
 
@@ -192,61 +197,136 @@
   text-align: center;
 }
 
-.invoice-print-notes {
-  display: flex;
-  min-height: 23mm;
-  flex-direction: column;
-  margin-top: 7mm;
-  padding: 3mm;
-  border: 1px solid #e4bcbc;
-  border-radius: 3mm;
-}
-
-.invoice-print-notes strong {
-  color: #c92a2a;
-}
-
-.invoice-print-notes span {
-  margin-top: 3mm;
-  white-space: pre-wrap;
-}
-
 .invoice-print-footer {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5mm;
   margin-top: 6mm;
   text-align: center;
 }
 
-.invoice-print-footer div {
-  min-height: 21mm;
+.invoice-print-signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2mm;
+  min-height: 30mm;
   padding: 3mm;
-  border-top: 1px solid #d5a9a9;
+  border: 1px solid #d5a9a9;
+  border-radius: 3mm;
 }
 
-@page {
+.invoice-print-signature strong {
+  color: #c92a2a;
+}
+
+.invoice-print-distribution {
+  align-self: stretch;
+  margin-top: auto;
+  padding-top: 8mm;
+  font-size: 9px;
+  line-height: 1.6;
+  text-align: right;
+}
+
+@page invoice {
   size: A4 landscape;
   margin: 5mm;
 }
 
+/* Used during measurement as well as printing, so short invoices keep
+   their normal type size and spacing. Compact spacing is only opt-in. */
+.invoice-print-page.invoice-print-layout {
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  background: white;
+}
+
+.invoice-print-layout .invoice-print-sheet {
+  display: flex;
+  flex-direction: column;
+  width: var(--invoice-print-width, 285mm);
+  height: auto;
+  min-height: 197mm;
+  padding: 2mm;
+  margin: 0 auto;
+  zoom: var(--invoice-print-scale, 1);
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.invoice-print-layout .invoice-print-sheet > * {
+  flex-shrink: 0;
+}
+
+.invoice-print-layout .invoice-print-heading {
+  min-height: 18mm;
+  padding: 2mm 3mm;
+  box-shadow: none;
+}
+
+.invoice-print-layout .tally-print-action,
+.invoice-print-layout .tally-print-preview-heading p,
+.invoice-print-layout .tally-print-screen-title {
+  display: none;
+}
+
+.invoice-print-layout .tally-print-paper-title {
+  display: inline;
+}
+
+.invoice-print-layout .invoice-print-footer {
+  margin-top: auto;
+  padding-top: 4mm;
+}
+
+.invoice-print-compact .invoice-print-parties {
+  gap: 2mm;
+  margin: 3mm 0;
+}
+
+.invoice-print-compact .invoice-print-box {
+  min-height: 0;
+}
+
+.invoice-print-compact .invoice-print-box h2 {
+  padding: 1mm 2mm;
+}
+
+.invoice-print-compact .invoice-print-fields {
+  gap: 1mm 3mm;
+  padding: 2mm;
+}
+
+.invoice-print-compact .invoice-print-table {
+  margin-top: 2mm;
+}
+
+.invoice-print-compact .invoice-print-table th,
+.invoice-print-compact .invoice-print-table td {
+  padding: 1.2mm 2mm;
+}
+
+.invoice-print-compact .invoice-print-signature {
+  min-height: 24mm;
+  padding: 2mm;
+}
+
+.invoice-print-compact .invoice-print-distribution {
+  padding-top: 5mm;
+}
+
 @media print {
   .invoice-print-page {
-    background: white;
-  }
-
-  .invoice-print-page .invoice-print-sheet {
-    width: 285mm;
-    height: auto;
-    min-height: 0;
-    margin: 0;
+    page: invoice;
     overflow: visible;
-    border-radius: 0;
-    box-shadow: none;
+    background: white;
   }
 
   .invoice-print-heading,
   .invoice-print-parties,
-  .invoice-print-notes,
   .invoice-print-footer {
     break-inside: avoid;
   }

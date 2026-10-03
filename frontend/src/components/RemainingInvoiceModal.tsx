@@ -6,7 +6,7 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { IconPlus, IconTrash } from './icons'
 import { useNavigate } from 'react-router-dom'
 import { apiGet, apiSend, errorMessage } from '../api/client'
-import { money } from '../pages/invoiceTypes'
+import { invoiceDescription, money } from '../pages/invoiceTypes'
 
 type Goods = { id: number; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null }
 type Service = { id: number; title: string; price: string | null }
@@ -134,7 +134,7 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
       {current && !calculating && <Table.ScrollContainer minWidth={580}>
         <Table className="remaining-preview" striped verticalSpacing="sm"><Table.Thead><Table.Tr><Table.Th>شرح</Table.Th><Table.Th>تعداد</Table.Th><Table.Th>مبلغ (ریال)</Table.Th><Table.Th>نحوهٔ محاسبه</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{current.rows.map((row, index) => <Table.Tr key={index}>
-            <Table.Td>{row.description}</Table.Td><Table.Td>{row.quantity ?? '—'}</Table.Td><Table.Td><bdi>{money(row.price)}</bdi></Table.Td><Table.Td><Text size="xs" c="dimmed">{row.note}</Text></Table.Td>
+            <Table.Td>{invoiceDescription(row.description) || '—'}</Table.Td><Table.Td>{row.quantity ?? '—'}</Table.Td><Table.Td><bdi>{money(row.price)}</bdi></Table.Td><Table.Td><Text size="xs" c="dimmed">{row.note}</Text></Table.Td>
           </Table.Tr>)}</Table.Tbody></Table>
       </Table.ScrollContainer>}
       {issue.isError && <Alert color="red" radius="md">{errorMessage(issue.error, 'صدور انجام نشد؛ دوباره تلاش کنید')}</Alert>}

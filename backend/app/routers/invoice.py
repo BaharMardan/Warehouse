@@ -198,6 +198,7 @@ from app.auth.deps import require_permission
 from app.services.base import fetch_all, fetch_one
 from app.services.invoice_seller import SELLER
 from app.services.receipt_invoice import to_decimal
+from app.services.invoice_handling import LEGACY, merge_handling
 from app.core.db import get_connection
 from app.services import receipt_db as db
 
@@ -294,6 +295,16 @@ def get_invoice(invoice_id: int):
     details = fetch_all(INVOICE_DETAILS_SQL, {'invoice_id': invoice_id})
     total = sum(((to_decimal(row['price']) or Decimal(0))
                  - (to_decimal(row['discount']) or Decimal(0)) for row in details), Decimal(0))
+    selections = []
+    if header.get("tali_id") is not None and any(row.get("description") in LEGACY for row in details):
+        selections = fetch_all("""
+            SELECT "service_kind" AS service_kind, "pricing_type" AS pricing_type
+            FROM "fa_tali_kala_strip"
+            WHERE "tali_id" = :tid AND "IS_DELETED" = 'no'
+              AND "service_kind" IN ('strip', 'stuffing')
+            ORDER BY "id_tali_kala_strip"
+        """, {"tid": header["tali_id"]})
+    details = merge_handling(details, selections)
     remaining = json.loads(header.pop('remaining_snapshot', None) or 'null')
     return {'remaining': remaining, 'header': _serialize_saved({**header, **SELLER}),
             'details': [_serialize_saved(row) for row in details],

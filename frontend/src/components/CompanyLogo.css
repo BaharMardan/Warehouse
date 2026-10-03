@@ -1,0 +1,8 @@
+.company-print-logo {
+  display: block;
+  width: 22mm;
+  height: 21mm;
+  flex: 0 0 22mm;
+  object-fit: contain;
+  background: white;
+}

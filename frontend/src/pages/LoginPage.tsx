@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import './LoginPage.css'
 import {
   Container, Paper, Title, TextInput, PasswordInput, Button, Alert, Stack,
 } from '@mantine/core'
@@ -26,9 +27,10 @@ export default function LoginPage() {
   }
 
   return (
-    <Container size={420} my={80}>
+    <main className="login-page" dir="rtl">
+    <Container size={420} className="login-page-container">
+      <Paper className="login-page-card" withBorder shadow="xl" p="xl" radius="lg">
       <Title order={2} ta="center" mb="lg">ورود به سامانه انبار</Title>
-      <Paper withBorder shadow="sm" p="lg" radius="md">
         <Stack>
           {error && <Alert color="red">{error}</Alert>}
           <TextInput
@@ -48,5 +50,6 @@ export default function LoginPage() {
         </Stack>
       </Paper>
     </Container>
+    </main>
   )
 }

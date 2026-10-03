@@ -1,3 +1,6 @@
+import { useCurrentUser } from '../auth/usePermissions'
+import { CompanyLogo } from '../components/CompanyLogo'
+import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { apiGet } from '../api/client'
@@ -12,6 +15,44 @@ const shown = (value: string | number | null | undefined) =>
 export function InvoicePrintPage() {
   const { id } = useParams()
   const invoiceId = Number(id)
+  const userQuery = useCurrentUser()
+  const sheetRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const resetScale = () => {
+      const sheet = sheetRef.current
+      sheet?.parentElement?.classList.remove('invoice-print-layout', 'invoice-print-compact')
+      sheet?.style.removeProperty('--invoice-print-scale')
+      sheet?.style.removeProperty('--invoice-print-width')
+    }
+    const fitToPage = () => {
+      const sheet = sheetRef.current
+      const page = sheet?.parentElement
+      if (!sheet || !page) return
+      resetScale()
+      // Apply the actual print layout before measuring, even if the browser
+      // dispatches beforeprint while screen media styles are still active.
+      page.classList.add('invoice-print-layout')
+      const availableHeight = 198 * 96 / 25.4
+      if (sheet.offsetHeight <= availableHeight) return
+      page.classList.add('invoice-print-compact')
+      let scale = 1
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const height = sheet.offsetHeight * scale
+        if (height <= availableHeight) break
+        scale *= (availableHeight - 2) / height
+        sheet.style.setProperty('--invoice-print-scale', String(scale))
+        // Compensate the width so scaling never leaves a narrow, right-aligned form.
+        sheet.style.setProperty('--invoice-print-width', `${285 / scale}mm`)
+      }
+    }
+    window.addEventListener('beforeprint', fitToPage)
+    window.addEventListener('afterprint', resetScale)
+    return () => {
+      window.removeEventListener('beforeprint', fitToPage)
+      window.removeEventListener('afterprint', resetScale)
+    }
+  }, [])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['invoice', invoiceId],
@@ -19,14 +60,15 @@ export function InvoicePrintPage() {
     enabled: Number.isInteger(invoiceId) && invoiceId > 0,
   })
 
-  if (isLoading) return <p dir="rtl">در حال بارگذاری صورتحساب…</p>
+  if (isLoading || userQuery.isLoading) return <p dir="rtl">در حال بارگذاری صورتحساب…</p>
   if (isError || !data) return <p dir="rtl">صورتحساب یافت نشد.</p>
 
   const h = data.header
+  const printUser = userQuery.data?.full_name || userQuery.data?.username
 
   return (
     <main className="tally-print-page invoice-print-page" dir="rtl">
-      <section className="tally-print-sheet invoice-print-sheet">
+      <section ref={sheetRef} className="tally-print-sheet invoice-print-sheet">
         <header className="tally-print-heading invoice-print-heading">
           <div className="tally-print-preview-heading">
             <button
@@ -50,14 +92,15 @@ export function InvoicePrintPage() {
           </div>
 
           <div className="tally-print-brand invoice-print-brand">
+            <CompanyLogo />
             <div className="tally-print-brand-copy">
               <strong>{shown(h.seller_name)}</strong>
               <small>صورتحساب خدمات انبار</small>
+              <div className="tally-print-user">کاربر: <b>{shown(printUser)}</b></div>
               <div className="tally-print-user">
                 تاریخ: <b>{jalali(h.created_at)}</b>
               </div>
             </div>
-            <span className="invoice-print-brand-mark" aria-hidden="true">ف</span>
           </div>
         </header>
 
@@ -125,17 +168,15 @@ export function InvoicePrintPage() {
           </tbody>
         </table>}
 
-        <div className="invoice-print-notes">
-          <strong>توضیحات</strong>
-          <span>{h.description || ' '}</span>
-        </div>
-
         <footer className="invoice-print-footer">
-          <div>مدیر عملیات<br />{h.manager_name || ' '}</div>
-          <div>مدیر مالی<br />{h.finance_name || ' '}</div>
-          <div>مدیر عامل<br />{h.manager_name || ' '}</div> 
-          <div>نماینده صاحب کالا<br />{h.representative_name || ' '}</div>
-          {/* <div>صادرکننده صورتحساب</div> */}
+          <section className="invoice-print-signature">
+            <strong>تأییدکننده</strong>
+            <small className="invoice-print-distribution">توزیع نسخ الکترونیکی: ۱- صدور اسناد ۲- امور مالی</small>
+          </section>
+          <section className="invoice-print-signature">
+            <strong>نماینده صاحب کالا</strong>
+            <span>{h.representative_name || ' '}</span>
+          </section>
         </footer>
       </section>
     </main>
@@ -143,7 +184,7 @@ export function InvoicePrintPage() {
 }
 // Combine crane charges only for printing; saved details and totals stay intact.
 function printCharges(charges: InvoiceLine[]): InvoiceLine[] {
-  const label = 'هزینه جابه‌جایی کانتینر با جرثقیل'
+  const label = 'جابه‌جایی کانتینر با جرثقیل'
   const result: InvoiceLine[] = []
   let crane: InvoiceLine | undefined
   for (const line of charges) {
@@ -162,9 +203,9 @@ function printCharges(charges: InvoiceLine[]): InvoiceLine[] {
 }
 
 // 1405 invoices: compact charges followed by summary rows
-// «جمع هزینه‌ها − تخفیف + مالیات − پیش‌پرداخت = مبلغ قابل پرداخت».
+// «جمع مبالغ − تخفیف + مالیات − پیش‌پرداخت = مبلغ قابل پرداخت».
 function ModernTable({ data }: { data: SavedInvoice }) {
-  const { charges, subtotal, summary } = invoiceSections(data.details)
+  const { charges, subtotal, adjustments, prepayments, totalBeforePrepayment } = invoiceSections(data.details)
   return (
     <>
       <table className="invoice-print-table invoice-print-table-calc">
@@ -188,16 +229,26 @@ function ModernTable({ data }: { data: SavedInvoice }) {
             </tr>
           ))}
           <tr className="invoice-print-subtotal">
-            <td colSpan={4}>جمع هزینه‌ها</td>
+            <td colSpan={4}>جمع مبالغ</td>
             <td><bdi dir="ltr">{money(subtotal)}</bdi></td>
           </tr>
-          {summary.map((line) => (
+          {adjustments.map((line) => (
             <tr key={line.id_detail} className="invoice-print-summary">
               <td colSpan={4}>{shown(line.description)}</td>
               <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
             </tr>
           ))}
-          <tr className="invoice-print-total">
+          <tr className="invoice-print-total invoice-print-before-prepayment">
+            <td colSpan={4}>جمع کل</td>
+            <td><bdi dir="ltr">{money(totalBeforePrepayment)}</bdi></td>
+          </tr>
+          {prepayments.map((line) => (
+            <tr key={line.id_detail} className="invoice-print-summary">
+              <td colSpan={4}>{shown(line.description)}</td>
+              <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
+            </tr>
+          ))}
+          <tr className="invoice-print-total invoice-print-payable">
             <td colSpan={4}>مبلغ قابل پرداخت</td>
             <td><bdi dir="ltr">{money(data.grand_total)}</bdi></td>
           </tr>
