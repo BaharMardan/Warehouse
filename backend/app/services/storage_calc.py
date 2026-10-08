@@ -6,7 +6,7 @@ fa_kala_price."storage_price" (انبارداری), a per-day rate per ton, per 
 equivalent. Full 20/40-foot containers use a per-device base plus rounded excess tons.
 
 Storage, by the keeper's cargo type (IS_VOLUMETRIC):
-    weight      rate x location x (declared weight in kg / 1000) x days
+    weight      rate x location x ceil(declared weight in kg / 1000) x days
     volumetric  rate x location x 1.2 x pallets x days
     container   (base rate + excess rate x ceil(excess tons)) x location x days
 The caller supplies the pallets: a detailed receipt's own pallet count, or the
@@ -183,8 +183,11 @@ def storage_charge(cargo_type: str, *, rate, loc: Location, days: int,
         # وزن اظهار is stored in kilograms; the tariff is per ton. The note shows
         # the kg value as entered plus the ÷ 1,000 step so it cannot be misread.
         kg = _positive(weight_kg, "وزن اظهار")
-        raw = rate * loc.multiplier * (kg / KG_PER_TON) * days_d
+        tons = (kg / KG_PER_TON).to_integral_value(rounding=ROUND_CEILING)
+        raw = rate * loc.multiplier * tons * days_d
         middle = f"{fmt(kg)} کیلوگرم ÷ {fmt(KG_PER_TON)}"
+        if tons != kg / KG_PER_TON:
+            middle = f"({middle}، گرد به بالا {fmt(tons)} تن)"
     elif cargo_type == "volumetric":
         count = _positive(pallets, "تعداد پالت")
         raw = rate * loc.multiplier * VOLUMETRIC_FACTOR * count * days_d

@@ -1,11 +1,12 @@
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Group, Modal, Paper, Radio, Select, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Group, Modal, Paper, Radio, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core'
 import { Boxes, Plus } from 'lucide-react'
 import { apiGet, apiSend, errorMessage } from '../api/client'
 import { usePermissions } from '../auth/usePermissions'
 import { useHandoff } from './TallyHandoff'
 import { IranianPlate } from './IranianPlate'
+import './TallyHandlingSection.css'
 
 type Kind = 'strip' | 'stuffing' | 'crane'
 type Choice = 'normal' | 'non_standard' | 'dangerous' | 'unloading' | 'loading' | null
@@ -60,7 +61,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
 
   const { data: details = [] } = useQuery({
     queryKey: ['tally-details', tallyId],
-    queryFn: () => apiGet<Array<{ number_hamel: string | null; weighte: number | null }>>(`/tally/${tallyId}/details`),
+    queryFn: () => apiGet<Array<{ number_hamel: string | null; weighte: number | null; container_type: string | null }>>(`/tally/${tallyId}/details`),
   })
   const { data: stripRows = [] } = useQuery({
     queryKey: ['tally-junction', 'strip', tallyId],
@@ -94,6 +95,19 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
   const carriers = [...new Set(details.map((row) => row.number_hamel?.trim()).filter((value): value is string => Boolean(value)))]
   const carrierOptions = carriers.map((value) => ({ value, label: value }))
   const declaredWeight = details.filter((row) => row.number_hamel === carrier).reduce((sum, row) => sum + Number(row.weighte ?? 0), 0)
+  const containerSizes = details
+    .filter((row) => row.number_hamel?.trim() === carrier)
+    .map((row) => digits(row.container_type ?? '').trim().match(/^(?:کانتینر\s+)?(20|40)\s+فوت$/)?.[1])
+    .filter((size): size is string => Boolean(size))
+  const allowsSize = (size: string) => containerSizes.every((selectedSize) => selectedSize === size)
+  const allowsCode = (code: string | null) => {
+    if (code === '201' || code === '202' || code === '118') return allowsSize('20')
+    if (code === '401' || code === '402' || code === '120') return allowsSize('40')
+    return true
+  }
+  const sizesMatch = [strip, stuffing].every((form) => !form.choice || allowsCode(form.code)) &&
+    (craneAnswer === 'no' || allowsCode(crane.code))
+
   const transportationFor = (number: string | null) => transportationRows.find((row) => row.number_hamel === number)?.has_transportation ?? null
 
   function openFor(selected: string | null) {
@@ -130,6 +144,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!sizesMatch) throw new Error('اندازه کانتینر خدمات با نوع حامل در ردیف تالی یکسان نیست. انتخاب خدمات را اصلاح کنید.')
       await saveService('strip', strip)
       await saveService('stuffing', stuffing)
       await saveService('crane', craneAnswer === 'yes' ? crane : emptyForm())
@@ -146,7 +161,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
     },
   })
 
-  const valid = Boolean(carrier) && Boolean(transport) &&
+  const valid = Boolean(carrier) && Boolean(transport) && sizesMatch &&
     [strip, stuffing].every((form) => !form.choice || form.choice === 'unloading' || form.choice === 'loading' || form.rateId != null) &&
     (craneAnswer === 'no' || (crane.code === '118' || crane.code === '120'))
 
@@ -155,7 +170,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
     const title = kind === 'strip' ? 'استریپ یا تخلیه' : 'استافینگ یا بارگیری'
     const isAutomatic = form.choice === automatic
     const capacity = form.code === '201' ? 10000 : form.code === '401' ? 15000 : null
-    const excess = capacity == null ? 0 : Math.max(0, (declaredWeight - capacity) / 1000)
+    const excess = capacity == null ? 0 : Math.ceil(Math.max(0, (declaredWeight - capacity) / 1000))
     const excessCode = form.code === '201' ? '202' : form.code === '401' ? '402' : null
     const excessTitle = catalog.find((row) => row.code === excessCode)?.title ?? (form.code === '201' ? 'مازاد بر ۱۰ تن کانتینر ۲۰ فوت' : 'مازاد بر ۱۵ تن کانتینر ۴۰ فوت')
     return <Paper withBorder radius="md" p="md">
@@ -165,10 +180,10 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
           label={`انتخاب ${title}`}
           placeholder="انتخاب کنید"
           data={[
-            ...catalog.map((row) => ({ value: String(row.id_kala_strip), label: `${row.code ?? ''} ${row.title ? `(${row.title})` : ''}`.trim(), disabled: row.code === '202' || row.code === '402' })),
+            ...catalog.filter((row) => allowsCode(row.code)).map((row) => ({ value: String(row.id_kala_strip), label: `${row.code ?? ''} ${row.title ? `(${row.title})` : ''}`.trim(), disabled: row.code === '202' || row.code === '402' })),
             { value: automatic, label: labels[automatic] },
           ]}
-          value={isAutomatic ? automatic : form.rateId == null ? null : String(form.rateId)}
+          value={isAutomatic ? automatic : form.rateId == null || !allowsCode(form.code) ? null : String(form.rateId)}
           onChange={(value) => {
             if (value === automatic) setForm({ ...form, choice: automatic, rateId: null, code: null, quantity: '' })
             else if (value) {
@@ -215,8 +230,8 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
       }}><Group><Radio value="yes" label="بله" /><Radio value="no" label="خیر" /></Group></Radio.Group>
       {craneAnswer === 'yes' && <>
         <Select label="اندازه کانتینر" placeholder="انتخاب کنید"
-          data={[{ value: '20', label: 'کانتینر ۲۰ فوت' }, { value: '40', label: 'کانتینر ۴۰ فوت' }]}
-          value={size} onChange={value => setCrane({ ...crane, code: value === '20' ? '118' : '120',
+          data={[{ value: '20', label: 'کانتینر ۲۰ فوت' }, { value: '40', label: 'کانتینر ۴۰ فوت' }].filter((option) => allowsSize(option.value))}
+          value={size && allowsSize(size) ? size : null} onChange={value => setCrane({ ...crane, code: value === '20' ? '118' : '120',
             rateId: null, choice: 'normal', quantity: '1' })} allowDeselect={false} />
         {size && <Stack gap={4}>
           <Text size="sm">تخلیه کانتینر پُر: {money(main)}</Text>
@@ -240,16 +255,31 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
     <div className="tally-detail-section-rule" />
     <Stack p="md" gap="xs">
       {carriers.length === 0 && <Text c="dimmed">ابتدا شماره حامل را در ردیف‌های کالا ثبت کنید.</Text>}
-      {carriers.map((number) => {
+      {carriers.length > 0 && <Table.ScrollContainer minWidth={850}>
+      <Table className="tally-handling-table" withTableBorder withColumnBorders>
+        <Table.Thead><Table.Tr>
+          <Table.Th>ردیف</Table.Th><Table.Th>شماره حامل</Table.Th><Table.Th>باربری</Table.Th>
+          <Table.Th>استریپ / تخلیه</Table.Th><Table.Th>استافینگ / بارگیری</Table.Th>
+          <Table.Th>جرثقیل</Table.Th><Table.Th>جزئیات مازاد</Table.Th>
+          {canEdit && <Table.Th>عملیات</Table.Th>}
+        </Table.Tr></Table.Thead>
+        <Table.Tbody>{carriers.map((number, index) => {
         const stripRow = stripRows.find((row) => row.number_hamel === number && !row.is_auto_excess && !row.is_auto_empty)
         const stuffingRow = stuffingRows.find((row) => row.number_hamel === number && !row.is_auto_excess && !row.is_auto_empty)
         const craneRow = craneRows.find((row) => row.number_hamel === number && !row.is_auto_excess && !row.is_auto_empty)
         const excessRows = [...stripRows, ...stuffingRows, ...craneRows].filter((row) => row.number_hamel === number && row.is_auto_excess)
-        return <div className="tally-handling-carrier-row" key={number}>
-          <Group className="tally-handling-carrier-details" gap="md"><IranianPlate value={number} /><Text size="sm" fw={600}>باربری: {transportationFor(number) === 'yes' ? 'بله' : transportationFor(number) === 'no' ? 'خیر' : 'ثبت نشده'}</Text><Text size="sm">استریپ/تخلیه: {stripRow?.rate_title ?? (stripRow ? labels[stripRow.pricing_type ?? ''] : '—')}</Text><Text size="sm">استافینگ/بارگیری: {stuffingRow?.rate_title ?? (stuffingRow ? labels[stuffingRow.pricing_type ?? ''] : '—')}</Text><Text size="sm">جرثقیل: {craneRow ? craneRow.rate_title ?? 'کانتینر' : 'خیر'}</Text>{excessRows.map((row) => <Text key={`${row.parent_service_id}-${row.rate_code}`} size="sm" c="blue">{row.service_kind === 'strip' ? 'استریپ' : row.service_kind === 'stuffing' ? 'استافینگ' : 'جرثقیل'}: {row.rate_title}: {Number(row.number_service).toLocaleString('fa-IR')} تن ({labels[row.pricing_type ?? '']})</Text>)}</Group>
-          {canEdit && <Button size="xs" variant="light" onClick={() => openFor(number)}>ویرایش خدمات</Button>}
-        </div>
-      })}
+        return <Table.Tr key={number}>
+          <Table.Td className="tally-handling-row-number">{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+          <Table.Td><IranianPlate value={number} /></Table.Td>
+          <Table.Td>{transportationFor(number) === 'yes' ? 'بله' : transportationFor(number) === 'no' ? 'خیر' : 'ثبت نشده'}</Table.Td>
+          <Table.Td>{stripRow?.rate_title ?? (stripRow ? labels[stripRow.pricing_type ?? ''] : '—')}</Table.Td>
+          <Table.Td>{stuffingRow?.rate_title ?? (stuffingRow ? labels[stuffingRow.pricing_type ?? ''] : '—')}</Table.Td>
+          <Table.Td>{craneRow ? craneRow.rate_title ?? 'کانتینر' : 'خیر'}</Table.Td>
+          <Table.Td>{excessRows.length ? excessRows.map((row) => <Text key={`${row.parent_service_id}-${row.rate_code}`} size="sm" c="blue">{row.service_kind === 'strip' ? 'استریپ' : row.service_kind === 'stuffing' ? 'استافینگ' : 'جرثقیل'}: {row.rate_title}: {Number(row.number_service).toLocaleString('fa-IR')} تن ({labels[row.pricing_type ?? '']})</Text>) : '—'}</Table.Td>
+          {canEdit && <Table.Td><Button size="xs" color="blue" variant="light" onClick={() => openFor(number)}>ویرایش خدمات</Button></Table.Td>}
+        </Table.Tr>
+      })}</Table.Tbody>
+      </Table></Table.ScrollContainer>}
     </Stack>
     <Modal opened={opened} onClose={() => setOpened(false)} title="افزودن استریپ یا استافینگ" size="lg" centered classNames={{ content: 'tally-detail-modal', header: 'tally-detail-modal-header', body: 'tally-detail-modal-body', title: 'tally-detail-modal-title' }}>
       <div className="tally-detail-modal-form" dir="rtl">
@@ -267,6 +297,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
         {serviceBox('stuffing', stuffing, setStuffing)}
         {craneBox()}
         <Paper withBorder radius="md" p="md"><Stack gap="sm"><Text fw={700}>آیا بار شامل باربری می‌شود؟</Text><Radio.Group value={transport ?? ''} onChange={setTransport}><Group><Radio value="yes" label="بله" /><Radio value="no" label="خیر" /></Group></Radio.Group>{transport === 'yes' && <Text size="sm" c="dimmed">نرخ ثابت از تنظیمات: {freightRate == null ? '—' : `${Number(freightRate).toLocaleString('fa-IR')} ریال`}</Text>}</Stack></Paper>
+        {!sizesMatch && <Alert color="red">اندازه کانتینر خدمات با نوع حامل در ردیف تالی یکسان نیست. انتخاب خدمات را اصلاح کنید.</Alert>}
         {save.isError && <Alert color="red">{errorMessage(save.error, 'ثبت خدمات ناموفق بود.')}</Alert>}
       </Stack>
       <Group className="tally-detail-modal-actions" justify="flex-start"><Button onClick={() => save.mutate()} loading={save.isPending} disabled={!valid}>ذخیره</Button><Button variant="default" onClick={() => setOpened(false)}>لغو</Button></Group>

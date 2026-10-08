@@ -1193,7 +1193,8 @@ def update_ghabz_extras(
 # carrier set independently, preferring explicit receipt-to-tally allocations.
 CARRIERS_SQL = """
 WITH source_carriers AS (
-    SELECT DISTINCT TRIM(t."NUMBER_HAMEL") AS number_hamel
+    SELECT DISTINCT TRIM(t."NUMBER_HAMEL") AS number_hamel,
+           t."CONTAINER_TYPE" AS container_type, TRIM(t."CONTAINER_NUMBER") AS container_number
     FROM "fa_ghabz_anbar_header" h
     JOIN "FA_TALI_DETAILES" t ON t."ID_HEADERS_TALI" = h."TALI_ID"
     WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no'
@@ -1212,9 +1213,9 @@ WITH source_carriers AS (
             )))
       )
 )
-SELECT number_hamel FROM source_carriers
+SELECT number_hamel, container_type, container_number FROM source_carriers
 UNION
-SELECT TRIM(d."NUMBER_HAMEL") AS number_hamel
+SELECT TRIM(d."NUMBER_HAMEL") AS number_hamel, NULL AS container_type, NULL AS container_number
 FROM "FA_ghabz_anbar_DETAILES" d
 JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = d."ID_GHABZ_ANBAR_HEADAR"
 WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no' AND d."IS_DELETED" = 'no'
@@ -1231,7 +1232,7 @@ def get_ghabz_summary(header_id: int):
     if not rows:
         raise HTTPException(status_code=404, detail="قبض انبار یافت نشد")
     carriers = fetch_all(CARRIERS_SQL, {"hid": header_id})
-    return {**rows[0], "carriers": list(dict.fromkeys(
+    return {**rows[0], "carrier_details": carriers, "carriers": list(dict.fromkeys(
         str(row["number_hamel"]).strip() for row in carriers if row.get("number_hamel")
     ))}
 

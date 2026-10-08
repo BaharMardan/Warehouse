@@ -123,7 +123,7 @@ export function JalaliDate({ value, onChange, label, compact = false, clearable 
             <Group gap="xs" grow>
             <Select
               comboboxProps={{ withinPortal: false }}
-              data={MONTHS.map((name, index) => ({ value: String(index + 1), label: name }))}
+              data={MONTHS.map((name, index) => ({ value: String(index + 1), label: `${name} ${faDigits(pad(index + 1))}` }))}
               value={String(viewMonth)}
               onChange={(month) => changeMonthOrYear(viewYear, Number(month ?? viewMonth))}
               styles={{ input: { background: 'rgba(255,255,255,0.95)', border: 0, fontWeight: 700 } }}

@@ -136,14 +136,14 @@ def test_location_rejects_missing_or_unknown(bad):
 def test_weight_storage_converts_kg_to_tons():
     charge = storage_charge("weight", rate=56003, loc=location("انبارداری مسقف"),
                             days=30, weight_kg=435436)
-    # 435,436 kg is 435 tons and 436 kg: 56,003 x 1.5 x 435.436 x 30 = 1,097,357,503.86
-    assert charge.amount == Decimal(1097357504)
-    assert charge.note == "56,003 × 1.5 (مسقف 50٪) × 435,436 کیلوگرم ÷ 1,000 × 30 روز = 1,097,357,504"
+    # 435,436 kg is billed as 436 whole tons.
+    assert charge.amount == Decimal(1098778860)
+    assert charge.note == "56,003 × 1.5 (مسقف 50٪) × (435,436 کیلوگرم ÷ 1,000، گرد به بالا 436 تن) × 30 روز = 1,098,778,860"
 
 
-def test_weight_storage_rounds_half_up():
+def test_weight_storage_rounds_partial_ton_up():
     charge = storage_charge("weight", rate=56003, loc=location("مسقف"), days=30, weight_kg=100)
-    assert charge.amount == Decimal(252014)   # 252,013.5
+    assert charge.amount == Decimal(2520135)   # One whole ton
 
 
 def test_volumetric_storage_uses_the_given_pallets():
@@ -159,10 +159,10 @@ def test_container_storage_uses_declared_weight_in_tons():
     assert charge.note == "804,650 × 1.2 (بارانداز 20٪) × 25,000 کیلوگرم ÷ 1,000 × 60 روز = 1,448,370,000"
 
 
-def test_container_storage_preserves_fractional_tons_and_rounds_rials():
+def test_container_storage_rounds_fractional_tons_up():
     charge = storage_charge("container", rate=56003, loc=location("مسقف"),
                             days=30, weight_kg=100)
-    assert charge.amount == Decimal(252014)   # 0.1 t; 252,013.5 rounded half up
+    assert charge.amount == Decimal(2520135)   # 0.1 t is billed as one whole ton
 
 
 @pytest.mark.parametrize("cargo, kwargs", [

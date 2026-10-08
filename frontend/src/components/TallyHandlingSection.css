@@ -1,0 +1,46 @@
+:is(.tally-handling-table, .tally-pallet-table) {
+  --handling-line: #c9ddf5;
+  --handling-alt: #f0f6ff;
+  --handling-hover: #e3efff;
+  border-color: var(--handling-line);
+  font-size: 13px;
+}
+
+:is(.tally-handling-table, .tally-pallet-table) thead th {
+  background: #1764bb;
+  color: #fff;
+  border-color: #4385cc;
+  padding: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+:is(.tally-handling-table, .tally-pallet-table) tbody td {
+  border-color: var(--handling-line);
+  padding: 12px;
+  vertical-align: middle;
+}
+
+:is(.tally-handling-table, .tally-pallet-table) tbody tr:nth-child(even) {
+  background: var(--handling-alt);
+}
+
+:is(.tally-handling-table, .tally-pallet-table) tbody tr:hover {
+  background: var(--handling-hover);
+}
+
+:is(.tally-handling-table, .tally-pallet-table) :is(.tally-handling-row-number, .tally-pallet-row-number) {
+  color: var(--mantine-color-blue-7);
+  font-weight: 700;
+  width: 60px;
+}
+
+[data-mantine-color-scheme='dark'] :is(.tally-handling-table, .tally-pallet-table) {
+  --handling-line: #344c6b;
+  --handling-alt: #1c2d44;
+  --handling-hover: #253d5a;
+}
+
+[data-mantine-color-scheme='dark'] :is(.tally-handling-table, .tally-pallet-table) :is(.tally-handling-row-number, .tally-pallet-row-number) {
+  color: #91c4ff;
+}

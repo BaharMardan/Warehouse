@@ -16,7 +16,8 @@ statements against the real schema in its rollback-only smoke test.
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from app.services import row_pallets as rp
 
 from app.auth.deps import require_permission
 from app.core.db import get_connection
@@ -126,6 +127,11 @@ def read_handoff(cursor, tali_id: int) -> dict:
     active = receipt_db.operational(docs)
     locked = any(r["status"] in ("finalized", "invoice_issued") for r in active)
     pending = any(r["status"] in ("created", "sent_to_keeper") for r in active)
+    state["pallet_rows"] = rp.tally_rows(cursor, tali_id)
+    invoiced = receipt_db.one(cursor, '''SELECT COUNT(*) AS cnt FROM "FA_SORAT_HESAB_HEADER"
+        WHERE "TALI_ID_HEADER" = :tid AND NVL("SORAT_IS_DELETED", 'no') = 'no' ''', {'tid': tali_id})
+    state["can_edit_pallets"] = not invoiced['cnt'] and not any(r["status"] == "invoice_issued" for r in docs) and (
+        locked or pending or state["step"] == "keeper")
     state["has_receipts"] = bool(docs)
     state["can_edit_services"] = not locked and (pending if docs else state["step"] == "keeper")
     state["receipt_checklists"] = [
@@ -181,6 +187,8 @@ def save_volumetric(
         with connection.cursor() as cursor:
             step, _, _ = lock_tally(cursor, tali_id)
             receipt_db.guard_services(cursor, tali_id)
+            item.volumetric_pallets = (rp.complete_total(rp.tally_rows(cursor, tali_id))
+                                       if item.cargo_type == "volumetric" else None)
             message = rules.cargo_type_error("keeper", item.cargo_type, item.volumetric_pallets)
             if message:
                 # Workflow conflicts are handled by guard_services above.
@@ -202,7 +210,53 @@ def return_to_operator(tali_id: int, current_user: dict = Depends(require_permis
             step, is_volumetric, pallets = lock_tally(cursor, tali_id)
             if receipt_db.receipts(cursor, tali_id):
                 receipt_db.conflict("ثبت نهایی را از چک‌لیست قبض انجام دهید")
+            if is_volumetric in ("yes", "volumetric"):
+                if rp.complete_total(rp.tally_rows(cursor, tali_id)) != pallets or not pallets:
+                    receipt_db.conflict("تعداد پالت تمام ردیف‌های تالی را تکمیل کنید")
             _conflict(rules.return_to_operator_error(step, is_volumetric, pallets))
             cursor.execute(RETURN_TO_OPERATOR_SQL, {"tali_id": tali_id, "actor_id": int(current_user["id"])})
             connection.commit()
             return read_handoff(cursor, tali_id)
+
+
+class PalletEntry(BaseModel):
+    tally_detail_id: int
+    pallets: int = Field(strict=True, ge=1, le=100000)
+
+
+class PalletInput(BaseModel):
+    lines: list[PalletEntry]
+
+
+@router.put("/{tali_id}/handoff/pallets")
+def save_row_pallets(tali_id: int, item: PalletInput,
+                     current_user: dict = Depends(require_permission("tally.services"))):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            _, cargo, total = lock_tally(cur, tali_id)
+            state = read_handoff(cur, tali_id)
+            if cargo not in ("yes", "volumetric") or not state["can_edit_pallets"]:
+                receipt_db.conflict("ویرایش پالت‌های این تالی مجاز نیست")
+            locked = any(r['status'] == 'finalized' for r in state['receipt_checklists'])
+            try:
+                values = rp.validate_counts(state['pallet_rows'],
+                    [r.model_dump() for r in item.lines], expected=total if locked else None)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            docs = receipt_db.receipts(cur, tali_id)
+            if sum((r['pallet_quantity'] or 0) for r in docs if r['is_master'] != 'yes') > sum(values.values()):
+                receipt_db.conflict('جمع پالت تالی نباید از پالت قبض‌های تفکیکی کمتر باشد')
+            # Existing detailed allocations must still fit their source row.
+            used = receipt_db.rows(cur, '''SELECT p."TALLY_DETAIL_ID" AS id, SUM(p."PALLETS") AS pallets
+                FROM "FA_RECEIPT_PALLETS" p JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = p."RECEIPT_ID"
+                WHERE h."TALI_ID" = :tid AND h."IS_DELETED" = 'no' AND NVL(h."IS_MASTER", 'no') = 'no'
+                GROUP BY p."TALLY_DETAIL_ID"''', {'tid': tali_id})
+            if any(values.get(int(r['id']), 0) < r['pallets'] for r in used):
+                receipt_db.conflict('پالت ردیف نباید از مقدار تخصیص‌یافته به قبض‌ها کمتر شود')
+            cur.executemany('''UPDATE "FA_TALI_DETAILES" SET "ROW_PALLETS" = :pallets
+                WHERE "ID_TALI_DETAILS" = :id AND "ID_HEADERS_TALI" = :tid''',
+                [{'id': k, 'pallets': v, 'tid': tali_id} for k, v in values.items()])
+            cur.execute(SAVE_VOLUMETRIC_SQL, {'tali_id': tali_id, 'is_volumetric': 'volumetric',
+                'volumetric_pallets': sum(values.values()), 'actor_id': int(current_user['id'])})
+            conn.commit()
+            return read_handoff(cur, tali_id)

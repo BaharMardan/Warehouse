@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Badge, Button, Group, Modal, Paper, Stack, Table, Text } from '@mantine/core'
 import { useNavigate } from 'react-router-dom'
 import { apiGet, apiSend, errorMessage } from '../api/client'
+import { ReceiptPallets } from './ReceiptPallets'
 import { RemainingInvoiceModal } from './RemainingInvoiceModal'
 import { usePermissions } from '../auth/usePermissions'
 
@@ -174,5 +175,6 @@ export function ReceiptContext({ id, number }: { id: number; number: string | nu
       </Table.Tr>)}</Table.Tbody>
     </Table></Table.ScrollContainer>}
     {data?.length === 0 && <Text size="sm">این قبض ردیف فعال ندارد.</Text>}
+    <ReceiptPallets id={id} />
   </Paper>
 }

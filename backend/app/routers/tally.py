@@ -612,7 +612,7 @@ SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
        j."pricing_type" AS pricing_type, j."service_kind" AS service_kind,
        k."code" AS rate_code, k."title" AS rate_title,
        CASE WHEN j."pricing_type" IN ('unloading', 'loading') THEN
-         (SELECT SUM(NVL(d."WEIGHTE", 0) *
+         (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) *
                      CASE j."pricing_type" WHEN 'loading' THEN p."price_loading"
                           ELSE p."price_unloding" END)
             FROM "FA_TALI_DETAILES" d

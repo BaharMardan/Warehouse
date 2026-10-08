@@ -55,7 +55,7 @@ EXPECTED = {
         (f'{L["crane"]} — empty', 1, "50"),
         (L["transportation"], 2, "3000000")],
     "container_excess": [
-        ("استریپ", 6, "3162"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
+        ("استریپ", 7, "3180"), (L["stuffing"], None, "0"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], None, "0")],
 }
 

@@ -1,4 +1,5 @@
 import { apiGet, apiSend } from './client'
+import type { PalletRow, PalletEntry } from '../components/PalletRows'
 
 /** The operator / warehouse-keeper handoff on one tally (see app/routers/tally_handoff.py). */
 
@@ -17,6 +18,8 @@ export interface HandoffState {
   returned_by: string | null
   cargo_type: 'weight' | 'volumetric' | 'container' | null
   volumetric_pallets: number | null
+  pallet_rows: PalletRow[]
+  can_edit_pallets: boolean
   goods_rows: number
   has_receipts: boolean
   can_edit_services: boolean
@@ -37,6 +40,8 @@ export const handoffApi = {
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/send-to-keeper`, 'POST'),
   saveCargoType: (tallyId: number, body: CargoTypeAnswer) =>
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/volumetric`, 'PUT', body),
+  savePalletRows: (tallyId: number, lines: PalletEntry[]) =>
+    apiSend<HandoffState>(`/tally/${tallyId}/handoff/pallets`, 'PUT', { lines }),
   returnToOperator: (tallyId: number) =>
     apiSend<HandoffState>(`/tally/${tallyId}/handoff/return-to-operator`, 'POST'),
   keeperQueue: () => apiGet<{ waiting: number }>('/kartabl/keeper-queue'),

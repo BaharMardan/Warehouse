@@ -3,7 +3,7 @@
 The excess row is keyed to its parent service row. Deriving it from current tally
 weight prevents stale quantities and duplicate generated charges after edits.
 """
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 
 CONTAINERS = {
@@ -18,7 +18,7 @@ def excess_tons(code: str | None, weight_kg: object) -> Decimal:
     if not rule or weight_kg is None:
         return Decimal(0)
     capacity, _ = rule
-    return max((Decimal(str(weight_kg)) - capacity) / Decimal(1000), Decimal(0))
+    return max((Decimal(str(weight_kg)) - capacity) / Decimal(1000), Decimal(0)).to_integral_value(rounding=ROUND_CEILING)
 
 
 def derived_rows(rows: list[dict], weights: dict[str, Decimal], catalog: dict[str, dict]) -> list[dict]:
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     assert excess_tons("201", 10000) == 0
     assert excess_tons("201", 15000) == 5
     assert excess_tons("401", 20000) == 5
-    assert excess_tons("401", 15400) == Decimal("0.4")
+    assert excess_tons("401", 15400) == Decimal(1)
     base = {"id": 7, "service_kind": "strip", "number_hamel": "A", "rate_code": "201", "pricing_type": "dangerous"}
     tariff = {"202": {"id": 42, "code": "202", "title": "20-foot excess", "normal": "10", "non_standard": "20", "dangerous": "30"}}
     result = derived_rows([base], {"A": Decimal(15000)}, tariff)

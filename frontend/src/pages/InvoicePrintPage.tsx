@@ -145,7 +145,7 @@ export function InvoicePrintPage() {
             </tr>
           </thead>
           <tbody>
-            {invoiceSections(data.details).charges.map((line, index) => (
+            {printCharges(invoiceSections(data.details).charges).map((line, index) => (
               <tr key={line.id_detail}>
                 <td>{index + 1}</td>
                 <td>{shown(line.description)}</td>
@@ -182,21 +182,31 @@ export function InvoicePrintPage() {
     </main>
   )
 }
-// Combine crane charges only for printing; saved details and totals stay intact.
+// Combine storage and crane charges for the printed invoice.
 function printCharges(charges: InvoiceLine[]): InvoiceLine[] {
-  const label = 'جابه‌جایی کانتینر با جرثقیل'
+  const craneLabel = 'جابه‌جایی کانتینر با جرثقیل'
   const result: InvoiceLine[] = []
-  let crane: InvoiceLine | undefined
+  const grouped = new Map<string, InvoiceLine>()
   for (const line of charges) {
-    if (line.row_kind !== 'service' || !line.description?.startsWith(label)) {
+    const isStorage = line.row_kind === 'storage' ||
+      (line.row_kind == null && /^انبارداری(?:\s|$)/.test(line.description ?? ''))
+    const label = isStorage ? 'انبارداری' :
+      line.row_kind === 'service' && line.description?.startsWith(craneLabel) ? craneLabel : null
+    if (!label) {
       result.push(line)
       continue
     }
-    if (!crane) {
-      crane = { ...line, description: label, quantity: null, weight: null, calc_note: null }
-      result.push(crane)
+    const combined = grouped.get(label)
+    if (!combined) {
+      const first = { ...line, description: label, quantity: null, weight: null, calc_note: null }
+      grouped.set(label, first)
+      result.push(first)
     } else {
-      crane.price = String(Number(crane.price ?? 0) + Number(line.price ?? 0))
+      for (const field of ['price', 'discount', 'amount'] as const) {
+        if (combined[field] != null || line[field] != null) {
+          combined[field] = String(Number(combined[field] ?? 0) + Number(line[field] ?? 0))
+        }
+      }
     }
   }
   return result

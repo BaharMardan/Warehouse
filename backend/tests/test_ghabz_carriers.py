@@ -17,6 +17,8 @@ def db():
             (4,1,'no','C','HS2'), (5,1,'yes','DELETED','HS1'), (6,2,'no','OTHER','HS1');
         INSERT INTO FA_ghabz_anbar_DETAILES VALUES (858,'no','A','HS1'), (859,'no','A','HS1');
     """)
+    conn.execute('ALTER TABLE FA_TALI_DETAILES ADD COLUMN CONTAINER_TYPE TEXT')
+    conn.execute('ALTER TABLE FA_TALI_DETAILES ADD COLUMN CONTAINER_NUMBER TEXT')
     yield conn
     conn.close()
 
@@ -63,3 +65,19 @@ def test_line_carriers_respect_explicit_allocations(db):
     """)
     rows = db.execute(LINE_CARRIERS_SQL, {"hid": 859, "hscode": "HS1"})
     assert [r[0] for r in rows] == ['B']
+
+
+def test_container_numbers_follow_receipt_allocations(db):
+    db.execute("UPDATE FA_TALI_DETAILES SET CONTAINER_TYPE=?, CONTAINER_NUMBER=? WHERE ID_TALI_DETAILS IN (1,3)",
+               ('کانتینر ۲۰ فوت', ' BOX123 '))
+    db.execute("UPDATE FA_TALI_DETAILES SET CONTAINER_TYPE=?, CONTAINER_NUMBER=? WHERE ID_TALI_DETAILS=2",
+               ('کانتینر ۴۰ فوت', 'BOX456'))
+    rows = list(db.execute(CARRIERS_SQL, {"hid": 859}))
+    assert rows == [('A', 'کانتینر ۲۰ فوت', 'BOX123'), ('B', 'کانتینر ۴۰ فوت', 'BOX456')]
+    db.execute("INSERT INTO FA_GHABZ_TALLY_SOURCE VALUES (859,2,1,1,1)")
+    assert list(db.execute(CARRIERS_SQL, {"hid": 859})) == [('B', 'کانتینر ۴۰ فوت', 'BOX456')]
+
+
+def test_standalone_receipt_has_no_invented_container(db):
+    db.execute("UPDATE fa_ghabz_anbar_header SET TALI_ID=NULL WHERE ID_ghabz=859")
+    assert list(db.execute(CARRIERS_SQL, {"hid": 859})) == [('A', None, None)]

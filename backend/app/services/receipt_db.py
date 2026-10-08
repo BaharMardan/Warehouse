@@ -148,6 +148,7 @@ def guarded_write(table, pk, action, sql, params, *, row_id=None, values=None):
                 if action == "delete" and any(r["status"] in ("finalized", "invoice_issued") for r in siblings):
                     conflict("حذف قبض‌های تالی پس از ثبت نهایی مجاز نیست")
                 if table == "FA_ghabz_anbar_DETAILES" or action == "delete":
+                    cur.execute('DELETE FROM "FA_RECEIPT_PALLETS" WHERE "RECEIPT_ID" = :id', {"id": rid})
                     cur.execute('DELETE FROM "FA_GHABZ_TALLY_SOURCE" WHERE "RECEIPT_ID" = :id', {"id": rid})
             if action == "create":
                 output = cur.var(int)

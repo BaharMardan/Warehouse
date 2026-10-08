@@ -15,10 +15,9 @@ cover does not reach; the cover is consumed in tally registration order
 
 Storage per cargo type:
   weight      one row per linked tally line, its own rate, location and weight
-  volumetric  one row per receipt; pallets come from the receipt (detailed) or
-              the tally (general). All linked lines must share one goods code and
-              one location, otherwise the pallets per code are unknown and the
-              invoice is refused rather than guessed.
+  volumetric  one row per linked tally detail using explicitly recorded pallets.
+              Legacy receipts without row counts may use their total only when
+              all linked lines have the same goods code and location.
   container   one row per container (NUMBER_HAMEL). A container split between
               detailed receipts is charged by this receipt's share of the
               container's declared weight. Full 20/40-foot tariffs charge one device
@@ -249,6 +248,21 @@ def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
         return rows
 
     if cargo == "volumetric":
+        if any(line.get("pallets") is not None for line in lines):
+            if any(line.get("pallets") is None for line in lines):
+                raise ValueError("تعداد پالت تمام ردیف‌های قبض را مشخص کنید")
+            if sum((_dec(line["pallets"]) for line in lines), Decimal(0)) != _dec(pallets):
+                raise ValueError("جمع پالت ردیف‌ها با تعداد پالت قبض برابر نیست")
+            rows = []
+            for line in lines:
+                count = _dec(line["pallets"])
+                if not count.is_finite() or count < 1 or count != count.to_integral_value():
+                    raise ValueError("تعداد پالت هر ردیف باید عدد صحیح و مثبت باشد")
+                charge = sc.storage_charge("volumetric", rate=line.get("storage_price"),
+                    loc=_location(line), days=days, pallets=count)
+                label = f"{_storage_label(line)} — {_name(line)} — حامل {line.get('number_hamel') or '—'}"
+                rows.append(InvoiceRow("storage", label, charge.amount, charge.note, quantity=count))
+            return rows
         line, loc = _single_rate(
             lines, "کالاهای این قبض کد کالا یا ضریب محل متفاوت دارند و تعداد پالت هر کدام مشخص نیست")
         charge = sc.storage_charge("volumetric", rate=line.get("storage_price"), loc=loc,

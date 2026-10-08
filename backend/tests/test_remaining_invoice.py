@@ -35,7 +35,7 @@ def test_container_remaining_with_original_insurance_percentage_and_no_deduction
     assert result["snapshot"]["inputs"]["insurance_percent"] == "10"
 
 
-@pytest.mark.parametrize("cargo,amount,expected", [("weight", "2500", 9000), ("volumetric", "5", 21600)])
+@pytest.mark.parametrize("cargo,amount,expected", [("weight", "2500", 10800), ("volumetric", "5", 21600)])
 def test_weight_and_pallets_reuse_storage_rules(cargo, amount, expected):
     result = calc(cargo=cargo, payload=payload(amount=amount, days=30),
         tariff={"kala_code": "101", "storage_price": 100})
@@ -183,7 +183,7 @@ def test_preview_does_not_require_or_use_dates(monkeypatch):
 
 
 @pytest.mark.parametrize("days", [1, 7, 29, 31, 61])
-@pytest.mark.parametrize("cargo,amount,daily", [("weight", "2500", "300"),
+@pytest.mark.parametrize("cargo,amount,daily", [("weight", "2500", "360"),
     ("volumetric", "5", "720"), ("container", "20400", "3446256")])
 def test_manual_days_are_used_without_rounding(monkeypatch, days, cargo, amount, daily):
     from app.services import storage_calc as sc

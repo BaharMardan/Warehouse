@@ -416,11 +416,12 @@
 // }
 
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Group, Paper, Radio, Stack, Text, TextInput, Tooltip } from '@mantine/core'
 import { Send, Undo2 } from 'lucide-react'
 import { errorMessage } from '../api/client'
+import { PalletRows, type PalletEntry } from './PalletRows'
 import { KEEPER_QUEUE_KEY, handoffApi, handoffKey, type HandoffState, type CargoTypeAnswer } from '../api/handoff'
 import { usePermissions } from '../auth/usePermissions'
 
@@ -464,6 +465,7 @@ function useHandoffAction<TInput>(
     mutationFn: action,
     onSuccess: (state) => {
       queryClient.setQueryData(handoffKey(tallyId), state)
+      queryClient.invalidateQueries({ queryKey: ['receipt-pallets'] })
       queryClient.invalidateQueries({ queryKey: KEEPER_QUEUE_KEY })
       queryClient.invalidateQueries({ queryKey: ['kartabl-list'] })
     },
@@ -604,196 +606,39 @@ export function SendToKeeperButton({ tallyId, state }: { tallyId: number | null 
 //   )
 // }
 
-export function VolumetricCard({
-  tallyId,
-  state,
-}: {
-  tallyId: number | null | undefined
-  state: HandoffState | undefined
+export function VolumetricCard({ tallyId, state }: {
+  tallyId: number | null | undefined; state: HandoffState | undefined
 }) {
   const { can } = usePermissions()
-
-  const save = useHandoffAction(
-    tallyId,
-    (answer: CargoTypeAnswer) =>
-      handoffApi.saveCargoType(tallyId as number, answer),
-    'ثبت پاسخ انجام نشد.',
-  )
-
-  const [pallets, setPallets] = useState('')
-  const savedPallets = state?.volumetric_pallets ?? null
-
-  useEffect(() => {
-    setPallets(savedPallets == null ? '' : faDigits(savedPallets))
-  }, [savedPallets])
-
-  if (
-    !can('tally.services') ||
-    tallyId == null ||
-    state?.step !== 'keeper' || !state?.can_edit_services
-  ) {
-    return null
-  }
-
-  const savePallets = () => {
-    const typed = latinDigits(pallets).trim()
-    const value = typed === '' ? null : Number(typed)
-
-    if (
-      value !== null &&
-      (!Number.isInteger(value) || value < 1)
-    ) {
-      alert('تعداد پالت باید عددی صحیح و دست‌کم ۱ باشد')
-      return
-    }
-
-    if (value === savedPallets) return
-
-    save.mutate({
-      cargo_type: 'volumetric',
-      volumetric_pallets: value,
-    })
-  }
-
-  return (
-    <Paper
-      className="tally-detail-section volumetric-card"
-      radius="xl"
-      dir="rtl"
-    >
-      <div className="tally-detail-section-header">
-        <div className="volumetric-heading">
-          <span
-            className="tally-detail-section-icon"
-            aria-hidden="true"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-              <path d="M3 8v8l9 5 9-5V8" />
-              <path d="M12 13v8" />
-              <path d="m7.5 5.5 9 5" />
-            </svg>
-          </span>
-
-          <div className="tally-detail-section-heading">
-            <h3>نوع بار چیست؟</h3>
-            
-          </div>
-        </div>
-
-        <Badge
-          color={state.cargo_type ? 'teal' : 'orange'}
-          variant="light"
-          radius="sm"
-          role="status"
-        >
-          {save.isPending
-            ? 'در حال ذخیره…'
-            : state.cargo_type
-              ? 'پاسخ ثبت شده'
-              : 'نیاز به پاسخ'}
-        </Badge>
-      </div>
-
-      <div className="tally-detail-section-rule" />
-
-      <div className="volumetric-body">
-        <Radio.Group
-          name={`cargo-type-${tallyId}`}
-          value={state.cargo_type ?? ''}
-          onChange={(value) => {
-            if (value === 'weight' || value === 'volumetric' || value === 'container') {
-              save.mutate({ cargo_type: value, volumetric_pallets: value === 'volumetric' ? savedPallets : null })
-            }
-          }}
-        >
-          <div className="volumetric-options">
-            <div
-              className="volumetric-option"
-              data-selected={state.cargo_type === 'weight'}
-            >
-              <Radio
-                value="weight"
-                label="وزنی"
-                disabled={save.isPending}
-                size="md"
-                styles={{
-                  body: { alignItems: 'center' },
-                  labelWrapper: { flex: 1 },
-                  label: {
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    paddingBlock: 8,
-                  },
-                }}
-              />
-            </div>
-
-            <div
-              className="volumetric-option"
-              data-selected={state.cargo_type === 'volumetric'}
-            >
-              <div className="volumetric-option-content">
-                <Radio
-                  value="volumetric"
-                  label="حجمی"
-                  disabled={save.isPending}
-                  size="md"
-                  styles={{
-                    body: { alignItems: 'center' },
-                    labelWrapper: { flex: 1 },
-                    label: { cursor: 'pointer', fontWeight: 600, paddingBlock: 8 },
-                  }}
-                />
-              </div>
-            </div>
-            {state.cargo_type === 'volumetric' && (
-              <div className="volumetric-pallets">
-                <TextInput
-                  aria-label="تعداد پالت"
-                  placeholder="تعداد پالت"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  size="sm"
-                  value={pallets}
-                  disabled={save.isPending}
-                  onChange={(event) => setPallets(latinDigits(event.currentTarget.value).replace(/\D/g, ''))}
-                  onBlur={savePallets}
-                  onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-                />
-              </div>
-            )}
-            <div className="volumetric-option" data-selected={state.cargo_type === 'container'}>
-              <Radio
-                value="container"
-                label="کانتینری"
-                disabled={save.isPending}
-                size="md"
-                styles={{
-                  body: { alignItems: 'center' },
-                  labelWrapper: { flex: 1 },
-                  label: { cursor: 'pointer', fontWeight: 600, paddingBlock: 8 },
-                }}
-              />
-            </div>
-          </div>
-        </Radio.Group>
-
-        <Text size="xs" c="dimmed">
-          پاسخ شما به‌صورت خودکار ذخیره می‌شود.
-        </Text>
-      </div>
-    </Paper>
-  )
+  const save = useHandoffAction(tallyId,
+    (answer: CargoTypeAnswer) => handoffApi.saveCargoType(tallyId as number, answer), 'ثبت نوع بار انجام نشد.')
+  const pallets = useHandoffAction(tallyId,
+    (lines: PalletEntry[]) => handoffApi.savePalletRows(tallyId as number, lines), 'ثبت پالت‌ها انجام نشد.')
+  if (!can('tally.services') || tallyId == null || !state) return null
+  if (!state.can_edit_services && state.cargo_type !== 'volumetric') return null
+  const pending = save.isPending || pallets.isPending
+  return <Paper className="tally-detail-section volumetric-card" radius="xl" dir="rtl" p="md">
+    <Text fw={700} mb="sm">نوع بار چیست؟</Text>
+    <Radio.Group value={state.cargo_type ?? ''} onChange={value => {
+      if (value === 'weight' || value === 'volumetric' || value === 'container') {
+        save.mutate({ cargo_type: value, volumetric_pallets: null })
+      }
+    }}>
+      <Group mb="md">
+        <Radio value="weight" label="وزنی" disabled={!state.can_edit_services || pending} />
+        <Radio value="volumetric" label="حجمی" disabled={!state.can_edit_services || pending} />
+        <Radio value="container" label="کانتینری" disabled={!state.can_edit_services || pending} />
+      </Group>
+    </Radio.Group>
+    {state.cargo_type === 'volumetric' && <>
+      <Text size="sm" c="dimmed" mb="sm">تعداد پالت کالای هر ردیف را وارد کنید. ردیف‌های دارای حامل تکراری، جداگانه ثبت می‌شوند.</Text>
+      <PalletRows key={tallyId} rows={state.pallet_rows ?? []} editable={state.can_edit_pallets}
+        pending={pending} expected={!state.can_edit_services ? state.volumetric_pallets : undefined}
+        onSave={lines => pallets.mutate(lines)} />
+      {pallets.isSuccess && <Text c="teal" size="sm">پالت ردیف‌ها ذخیره شد.</Text>}
+      <Text size="sm" mt="sm">جمع ذخیره‌شده: {state.volumetric_pallets == null ? 'تکمیل نشده' : faDigits(state.volumetric_pallets)} پالت</Text>
+    </>}
+  </Paper>
 }
 
 /** Bottom of the page: hands the tally back and unlocks «صدور قبض انبار». */

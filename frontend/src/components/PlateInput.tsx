@@ -286,7 +286,7 @@
 //   )
 // }
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Input, Group, TextInput, Select, Text, Box, ActionIcon, type SelectProps } from '@mantine/core'
 
 /**
@@ -359,6 +359,8 @@ type Props = {
 export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
   const [parts, setParts] = useState<Parts>(() => parse(value))
   const [showForeign, setShowForeign] = useState(() => !!parse(value).foreign)
+  const numberInputs = useRef<Partial<Record<'l2' | 'm3' | 'r2', HTMLInputElement | null>>>({})
+  const entryDirection = useRef<1 | -1>(1)
 
   useEffect(() => { 
     const parsed = parse(value)
@@ -374,6 +376,36 @@ export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
   const digits = (s: string, max: number) =>
     normalizeDigits(s).replace(/\D/g, '').slice(0, max)
 
+  function updateNumber(field: 'l2' | 'm3' | 'r2', rawValue: string) {
+    const fields = ['l2', 'm3', 'r2'] as const
+    const maxLength = field === 'm3' ? 3 : 2
+    const nextValue = digits(rawValue, maxLength)
+    const previousValue = parts[field]
+    update({ ...parts, [field]: nextValue })
+
+    // The end where typing starts determines the direction through the plate.
+    if (field === 'l2') entryDirection.current = 1
+    if (field === 'r2') entryDirection.current = -1
+    if (field === 'm3') {
+      if (parts.l2.length < 2 && parts.r2.length === 2) entryDirection.current = -1
+      if (parts.r2.length < 2 && parts.l2.length === 2) entryDirection.current = 1
+    }
+
+    // Deleting or entering a rejected character must not move focus.
+    if (nextValue.length !== maxLength || nextValue === previousValue) return
+    for (
+      let index = fields.indexOf(field) + entryDirection.current;
+      index >= 0 && index < fields.length;
+      index += entryDirection.current
+    ) {
+      const nextField = fields[index]
+      if (parts[nextField].length < (nextField === 'm3' ? 3 : 2)) {
+        numberInputs.current[nextField]?.focus()
+        return
+      }
+    }
+  }
+
   const numBox = {
     inputMode: 'numeric' as const,
     styles: { input: { textAlign: 'center' as const } },
@@ -385,7 +417,8 @@ export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
       <Group gap={6} wrap="nowrap" mt={4} align="center" dir="ltr">
         <TextInput
           {...numBox} w={58} placeholder="۱۲" value={parts.l2}
-          onChange={(e) => update({ ...parts, l2: digits(e.currentTarget.value, 2) })}
+          ref={(element) => { numberInputs.current.l2 = element }}
+          onChange={(e) => updateNumber('l2', e.currentTarget.value)}
         />
         <Select
           w={84} placeholder="حرف" data={PLATE_LETTERS} searchable clearable
@@ -395,7 +428,8 @@ export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
         />
         <TextInput
           {...numBox} w={72} placeholder="۳۴۵" value={parts.m3}
-          onChange={(e) => update({ ...parts, m3: digits(e.currentTarget.value, 3) })}
+          ref={(element) => { numberInputs.current.m3 = element }}
+          onChange={(e) => updateNumber('m3', e.currentTarget.value)}
         />
         
         {/* Updated Iranian Flag Box */}
@@ -418,7 +452,8 @@ export function PlateInput({ value, onChange, label, comboboxProps }: Props) {
 
         <TextInput
           {...numBox} w={58} placeholder="۶۷" value={parts.r2}
-          onChange={(e) => update({ ...parts, r2: digits(e.currentTarget.value, 2) })}
+          ref={(element) => { numberInputs.current.r2 = element }}
+          onChange={(e) => updateNumber('r2', e.currentTarget.value)}
         />
 
         {/* Add Foreign Plate Button */}

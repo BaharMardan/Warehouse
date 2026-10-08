@@ -44,7 +44,7 @@ def test_weight_bills_each_linked_line_with_its_own_rate_and_location():
     assert [r.description for r in rows] == ["هزینه انبارداری کد کالای 101",
                                             "هزینه انبارداری کد کالای 124"]
     assert rows[0].price == Decimal(252013500)   # 56,003 x 1.5 x 100 t x 30
-    assert rows[1].price == Decimal(3548243)     # 43,009 x 1.1 x 2.5 t x 30 = 3,548,242.5
+    assert rows[1].price == Decimal(4257891)     # 43,009 x 1.1 x 3 rounded tons x 30
     assert rows[0].note == "56,003 × 1.5 (مسقف 50٪) × 100,000 کیلوگرم ÷ 1,000 × 30 روز = 252,013,500"
     assert (rows[0].quantity, rows[0].weight) == (Decimal(10), Decimal(100000))
     assert all(r.kind == "storage" for r in rows)
@@ -127,7 +127,7 @@ def test_container_sums_declared_weight_across_linked_tally_lines():
     ], 30, container_weights={"MSKU1234567": Decimal(10000)})
     assert len(rows) == 1
     assert rows[0].weight == Decimal(3500)
-    assert rows[0].price == Decimal(8820473)   # 56,003 x 1.5 x 3.5 t x 30
+    assert rows[0].price == Decimal(10080540)   # 56,003 x 1.5 x 4 rounded tons x 30
     assert "3,500 کیلوگرم ÷ 1,000" in rows[0].note
 
 

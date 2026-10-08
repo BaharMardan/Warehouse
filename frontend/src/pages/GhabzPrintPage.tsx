@@ -344,6 +344,7 @@
 // }
 
 
+import { TYPES_WITH_NUMBER } from '../components/ContainerFields'
 import { CompanyLogo } from '../components/CompanyLogo'
 import { useEffect, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -360,6 +361,7 @@ import './TallyPrintPage.css'
 import './GhabzPrintPage.css'
 
 type GhabzHeader = {
+  carrier_details?: Array<{ number_hamel: string; container_type: string | null; container_number: string | null }>
   carriers?: string[]
   id_ghabz: number
   ghabz_number: string | null
@@ -634,7 +636,16 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
             <div>
               {carriers.length
                 ? carriers.map((carrier, index) => (
-                    <IranianPlate value={carrier} key={`${carrier}-${index}`} />
+                    <div className="ghabz-print-carrier" key={`${carrier}-${index}`}>
+                      <IranianPlate value={carrier} />
+                      {[...new Set((header.carrier_details ?? [])
+                        .filter((item) => item.number_hamel?.trim() === carrier
+                          && TYPES_WITH_NUMBER.includes(item.container_type?.trim() ?? ''))
+                        .map((item) => item.container_number?.trim()).filter(Boolean))]
+                        .map((number) => <div className="ghabz-print-container" key={number}>
+                          <span>شماره کانتینر: </span><bdi dir="ltr">{number}</bdi>
+                        </div>)}
+                    </div>
                   ))
                 : <span>{EMPTY}</span>}
             </div>

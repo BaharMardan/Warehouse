@@ -11,6 +11,8 @@ from app.services.receipt_sources import allocate_sources, automatic_selections
 from app.services.receipt_allocation import allocation_ratio, allocated_amount, decimal, EPS
 from app.services.tally_handoff import return_to_operator_error
 from app.services import receipt_invoice as ri
+from app.services import row_pallets as rp
+from app.routers.tally_handoff import PalletInput
 from app.services.storage_calc import billed_days
 from app.services.insurance_cover import insurance_cover
 from app.services import insurance_cover as cover_sql
@@ -128,10 +130,14 @@ SELECT d."ID_TALI_DETAILS" AS id, d."HSCODE" AS hscode,
           AND e."IS_DELETED" = 'no') AS excess_storage_price,
        d."ZARIB_MAHAL" AS zarib_mahal, d."NUMBER_HAMEL" AS number_hamel,
        d."NUMBER_KALA" * m."QUANTITY_SHARE" AS quantity,
-       d."WEIGHTE" * m."WEIGHT_SHARE" AS weight_kg
+       d."WEIGHTE" * m."WEIGHT_SHARE" AS weight_kg,
+       CASE WHEN h."IS_MASTER" = 'yes' THEN d."ROW_PALLETS" ELSE a."PALLETS" END AS pallets
 FROM "FA_TALI_DETAILES" d
 JOIN "FA_GHABZ_TALLY_SOURCE" m ON m."TALLY_DETAIL_ID" = d."ID_TALI_DETAILS"
     AND m."RECEIPT_ID" = :rid
+JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = m."RECEIPT_ID"
+LEFT JOIN "FA_RECEIPT_PALLETS" a ON a."RECEIPT_ID" = m."RECEIPT_ID"
+    AND a."TALLY_DETAIL_ID" = d."ID_TALI_DETAILS"
 LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = d."CODE_GROUPE_KALA"
 WHERE d."ID_HEADERS_TALI" = :tid AND d."IS_DELETED" = 'no'
 ORDER BY d."ID_TALI_DETAILS"
@@ -250,12 +256,12 @@ SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
        j."NUMBER_SERVICE" AS number_service,
        CASE WHEN j."service_kind" = 'crane' THEN COALESCE(j."code", c."code") ELSE c."code" END AS rate_code, c."title" AS rate_title,
        c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous,
-       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_unloding")
+       (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) * p."price_unloding")
           FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
             ON p."id_kala_price" = d."CODE_GROUPE_KALA"
          WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
            AND d."IS_DELETED" = 'no') AS unloading_amount,
-       (SELECT SUM(NVL(d."WEIGHTE", 0) * p."price_loading")
+       (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) * p."price_loading")
           FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
             ON p."id_kala_price" = d."CODE_GROUPE_KALA"
          WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
@@ -395,28 +401,16 @@ def finalize(receipt_id: int, user: dict = Depends(require_permission("tally.ser
                 )""", {"tid": current["tally_id"]})
             if missing["cnt"]:
                 db.conflict("اطلاعات باربری تمام حامل‌های تالی را تکمیل کنید")
-            if current["is_master"] == "yes":
-                save_links(cur, current, [{"tally_detail_id": row["id"],
-                    **{key: row[key] for key in ("quantity", "weight", "baskol")}}
-                    for row in source_rows(cur, current)
-                    if any(decimal(row[key]) > 0 for key in ("quantity", "weight", "baskol"))])
-            else:
-                # Reserve older receipts first so allocation does not depend on
-                # which receipt the keeper confirms first. Existing links win.
-                for item in sorted(db.operational(siblings), key=lambda r: r["id"]):
-                    if item["is_master"] == "yes" or item["id"] > current["id"]:
-                        continue
-                    rows = source_rows(cur, item)
-                    if any(row[key + "_share"] for row in rows
-                           for key in ("quantity", "weight", "baskol")):
-                        continue
-                    expected = db.rows(cur, EXPECTED_SQL, {"rid": item["id"]})
+            prepare_sources(cur, current, siblings)
+            if cargo == "volumetric":
+                all_rows = rp.tally_rows(cur, current["tally_id"])
+                if not rp.complete_total(all_rows) or rp.complete_total(all_rows) != tally["volumetric_pallets"]:
+                    db.conflict("تعداد پالت تمام ردیف‌های تالی را تکمیل کنید")
+                if current["is_master"] != "yes":
                     try:
-                        selections = automatic_selections(rows, expected)
+                        rp.ensure_receipt_counts(cur, current, source_rows(cur, current))
                     except ValueError as exc:
                         raise HTTPException(422, str(exc)) from exc
-                    save_links(cur, item, selections)
-                verify_links(cur, current)
             weights = db.one(cur, """SELECT
                 SUM(NVL(d."WEIGHTE", 0)) AS total_weight,
                 SUM(NVL(d."WEIGHTE", 0) * NVL(m."WEIGHT_SHARE", 0)) AS selected_weight
@@ -498,6 +492,14 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
                 db.conflict(str(exc))
             lines = db.rows(cur, RECEIPT_STORAGE_SQL,
                             {"tid": current["tally_id"], "rid": receipt_id})
+            if cargo == "volumetric" and current["is_master"] != "yes":
+                if any(r.get("pallets") is not None for r in rp.tally_rows(cur, current["tally_id"])):
+                    try:
+                        rp.ensure_receipt_counts(cur, current, source_rows(cur, current))
+                        lines = db.rows(cur, RECEIPT_STORAGE_SQL,
+                                        {'tid': current['tally_id'], 'rid': receipt_id})
+                    except ValueError as exc:
+                        raise HTTPException(422, str(exc)) from exc
             container_weights = None
             if cargo == "container":
                 container_weights = {row["number_hamel"]: row["weight_kg"] for row in
@@ -608,3 +610,118 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
                 {"id": receipt_id, "actor": user["id"]})
         conn.commit()
     return {"invoice_id": invoice_id}
+
+
+def prepare_sources(cur, current, siblings):
+    if current["is_master"] == "yes":
+        save_links(cur, current, [{"tally_detail_id": row["id"],
+            **{key: row[key] for key in ("quantity", "weight", "baskol")}}
+            for row in source_rows(cur, current)
+            if any(decimal(row[key]) > 0 for key in ("quantity", "weight", "baskol"))])
+    else:
+        # Reserve older receipts first so allocation does not depend on
+        # which receipt the keeper confirms first. Existing links win.
+        for item in sorted(db.operational(siblings), key=lambda r: r["id"]):
+            if item["is_master"] == "yes" or item["id"] > current["id"]:
+                continue
+            rows = source_rows(cur, item)
+            if any(row[key + "_share"] for row in rows
+                   for key in ("quantity", "weight", "baskol")):
+                continue
+            expected = db.rows(cur, EXPECTED_SQL, {"rid": item["id"]})
+            try:
+                selections = automatic_selections(rows, expected)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            save_links(cur, item, selections)
+        verify_links(cur, current)
+
+
+def linked_ids(cur, current):
+    return {int(row['id']) for row in source_rows(cur, current)
+            if any(row[key + '_share'] for key in ('quantity', 'weight', 'baskol'))}
+
+
+@router.get('/{receipt_id}/pallets', dependencies=[Depends(require_permission('ghabz.view'))])
+def get_receipt_pallets(receipt_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            current, siblings, tally = db.receipt(cur, receipt_id)
+            tally = db.one(cur, 'SELECT "IS_VOLUMETRIC" AS is_volumetric FROM "FA_TALI_HEADER" WHERE "ID_TALI" = :tid', {'tid': current['tally_id']})
+            cargo = tally['is_volumetric'] in ('yes', 'volumetric')
+            enabled = cargo and current['is_master'] != 'yes'
+            editable = current['status'] in ('created', 'sent_to_keeper', 'finalized') and not db.workflow(current, siblings)['summary_only']
+            sources, rows, message, resolved = [], [], None, False
+            if enabled:
+                try:
+                    sources = preview_sources(cur, current, siblings)
+                    rows = rp.receipt_rows(cur, current, {int(r['id']) for r in sources})
+                    counts = rp.resolve_counts(rows, sources, current['pallet_quantity'], rp.allocations(cur, receipt_id))
+                    rows = [{**r, 'selected_pallets': counts[int(r['id'])]} for r in rows]
+                    resolved = True
+                except ValueError as exc:
+                    message = str(exc)
+            return {'enabled': enabled, 'editable': editable,
+                    'total': current['pallet_quantity'], 'rows': rows,
+                    'resolved': resolved, 'message': message}
+
+
+
+@router.put('/{receipt_id}/pallets', dependencies=[Depends(require_permission('tally.services'))])
+def save_receipt_pallets(receipt_id: int, payload: PalletInput):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            current, siblings, tally = db.receipt(cur, receipt_id, lock=True)
+            if (tally['is_volumetric'] not in ('yes', 'volumetric') or current['is_master'] == 'yes'
+                or current['status'] not in ('created', 'sent_to_keeper', 'finalized')
+                or db.workflow(current, siblings)['summary_only']):
+                db.conflict('ویرایش تخصیص پالت این قبض مجاز نیست')
+            prior = db.one(cur, '''SELECT COUNT(*) AS cnt FROM "FA_SORAT_HESAB_HEADER"
+                WHERE "ID_GHABZ_ANBAR" = :rid AND NVL("SORAT_IS_DELETED", 'no') = 'no' ''', {'rid': receipt_id})
+            if prior['cnt']:
+                db.conflict('پالت قبض دارای صورتحساب قابل تغییر نیست')
+            prepare_sources(cur, current, siblings)
+            try:
+                values = rp.validate_counts(rp.receipt_rows(cur, current, linked_ids(cur, current)),
+                    [r.model_dump() for r in payload.lines], expected=current['pallet_quantity'], allocation=True)
+                if not current['pallet_quantity']:
+                    raise ValueError('ابتدا تعداد پالت قبض تفکیکی را ثبت کنید')
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            cur.execute('DELETE FROM "FA_RECEIPT_PALLETS" WHERE "RECEIPT_ID" = :rid', {'rid': receipt_id})
+            cur.executemany('''INSERT INTO "FA_RECEIPT_PALLETS" ("RECEIPT_ID", "TALLY_DETAIL_ID", "PALLETS")
+                VALUES (:rid, :id, :pallets)''',
+                [{'rid': receipt_id, 'id': k, 'pallets': v} for k, v in values.items()])
+        conn.commit()
+    return {'saved': True}
+
+
+def preview_sources(cur, current, siblings):
+    virtual = {}
+    fields = ('quantity', 'weight', 'baskol')
+    for item in sorted(db.operational(siblings), key=lambda r: r['id']):
+        if item['is_master'] == 'yes' or item['id'] > current['id']:
+            continue
+        rows = source_rows(cur, item)
+        if any(row[key + '_share'] for row in rows for key in fields):
+            if item['id'] == current['id']:
+                return [r for r in rows if any(r[k + '_share'] for k in fields)]
+            continue
+        for row in rows:
+            for key in fields:
+                row['used_' + key] = decimal(row['used_' + key]) + virtual.get((row['id'], key), Decimal(0))
+        expected = db.rows(cur, EXPECTED_SQL, {'rid': item['id']})
+        selected = automatic_selections(rows, expected)
+        links = allocate_sources(rows, selected, expected)
+        if item['id'] == current['id']:
+            by_id = {int(r['id']): r for r in rows}
+            return [{**by_id[int(link['tally_detail_id'])], **link} for link in links]
+        for link in links:
+            for key in fields:
+                slot = (link['tally_detail_id'], key)
+                virtual[slot] = virtual.get(slot, Decimal(0)) + link[key + '_share']
+    return []
+
+
+def preview_source_ids(cur, current, siblings):
+    return {int(r['id']) for r in preview_sources(cur, current, siblings)}
