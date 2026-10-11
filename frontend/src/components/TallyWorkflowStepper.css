@@ -1,0 +1,83 @@
+.tally-workflow-stepper {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 580px;
+  margin: 8px 0 0;
+  padding: 0;
+  direction: rtl;
+  list-style: none;
+}
+
+.tally-workflow-step {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 21px;
+  color: var(--mantine-color-gray-6);
+  background: var(--mantine-color-gray-1);
+  clip-path: polygon(0 50%, 17px 0, 100% 0, calc(100% - 17px) 50%, 100% 100%, 17px 100%);
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.tally-workflow-step:first-child {
+  clip-path: polygon(0 50%, 17px 0, 100% 0, 100% 100%, 17px 100%);
+}
+
+.tally-workflow-step[data-completed='true'] {
+  color: #fff;
+  background: linear-gradient(135deg, var(--step-color), var(--step-dark));
+}
+
+.tally-workflow-step-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.tally-workflow-step-icon,
+.tally-workflow-step-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.tally-workflow-step-status {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(128, 128, 128, 0.12);
+  font-size: 11px;
+}
+
+.tally-workflow-step[data-completed='true'] .tally-workflow-step-status {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+[data-mantine-color-scheme='dark'] .tally-workflow-step:not([data-completed='true']) {
+  color: var(--mantine-color-dark-1);
+  background: var(--mantine-color-dark-5);
+}
+
+@media (max-width: 640px) {
+  .tally-workflow-step {
+    flex-direction: column;
+    gap: 3px;
+    min-height: 74px;
+    padding: 8px 15px;
+    clip-path: polygon(0 50%, 12px 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 12px 100%);
+  }
+
+  .tally-workflow-step:first-child {
+    clip-path: polygon(0 50%, 12px 0, 100% 0, 100% 100%, 12px 100%);
+  }
+
+  .tally-workflow-step-label { font-size: 11px; }
+  .tally-workflow-step-status { width: 17px; height: 17px; }
+}

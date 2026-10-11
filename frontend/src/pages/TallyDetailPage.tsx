@@ -333,6 +333,7 @@ import { TallyHandlingSection } from '../components/TallyHandlingSection'
 import { TallyGoodsGrid } from '../components/TallyGoodsGrid'
 import { tallyJunctions } from '../components/junctions'
 import { TallyNumber } from '../components/TallyNumber'
+import { TallyWorkflowStepper } from '../components/TallyWorkflowStepper'
 import {
   HandoffBanner, ReturnToOperatorButton, SendToKeeperButton, VolumetricCard, useHandoff,
 } from '../components/TallyHandoff'
@@ -537,15 +538,14 @@ export function TallyDetailPage() {
           <span className="tally-detail-title-icon" aria-hidden>
             <ClipboardList size={29} strokeWidth={1.8} />
           </span>
-          <div>
-            <Text className="tally-detail-eyebrow">مدیریت اطلاعات تالی</Text>
+          <div className="tally-detail-title-copy">
             <Title order={2} className="tally-detail-title">
               جزئیات تالی شماره{' '}
               <TallyNumber value={header?.tali_number ?? tallyNumber} />
             </Title>
-            <Text className="tally-detail-subtitle">
-              ردیف‌های کالا و تمام خدمات مرتبط با این تالی را از این صفحه مدیریت کنید.
-            </Text>
+            <TallyWorkflowStepper tallyCreated={headerId != null}
+              receiptsIssued={handoff ? handoff.has_receipts : null}
+              invoiceIssued={handoff ? handoff.active_invoice_count > 0 : null} />
           </div>
         </div>
 

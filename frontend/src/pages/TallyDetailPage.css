@@ -49,7 +49,7 @@
 .tally-detail-hero {
   display: flex;
   min-height: 118px;
-  padding: 24px 26px;
+  padding: 16px 26px;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
@@ -524,7 +524,7 @@
 
 @media (max-width: 640px) {
   .tally-detail-hero {
-    padding: 19px 17px;
+    padding: 14px 17px;
   }
 
   .tally-detail-title-block {
@@ -719,4 +719,14 @@
     grid-row: auto;
     width: min(190px, 100%);
   }
+}
+
+
+.tally-detail-hero .tally-detail-title-block {
+  flex: 1 1 auto;
+}
+
+.tally-detail-title-copy {
+  flex: 1 1 auto;
+  min-width: 0;
 }
