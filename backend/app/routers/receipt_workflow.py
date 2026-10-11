@@ -451,6 +451,24 @@ def finalize(receipt_id: int, user: dict = Depends(require_permission("tally.ser
     return get_workflow(receipt_id)
 
 
+@router.post("/{receipt_id}/return")
+def return_receipt(receipt_id: int, user: dict = Depends(require_permission("workflow.return"))):
+    """Reopen shared keeper inputs only after every active invoice is cancelled."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            current, siblings, _ = db.receipt(cur, receipt_id, lock=True)
+            if not db.workflow(current, siblings)["can_return"]:
+                db.conflict("ابتدا صورتحساب این قبض را باطل کنید")
+            active = db.one(cur, """SELECT COUNT(*) AS cnt FROM "FA_SORAT_HESAB_HEADER"
+                WHERE "TALI_ID_HEADER" = :tid AND NVL("SORAT_IS_DELETED", 'no') = 'no'""",
+                {"tid": current["tally_id"]})
+            if active["cnt"] or any(r["status"] == "invoice_issued" for r in siblings):
+                db.conflict("برای اصلاح خدمات مشترک، ابتدا تمام صورتحساب‌های این تالی را باطل کنید")
+            db.reopen_for_correction(cur, current["tally_id"], user["id"])
+        conn.commit()
+    return get_workflow(receipt_id)
+
+
 @router.post("/{receipt_id}/invoice", status_code=201)
 def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invoice.issue")),
                   payload: InvoiceIssueInput | None = None):

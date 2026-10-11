@@ -171,9 +171,9 @@ SELECT COUNT(*) AS taken
 # other tables, so they record the acting admin's username.
 INSERT_USER_SQL = """
 INSERT INTO "FA_USERS" (
-    "USERNAME", "PASSWORD_HASH", "FULL_NAME", "IS_ADMIN", "IS_ACTIVE", "CREATE_AT", "CREATE_BY"
+    "USERNAME", "PASSWORD_HASH", "FULL_NAME", "IS_ADMIN", "IS_ACTIVE", "CREATE_AT", "CREATE_BY", "MUST_CHANGE_PASSWORD"
 ) VALUES (
-    :username, :password_hash, :full_name, :is_admin, :is_active, SYSDATE, :actor_username
+    :username, :password_hash, :full_name, :is_admin, :is_active, SYSDATE, :actor_username, 'yes'
 )
 RETURNING "ID" INTO :new_id
 """
@@ -198,6 +198,7 @@ VALUES (:user_id, :role_id, SYSDATE, :actor_id)
 SET_PASSWORD_SQL = """
 UPDATE "FA_USERS"
    SET "PASSWORD_HASH" = :password_hash,
+       "MUST_CHANGE_PASSWORD" = 'yes',
        "MODIFY_AT" = SYSDATE,
        "MODIFY_BY" = :actor_username
  WHERE "ID" = :user_id

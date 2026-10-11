@@ -12,7 +12,7 @@ def wired(monkeypatch):
     conn.__enter__.return_value = conn
     cur = conn.cursor.return_value.__enter__.return_value
     monkeypatch.setattr(api, "get_connection", lambda: conn)
-    one = MagicMock(side_effect=[{"tally_id": 10}, {"id_tali": 10}, {"ghabz_id": 20}])
+    one = MagicMock(side_effect=[{"tally_id": 10}, {"id_tali": 10}, {"ghabz_id": 20}, {"cnt": 1}])
     monkeypatch.setattr(db, "one", one)
     return conn, cur, one
 
@@ -66,3 +66,26 @@ def test_receipt_update_failure_does_not_commit_invoice_delete(wired):
 def test_list_and_detail_exclude_cancelled_invoices():
     for sql in (api.INVOICE_LIST_SQL, api.INVOICE_HEADER_SQL):
         assert 'NVL(s."SORAT_IS_DELETED", \'no\') = \'no\'' in sql
+
+
+def test_last_invoice_cancellation_reopens_every_tally_section(wired):
+    conn, cur, one = wired
+    one.side_effect = [{"tally_id": 10}, {"id_tali": 10}, {"ghabz_id": 20}, {"cnt": 0}]
+    api.cancel_invoice(5, {"id": 7})
+    writes = cur.execute.call_args_list
+    assert len(writes) == 5
+    assert '"WORKFLOW_STATUS" = \'sent_to_keeper\'' in writes[2].args[0]
+    assert writes[2].args[1] == {"tid": 10}
+    assert "FA_RECEIPT_SERVICE_POOL" in writes[3].args[0]
+    assert '"HANDOFF_STEP" = \'keeper\'' in writes[4].args[0]
+    assert writes[4].args[1] == {"tid": 10, "actor": 7}
+    conn.commit.assert_called_once()
+
+
+def test_failure_reopening_tally_does_not_commit_cancellation(wired):
+    conn, cur, one = wired
+    one.side_effect = [{"tally_id": 10}, {"id_tali": 10}, {"ghabz_id": 20}, {"cnt": 0}]
+    cur.execute.side_effect = [None, None, RuntimeError("reopen failed")]
+    with pytest.raises(RuntimeError):
+        api.cancel_invoice(5, {"id": 7})
+    conn.commit.assert_not_called()

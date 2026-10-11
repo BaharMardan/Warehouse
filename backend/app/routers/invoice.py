@@ -311,7 +311,7 @@ def get_invoice(invoice_id: int):
             'grand_total': str(total)}
 
 @router.delete('/{invoice_id}', status_code=204)
-def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("invoice.issue"))):
+def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("workflow.return"))):
     """Soft-delete only the invoice; release its receipt for reissue atomically."""
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -325,6 +325,7 @@ def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("inv
             if header["tally_id"] is not None:
                 db.one(cur, """SELECT "ID_TALI" FROM "FA_TALI_HEADER"
                     WHERE "ID_TALI" = :id FOR UPDATE""", {"id": header["tally_id"]})
+            tally_id = header["tally_id"]
             header = db.one(cur, """SELECT "ID_GHABZ_ANBAR" AS ghabz_id,
                 (SELECT COUNT(*) FROM "FA_REMAINING_INVOICE" r
                  JOIN "FA_SORAT_HESAB_HEADER" child ON child."ID_SORAT" = r."INVOICE_ID"
@@ -350,6 +351,9 @@ def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("inv
                           WHERE "ID_GHABZ_ANBAR" = :id
                             AND NVL("SORAT_IS_DELETED", 'no') = 'no')""",
                     {"id": header["ghabz_id"]})
+            if (header["ghabz_id"] is not None and tally_id is not None
+                    and not db.active_invoice_count(cur, tally_id)):
+                db.reopen_for_correction(cur, tally_id, user["id"])
         conn.commit()
 
 

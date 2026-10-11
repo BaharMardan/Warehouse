@@ -284,12 +284,13 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import {
-  AppShell, NavLink, Group, Text, Button, ScrollArea, ActionIcon, Tooltip,
+  AppShell, NavLink, Group, Text, Button, ScrollArea, ActionIcon, Tooltip, Menu, Modal,
   UnstyledButton, useMantineColorScheme, useComputedColorScheme,
 } from '@mantine/core'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { useCurrentUser } from '../auth/usePermissions'
+import { PasswordChangeForm } from './PasswordChangeForm'
 import { KeeperQueueBell } from './KeeperQueueBell'
 import { resources } from '../resources'
 import { moduleForPath, accentVars, useVisibleModules } from '../modules'
@@ -314,6 +315,7 @@ export function AppLayout() {
   // logo button, and closed again as soon as the user navigates somewhere. The
   // launcher tiles are the primary navigation; this is the shortcut for people
   // who already know where they are going.
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   useEffect(() => { setNavOpen(false) }, [location.pathname])
 
@@ -439,9 +441,17 @@ export function AppLayout() {
             </Tooltip>
             <KeeperQueueBell />
             {currentUser && (
-              <Text size="sm" c="dimmed" visibleFrom="sm" lineClamp={1}>
-                {currentUser.full_name || currentUser.username}
-              </Text>
+              <Menu position="bottom-end" shadow="md">
+                <Menu.Target>
+                  <UnstyledButton aria-label="حساب کاربری">
+                    <Text size="sm" c="dimmed" lineClamp={1}>{currentUser.full_name || currentUser.username}</Text>
+                  </UnstyledButton>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>حساب کاربری</Menu.Label>
+                  <Menu.Item onClick={() => { setPasswordOpen(true) }}>تغییر رمز عبور</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             )}
             <Button variant="subtle" color="red" radius="md" onClick={signOut}>خروج</Button>
           </Group>
@@ -522,6 +532,9 @@ export function AppLayout() {
         </ScrollArea>
       </AppShell.Navbar>
 
+      <Modal opened={passwordOpen} onClose={() => setPasswordOpen(false)} title="تغییر رمز عبور" centered dir="rtl">
+        <PasswordChangeForm onCancel={() => setPasswordOpen(false)} />
+      </Modal>
       <AppShell.Main>
         <div
           className="app-canvas"

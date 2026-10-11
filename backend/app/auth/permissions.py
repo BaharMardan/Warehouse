@@ -43,6 +43,7 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("tally.delete", "حذف تالی", "tally", implies=("tally.view",)),
     # The warehouse keeper's part of a tally: the five service sections, the
     # volumetric question and sending the tally back to the operator.
+    Permission("workflow.return", "بازگشت مراحل و ابطال صورتحساب", "tally", implies=("tally.view", "ghabz.view", "invoice.view")),
     Permission("tally.services", "تکمیل خدمات تالی", "tally", implies=("tally.view", "ghabz.view")),
 
     Permission("ghabz.view", "مشاهده قبض انبار", "ghabz"),

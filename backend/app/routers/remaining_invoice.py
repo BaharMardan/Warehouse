@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.services import receipt_db as db
-from app.services.remaining_invoice import RemainingInput, RemainingIssue, calculate, serializable
+from app.services.remaining_invoice import RemainingInput, RemainingIssue, RemainingBatchInput, RemainingBatchIssue, calculate, calculate_many, serializable
 from app.routers.receipt_workflow import INVOICE_SETTINGS_SQL
 
 router = APIRouter(prefix="/ghabz", tags=["remaining-invoice"])
@@ -41,16 +41,23 @@ def original(cur, rid):
 def preview(cur, current, tally, payload):
     iid = original(cur, current["id"])
     goods = db.rows(cur, GOODS_SQL, {"tid": current["tally_id"]})
-    source = next((row for row in goods if row["id"] == payload.source_id), None)
-    if source is None:
-        raise HTTPException(422, "کالا باید از ردیف‌های همین تالی انتخاب شود")
-    tariffs = db.rows(cur, TARIFF_SQL, {"code": payload.kala_code.strip()})
-    if len(tariffs) != 1:
-        raise HTTPException(422, "کد گروه کالا دارای تعرفهٔ یکتا و فعال نیست")
+    selected_rows = payload.rows if isinstance(payload, RemainingBatchInput) else [payload]
+    sources, selected_tariffs = [], []
+    for selected in selected_rows:
+        source = next((row for row in goods if row["id"] == selected.source_id), None)
+        if source is None:
+            raise HTTPException(422, "کالا باید از ردیف‌های همین تالی انتخاب شود")
+        tariffs = db.rows(cur, TARIFF_SQL, {"code": selected.kala_code.strip()})
+        if len(tariffs) != 1:
+            raise HTTPException(422, "کد گروه کالا دارای تعرفهٔ یکتا و فعال نیست")
+        sources.append(source)
+        selected_tariffs.append(tariffs[0])
     settings = {row["setting_key"]: row["value_number"] for row in db.rows(cur, INVOICE_SETTINGS_SQL)}
     insurance = db.one(cur, INSURANCE_SQL, {"iid": iid})["amount"]
     try:
-        return calculate(payload=payload, source=source, tariff=tariffs[0], cargo=tally.get("is_volumetric"),
+        calculator = calculate_many if isinstance(payload, RemainingBatchInput) else calculate
+        selection = {"sources": sources, "tariffs": selected_tariffs} if isinstance(payload, RemainingBatchInput) else {"source": sources[0], "tariff": selected_tariffs[0]}
+        return calculator(payload=payload, **selection, cargo=tally.get("is_volumetric"),
             settings=settings, original_id=iid,
             service_catalog=db.rows(cur, SERVICE_CATALOG_SQL) if payload.other_services else [],
             original_insurance=insurance, receipt_id=current["id"], tally_id=current["tally_id"])
@@ -71,7 +78,7 @@ def options(receipt_id: int):
 
 
 @router.post("/{receipt_id}/remaining-invoice/preview", dependencies=[Depends(require_permission("invoice.issue"))])
-def preview_invoice(receipt_id: int, payload: RemainingInput):
+def preview_invoice(receipt_id: int, payload: RemainingInput | RemainingBatchInput):
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
@@ -79,7 +86,7 @@ def preview_invoice(receipt_id: int, payload: RemainingInput):
 
 
 @router.post("/{receipt_id}/remaining-invoice", status_code=201)
-def issue_invoice(receipt_id: int, payload: RemainingIssue, user: dict = Depends(require_permission("invoice.issue"))):
+def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue, user: dict = Depends(require_permission("invoice.issue"))):
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)

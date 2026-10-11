@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 
 from app.auth import permissions
@@ -21,7 +21,7 @@ SELECT DISTINCT rp."PERMISSION_CODE" AS permission_code
 """
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+def get_current_user(token: str = Depends(oauth2_scheme), request: Request = None) -> dict:
     username = decode_access_token(token)
     if username is None:
         raise HTTPException(
@@ -30,12 +30,18 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
     user = fetch_one(
-        "SELECT id, username, full_name, is_admin, is_active "
+        "SELECT id, username, full_name, is_admin, is_active, must_change_password "
         "FROM FA_USERS WHERE username = :u",
         {"u": username},
     )
     if user is None or user["is_active"] != "yes":
         raise HTTPException(status_code=401, detail="User not found or inactive")
+    user["must_change_password"] = user.get("must_change_password") == "yes"
+    if user["must_change_password"] and (request is None or request.url.path not in ("/auth/me", "/auth/password")):
+        raise HTTPException(status_code=403, detail={
+            "code": "password_change_required",
+            "message": "برای ادامه، رمز موقت خود را تغییر دهید",
+        })
     user["permissions"] = user_permissions(user)
     return user
 

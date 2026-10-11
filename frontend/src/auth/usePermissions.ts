@@ -10,6 +10,7 @@ export interface CurrentUser {
   full_name: string | null
   is_admin: string // 'yes' | 'no'
   permissions: string[]
+  must_change_password: boolean
 }
 
 /**

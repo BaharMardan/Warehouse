@@ -1322,7 +1322,7 @@ type AnbarLookup = {
 export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
   const qc = useQueryClient()
   const { data: handoff } = useHandoff(tallyId)
-  const canEdit = usePermissions().can('tally.edit') && handoff != null && !handoff.has_receipts
+  const canEdit = usePermissions().can('tally.edit') && handoff != null && handoff.can_edit_goods
 
   const {
     data: lines,
@@ -1563,6 +1563,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
       qc.invalidateQueries({ queryKey: ['tally-junction', 'stuffing', tallyId] })
       qc.invalidateQueries({ queryKey: ['tally-junction', 'crane', tallyId] })
       qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
+      for (const key of ['receipt-workflow', 'receipt-sources', 'receipt-pallets', 'tally-summary', 'tally-insurance-check']) qc.invalidateQueries({ queryKey: [key] })
       // chained entry: after saving a NEW row, drop straight into the next empty one
       if (editingId == null && keepGoing) {
         setPicked(null)
@@ -1586,6 +1587,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
   qc.invalidateQueries({ queryKey: ['tally-junction', 'stuffing', tallyId] })
   qc.invalidateQueries({ queryKey: ['tally-junction', 'crane', tallyId] })
   qc.invalidateQueries({ queryKey: handoffKey(tallyId) })
+  for (const key of ['receipt-workflow', 'receipt-sources', 'receipt-pallets', 'tally-summary', 'tally-insurance-check']) qc.invalidateQueries({ queryKey: [key] })
   },
     onError: (e) => alert(`حذف ناموفق بود: ${(e as Error).message}`),
   })

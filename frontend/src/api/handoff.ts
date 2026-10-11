@@ -22,6 +22,8 @@ export interface HandoffState {
   can_edit_pallets: boolean
   goods_rows: number
   has_receipts: boolean
+  can_edit_goods: boolean
+  active_invoice_count: number
   can_edit_services: boolean
   receipt_checklists: { id: number; number: string | null; status: string }[]
 }

@@ -58,11 +58,17 @@ export function errorMessage(error: unknown, fallback: string): string {
 
 /** Fired on every 401; AuthProvider listens and returns the user to the login page. */
 export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
+export const PASSWORD_CHANGE_EVENT = 'auth:password-change-required'
 
 async function forbiddenError(res: Response): Promise<ForbiddenError> {
   const fallback = 'دسترسی لازم برای این کار را ندارید'
   const body = (await res.json().catch(() => null)) as { detail?: unknown } | null
-  return new ForbiddenError(typeof body?.detail === 'string' ? body.detail : fallback)
+  const detail = body?.detail
+  if (typeof detail === 'object' && detail !== null && 'code' in detail && detail.code === 'password_change_required') {
+    window.dispatchEvent(new Event(PASSWORD_CHANGE_EVENT))
+    return new ForbiddenError('برای ادامه، رمز موقت خود را تغییر دهید')
+  }
+  return new ForbiddenError(typeof detail === 'string' ? detail : fallback)
 }
 
 export async function apiGet<T>(path: string): Promise<T> {

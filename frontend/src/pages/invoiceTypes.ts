@@ -25,6 +25,7 @@ export type RowKind = 'system' | 'storage' | 'service' | 'insurance' | 'tax' | '
 export type RemainingSnapshot = {
   original_invoice_id: number; receipt_id: number; tally_id: number; cargo: string
   inputs: { days?: number; source_id: number; hscode: string; kala_code: string; amount: string; insurance_percent: string }
+  rows?: { inputs: Omit<RemainingSnapshot["inputs"], "days" | "insurance_percent"> & { days?: number; insurance_percent?: string }; source: RemainingSnapshot["source"] }[]
   source: { description: string | null }; original_insurance: string
 }
 export type SavedInvoice = { remaining?: RemainingSnapshot | null; header: InvoiceHeader; details: InvoiceLine[]; grand_total: string }

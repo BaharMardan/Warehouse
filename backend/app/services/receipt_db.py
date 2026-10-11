@@ -69,6 +69,7 @@ def workflow(current, siblings):
             "show_checklist": not summary,
             "show_invoice": not summary and current["requires_invoice"] == "yes",
             "can_finalize": not summary and pending,
+            "can_return": not summary and current["status"] in ("created", "finalized"),
             "can_invoice": not summary and current["requires_invoice"] == "yes"
                            and current["status"] == "finalized"}
 
@@ -98,10 +99,52 @@ def validate_header_dates(values):
         raise HTTPException(422, "تاریخ خروج بار نمی‌تواند پیش از تاریخ تخلیه باشد")
 
 
-def guard_source(cursor, tally_id):
-    lock_tally(cursor, tally_id)
-    if receipts(cursor, tally_id):
-        conflict("تالی دارای قبض قابل حذف نیست و ردیف‌های آن قابل تغییر نیستند")
+def active_invoice_count(cursor, tally_id):
+    return one(cursor, """SELECT COUNT(*) AS cnt FROM "FA_SORAT_HESAB_HEADER"
+        WHERE "TALI_ID_HEADER" = :tid AND NVL("SORAT_IS_DELETED", 'no') = 'no'""",
+        {"tid": tally_id})["cnt"]
+
+
+def correction_open(step, docs, invoice_count):
+    return (step == "keeper" and bool(docs) and not invoice_count
+            and all(r["status"] == "sent_to_keeper" for r in docs))
+
+
+def reopen_for_correction(cursor, tally_id, actor_id):
+    """Caller holds the tally lock and has checked that no active invoice remains."""
+    cursor.execute("""UPDATE "fa_ghabz_anbar_header"
+        SET "WORKFLOW_STATUS" = 'sent_to_keeper', "ALLOCATION_RATIO" = NULL,
+            "FINALIZED_AT" = NULL, "FINALIZED_BY" = NULL
+        WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no'
+          AND "WORKFLOW_STATUS" IN ('created', 'sent_to_keeper', 'finalized')""",
+        {"tid": tally_id})
+    cursor.execute('DELETE FROM "FA_RECEIPT_SERVICE_POOL" WHERE "TALLY_ID" = :tid',
+                   {"tid": tally_id})
+    cursor.execute("""UPDATE "FA_TALI_HEADER" SET "HANDOFF_STEP" = 'keeper',
+        "RETURNED_AT" = NULL, "RETURNED_BY" = NULL,
+        "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor WHERE "ID_TALI" = :tid""",
+        {"tid": tally_id, "actor": actor_id})
+
+
+def guard_source(cursor, tally_id, *, allow_correction=False):
+    tally = lock_tally(cursor, tally_id)
+    docs = receipts(cursor, tally_id)
+    if not docs:
+        return
+    if not allow_correction:
+        conflict("تالی دارای قبض قابل حذف نیست")
+    if (not correction_open(tally.get("handoff_step"), docs, 0)
+            or active_invoice_count(cursor, tally_id)):
+        conflict("برای اصلاح ردیف‌ها، ابتدا صورتحساب‌های تالی را باطل و گزینه بازگشت برای اصلاح را انتخاب کنید")
+    # A source edit can change weights, quantities, HS codes or row identities.
+    # Discard derived allocations under the same lock; finalization rebuilds
+    # and validates them against the current receipt lines before any invoice.
+    for table in ("FA_RECEIPT_PALLETS", "FA_GHABZ_TALLY_SOURCE"):
+        cursor.execute(f'''DELETE FROM "{table}" WHERE "RECEIPT_ID" IN (
+            SELECT "ID_ghabz" FROM "fa_ghabz_anbar_header"
+            WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no')''', {"tid": tally_id})
+    cursor.execute('DELETE FROM "FA_RECEIPT_SERVICE_POOL" WHERE "TALLY_ID" = :tid',
+                   {"tid": tally_id})
 
 
 SERVICE_TABLES = {
@@ -133,7 +176,10 @@ def guarded_write(table, pk, action, sql, params, *, row_id=None, values=None):
                     locked_header = lock_tally(cur, tid)
                     validate_header_dates({**locked_header, **values})
                 else:
-                    (guard_services if table in SERVICE_TABLES else guard_source)(cur, tid)
+                    if table in SERVICE_TABLES:
+                        guard_services(cur, tid)
+                    else:
+                        guard_source(cur, tid, allow_correction=table != "FA_TALI_HEADER")
             elif table in RECEIPT_TABLES:
                 rid = row_id if table == "fa_ghabz_anbar_header" else (existing or values).get("id_ghabz_anbar_headar")
                 current, siblings, _ = receipt(cur, rid, lock=True)

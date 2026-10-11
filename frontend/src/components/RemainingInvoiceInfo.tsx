@@ -8,8 +8,12 @@ export function RemainingInvoiceInfo({ info, receiptNumber }: { info?: Remaining
     <div>صورتحساب اصلی: <a href={`/invoice/${info.original_invoice_id}`}>{info.original_invoice_id}</a>
       {' — '}قبض اصلی: <a href={`/ghabz/${info.receipt_id}`}><bdi dir="ltr">{receiptNumber || '—'}</bdi></a></div>
     {info.inputs.days != null && <div>تعداد روز: {quantity(info.inputs.days)}</div>}
-    <div>{info.source.description} — HS Code: <bdi>{info.inputs.hscode}</bdi> — کد گروه کالا: <bdi>{info.inputs.kala_code}</bdi></div>
-    <div>{info.cargo === 'volumetric' ? 'تعداد پالت باقی‌مانده' : 'وزن باقی‌مانده (کیلوگرم)'}: {quantity(info.inputs.amount)}
-      {' — '}درصد بیمه: {quantity(info.inputs.insurance_percent)}٪</div>
+    {info.inputs.insurance_percent != null && <div>درصد بیمه باقی‌مانده: {quantity(info.inputs.insurance_percent)}٪</div>}
+    {(info.rows ?? [{ inputs: info.inputs, source: info.source }]).map((row, index) => <div key={index}>
+    {info.inputs.days == null && row.inputs.days != null && <div>تعداد روز: {quantity(row.inputs.days)}</div>}
+    <div>{row.source.description} — HS Code: <bdi>{row.inputs.hscode}</bdi> — کد گروه کالا: <bdi>{row.inputs.kala_code}</bdi></div>
+    <div>{info.cargo === 'volumetric' ? 'تعداد پالت باقی‌مانده' : 'وزن باقی‌مانده (کیلوگرم)'}: {quantity(row.inputs.amount)}
+      {info.inputs.insurance_percent == null && row.inputs.insurance_percent != null && <> — درصد بیمه: {quantity(row.inputs.insurance_percent)}٪</>}</div>
+    </div>)}
   </div>
 }

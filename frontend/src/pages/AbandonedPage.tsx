@@ -1,16 +1,20 @@
 import { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Alert, Badge, Button, Center, Group, Loader, Paper, SimpleGrid, Stack, Table, Text, Title, UnstyledButton } from '@mantine/core'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiSend } from '../api/client'
 import { useAbandoned, type AgingItem } from '../api/abandoned'
 import { BackButton } from '../components/BackButton'
 import { PageHeader } from '../components/PageHeader'
-import { jalali } from './invoiceTypes'
+import { AbandonedTable } from '../components/AbandonedTable'
+import { IconPrint } from '../components/icons'
+import { useCurrentUser } from '../auth/usePermissions'
 
 export function AbandonedPage() {
   const { data, isLoading, isError } = useAbandoned()
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const { data: user } = useCurrentUser()
   const [params, setParams] = useSearchParams()
   const requested = params.get('section')
   const selected = requested === 'abandoned' || requested === 'warning' ? requested : null
@@ -26,22 +30,13 @@ export function AbandonedPage() {
 
   const section = (title: string, rows: AgingItem[], warning: boolean) =>
     <Paper withBorder p="md" radius="md">
-      <Group mb="md"><Title order={3}>{title}</Title><Badge color="yellow">{rows.length.toLocaleString('fa-IR')}</Badge></Group>
+      <Group mb="md" justify="space-between">
+        <Group><Title order={3}>{title}</Title><Badge color="yellow">{rows.length.toLocaleString('fa-IR')}</Badge></Group>
+        {!warning && <Button color="yellow" leftSection={<IconPrint size={18} />} disabled={!rows.length}
+          onClick={() => navigate('/abandoned/print', { state: { rows, userId: user?.id } })}>چاپ فهرست</Button>}
+      </Group>
       {!rows.length ? <Text c="dimmed">موردی وجود ندارد.</Text> :
-        <Table.ScrollContainer minWidth={650}><Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>شماره تالی</Table.Th><Table.Th>صاحب کالا</Table.Th>
-            <Table.Th>تاریخ تخلیه</Table.Th><Table.Th>روزهای سپری‌شده</Table.Th>
-            {warning && <Table.Th>روز تا متروکه‌شدن</Table.Th>}
-          </Table.Tr></Table.Thead>
-          <Table.Tbody>{rows.map(row => <Table.Tr key={row.id}>
-            <Table.Td><Button component={Link} to={`/tally/id/${row.id}`} variant="subtle" color="yellow">
-              <bdi>{row.tally_number || row.id}</bdi>
-            </Button></Table.Td>
-            <Table.Td>{row.owner_name || '—'}</Table.Td><Table.Td>{jalali(row.unloaded_at)}</Table.Td>
-            <Table.Td>{row.age_days.toLocaleString('fa-IR')}</Table.Td>
-            {warning && <Table.Td>{row.days_remaining.toLocaleString('fa-IR')}</Table.Td>}
-          </Table.Tr>)}</Table.Tbody>
-        </Table></Table.ScrollContainer>}
+        <Table.ScrollContainer minWidth={650}><AbandonedTable rows={rows} warning={warning} /></Table.ScrollContainer>}
     </Paper>
 
   return <div dir="rtl">

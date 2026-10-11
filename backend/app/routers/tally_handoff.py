@@ -132,6 +132,8 @@ def read_handoff(cursor, tali_id: int) -> dict:
         WHERE "TALI_ID_HEADER" = :tid AND NVL("SORAT_IS_DELETED", 'no') = 'no' ''', {'tid': tali_id})
     state["can_edit_pallets"] = not invoiced['cnt'] and not any(r["status"] == "invoice_issued" for r in docs) and (
         locked or pending or state["step"] == "keeper")
+    state["active_invoice_count"] = invoiced["cnt"]
+    state["can_edit_goods"] = not docs or receipt_db.correction_open(state["step"], docs, invoiced["cnt"])
     state["has_receipts"] = bool(docs)
     state["can_edit_services"] = not locked and (pending if docs else state["step"] == "keeper")
     state["receipt_checklists"] = [
@@ -258,5 +260,23 @@ def save_row_pallets(tali_id: int, item: PalletInput,
                 [{'id': k, 'pallets': v, 'tid': tali_id} for k, v in values.items()])
             cur.execute(SAVE_VOLUMETRIC_SQL, {'tali_id': tali_id, 'is_volumetric': 'volumetric',
                 'volumetric_pallets': sum(values.values()), 'actor_id': int(current_user['id'])})
+            conn.commit()
+            return read_handoff(cur, tali_id)
+
+
+@router.post("/{tali_id}/handoff/previous")
+def previous_step(tali_id: int, user: dict = Depends(require_permission("workflow.return"))):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            step, _, _ = lock_tally(cur, tali_id)
+            if receipt_db.receipts(cur, tali_id):
+                receipt_db.conflict("برای بازگشت، از چک‌لیست قبض استفاده کنید")
+            target = {"keeper": "operator", "returned": "keeper"}.get(step)
+            if target is None:
+                receipt_db.conflict("تالی در نخستین مرحله است")
+            cur.execute("""UPDATE "FA_TALI_HEADER" SET "HANDOFF_STEP" = :step,
+                "RETURNED_AT" = NULL, "RETURNED_BY" = NULL,
+                "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor WHERE "ID_TALI" = :tid""",
+                {"step": target, "actor": user["id"], "tid": tali_id})
             conn.commit()
             return read_handoff(cur, tali_id)

@@ -10,12 +10,12 @@ export type AgingItem = {
 export type AgingData = {
   items: AgingItem[]; total: number; abandoned_count: number; warning_count: number; has_unseen: boolean
 }
-export function useAbandoned() {
+export function useAbandoned(enabled = true) {
   const { can, user } = usePermissions()
   return useQuery({
     queryKey: ['abandoned', user?.id],
     queryFn: () => apiGet<AgingData>('/abandoned'),
-    enabled: can('abandoned.view'),
+    enabled: enabled && can('abandoned.view'),
     refetchInterval: 30000,
   })
 }

@@ -80,6 +80,7 @@ import { GhabzHeaderForm } from './pages/GhabzHeaderForm'
 import { CommodityCatalogPage } from './pages/CommodityCatalogPage'
 import { OwnersPage } from './pages/OwnersPage'
 import { AbandonedPage } from './pages/AbandonedPage'
+import { AbandonedPrintPage } from './pages/AbandonedPrintPage'
 import { HomePage } from './pages/HomePage'
 import { KartablPage } from './pages/KartablPage'
 import { BaseDataPage } from './pages/BaseDataPage'
@@ -113,6 +114,7 @@ function AppRoutes() {
         <Route path="/tally/id/:tallyId/print" element={<RequirePermission code="tally.view"><TallyPrintPage /></RequirePermission>} />
         <Route path="/tally/:tallyNumber/print" element={<RequirePermission code="tally.view"><TallyPrintPage /></RequirePermission>} />
         <Route path="/ghabz/:id/print" element={<RequirePermission code="ghabz.view"><GhabzPrintPage /></RequirePermission>} />
+        <Route path="/abandoned/print" element={<RequirePermission code="abandoned.view"><AbandonedPrintPage /></RequirePermission>} />
         <Route path="/invoice/:id/print" element={<RequirePermission code="invoice.view"><InvoicePrintPage /></RequirePermission>} />
         <Route element={<AppLayout />}>
           {/* Landing page after login: the Odoo-style module launcher. */}

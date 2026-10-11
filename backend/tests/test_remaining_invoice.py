@@ -251,3 +251,70 @@ def test_missing_service_and_changed_tariff():
     second = calc(payload=request, service_catalog=[{"id": 1, "title": "service", "price": 200}])
     assert first["preview_hash"] != second["preview_hash"]
     assert Decimal(first["rows"][2]["price"]) == 250
+
+
+def cargo_payload(**changes):
+    return payload(**changes).model_dump(exclude={"days", "insurance_percent", "other_services"})
+
+
+def test_multiple_goods_use_independent_rates_and_single_system_charge():
+    from app.services.remaining_invoice import RemainingBatchInput, calculate_many
+    request = RemainingBatchInput(rows=[cargo_payload(amount=1000, kala_code="101"),
+        cargo_payload(source_id=2, amount=2000, kala_code="102")], days=3, insurance_percent=20,
+        other_services=[{"service_id": 1, "quantity": 2}])
+    context = dict(cargo="weight", settings={"system_service_rate": 100, "tax_rate": 10},
+        original_id=42, original_insurance=100, receipt_id=858, tally_id=1523,
+        service_catalog=[{"id": 1, "title": "service", "price": 50}])
+    sources = [{"id": 1, "zarib_mahal": "بارانداز"}, {"id": 2, "zarib_mahal": "بارانداز"}]
+    tariffs = [{"kala_code": "101", "storage_price": 100}, {"kala_code": "102", "storage_price": 200}]
+    result = calculate_many(payload=request, sources=sources, tariffs=tariffs, **context)
+    storage = [row for row in result["rows"] if row["kind"] == "storage"]
+    singles = [calculate(payload=RemainingInput(**row.model_dump(), days=request.days, insurance_percent=request.insurance_percent), source=source, tariff=tariff, **context)
+        for row, source, tariff in zip(request.rows, sources, tariffs)]
+    assert [row["price"] for row in storage] == [item["rows"][1]["price"] for item in singles]
+    assert sum(row["kind"] == "system" for row in result["rows"]) == 1
+    assert sum(row["kind"] == "service" for row in result["rows"]) == 1
+    assert Decimal(next(row["price"] for row in result["rows"] if row["kind"] == "insurance")) == 20
+    assert len(result["snapshot"]["rows"]) == 2
+    assert result["snapshot"]["inputs"]["days"] == 3
+    assert result["snapshot"]["inputs"]["insurance_percent"] == "20"
+    assert all("days" not in row["inputs"] for row in result["snapshot"]["rows"])
+    request.insurance_percent = Decimal(100)
+    full = calculate_many(payload=request, sources=sources, tariffs=tariffs, **context)
+    assert Decimal(next(row["price"] for row in full["rows"] if row["kind"] == "insurance")) == 100
+    assert full["preview_hash"] != result["preview_hash"]
+    request.insurance_percent = Decimal(20)
+    tariffs[1]["storage_price"] = 300
+    assert calculate_many(payload=request, sources=sources, tariffs=tariffs, **context)["preview_hash"] != result["preview_hash"]
+
+
+@pytest.mark.parametrize("changes", [{"rows": []}, {"days": 0}, {"days": 1.5},
+    {"insurance_percent": 101}, {"insurance_percent": -1}, {"insurance_percent": "NaN"}])
+def test_batch_rejects_invalid_shared_inputs(changes):
+    from app.services.remaining_invoice import RemainingBatchInput
+    with pytest.raises(ValidationError):
+        RemainingBatchInput(**{"rows": [cargo_payload()], "days": 3, "insurance_percent": 20, **changes})
+
+
+def test_batch_preview_checks_every_goods_row_and_tariff(monkeypatch):
+    from app.services.remaining_invoice import RemainingBatchInput
+    monkeypatch.setattr(api, "original", lambda *a: 42)
+    def rows(cur, sql, params=None):
+        if sql == api.GOODS_SQL:
+            return [{"id": 1, "zarib_mahal": "بارانداز"}, {"id": 2, "zarib_mahal": "بارانداز"}]
+        if sql == api.TARIFF_SQL:
+            return [{"kala_code": params["code"], "storage_price": 100 if params["code"] == "101" else 200}]
+        if sql == api.INVOICE_SETTINGS_SQL:
+            return [{"setting_key": "system_service_rate", "value_number": 100},
+                    {"setting_key": "tax_rate", "value_number": 10}]
+        raise AssertionError(sql)
+    monkeypatch.setattr(db, "rows", rows)
+    monkeypatch.setattr(db, "one", lambda *a, **k: {"amount": 100})
+    request = RemainingBatchInput(rows=[cargo_payload(kala_code="101"), cargo_payload(source_id=2, kala_code="102")], days=7, insurance_percent=10)
+    result = api.preview(None, {"id": 858, "tally_id": 1523}, {"is_volumetric": "weight"}, request)
+    assert len([row for row in result["rows"] if row["kind"] == "storage"]) == 2
+    assert [row["tariff"]["kala_code"] for row in result["snapshot"]["rows"]] == ["101", "102"]
+    request.rows[1].source_id = 999
+    with pytest.raises(HTTPException) as exc:
+        api.preview(None, {"id": 858, "tally_id": 1523}, {"is_volumetric": "weight"}, request)
+    assert exc.value.status_code == 422

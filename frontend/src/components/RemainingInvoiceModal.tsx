@@ -1,5 +1,5 @@
 import './RemainingInvoiceModal.css'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Tooltip } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
@@ -7,11 +7,26 @@ import { IconPlus, IconTrash } from './icons'
 import { useNavigate } from 'react-router-dom'
 import { apiGet, apiSend, errorMessage } from '../api/client'
 import { invoiceDescription, money } from '../pages/invoiceTypes'
+import { normalizeSearchDigits } from '../utils/normalizeSearchDigits'
+
+// Normalize before NumberInput parses the change, including pasted values.
+function normalizeNumberInput(event: FormEvent<HTMLInputElement>) {
+  const input = event.target as HTMLInputElement
+  const normalized = normalizeSearchDigits(input.value).replace(/٫/g, '.').replace(/٬/g, ',')
+  if (normalized === input.value) return
+  const start = input.selectionStart
+  const end = input.selectionEnd
+  input.value = normalized
+  if (start != null && end != null) input.setSelectionRange(start, end)
+}
 
 type Goods = { id: number; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null }
 type Service = { id: number; title: string; price: string | null }
 type Options = { other_services: Service[]; original_invoice_id: number; cargo: string; goods: Goods[]; original_insurance: string }
-type Input = { other_services: { service_id: number; quantity: string }[]; days: number; source_id: number; hscode: string; kala_code: string; amount: string; insurance_percent: string }
+type CargoInput = { source_id: number; hscode: string; kala_code: string; amount: string }
+type CargoRow = { key: string; source: string | null; hscode: string; code: string; amount: string | number }
+const emptyRow = (): CargoRow => ({ key: requestId(), source: null, hscode: '', code: '', amount: '' })
+type Input = { days: number; insurance_percent: string; rows: CargoInput[]; other_services: { service_id: number; quantity: string }[] }
 type Preview = { preview_hash: string; total: string; calc_note: string; rows: { kind: string; description: string; quantity: string | null; price: string; note: string }[] }
 
 function requestId() {
@@ -26,24 +41,24 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [request] = useState(requestId)
-  const [source, setSource] = useState<string | null>(null)
-  const [hscode, setHscode] = useState('')
-  const [code, setCode] = useState('')
   const [days, setDays] = useState<string | number>('')
-  const [amount, setAmount] = useState<string | number>('')
-  const [services, setServices] = useState<{ key: string; id: string | null; quantity: string | number }[]>([])
   const [percent, setPercent] = useState<string | number>(0)
+  const [cargoRows, setCargoRows] = useState<CargoRow[]>(() => [emptyRow()])
+  const updateRow = (key: string, change: Partial<CargoRow>) => setCargoRows(previous => previous.map(row => row.key === key ? { ...row, ...change } : row))
+  const [services, setServices] = useState<{ key: string; id: string | null; quantity: string | number }[]>([])
   const { data, isPending, isError } = useQuery({
     queryKey: ['remaining-options', receiptId],
     queryFn: () => apiGet<Options>(`/ghabz/${receiptId}/remaining-invoice`),
   })
-  const input: Input = { other_services: services.map(row => ({ service_id: Number(row.id), quantity: String(row.quantity) })), days: Number(days), source_id: Number(source), hscode: hscode.trim(), kala_code: code.trim(),
-    amount: String(amount), insurance_percent: String(percent) }
+  const input: Input = { days: Number(days), insurance_percent: String(percent), other_services: services.map(row => ({ service_id: Number(row.id), quantity: String(row.quantity) })),
+    rows: cargoRows.map(row => ({ source_id: Number(row.source), hscode: row.hscode.trim(), kala_code: row.code.trim(), amount: String(row.amount) })) }
   const key = JSON.stringify(input)
   const volumetric = data?.cargo === 'volumetric' || data?.cargo === 'yes'
-  const valid = Number.isSafeInteger(Number(days)) && Number(days) > 0 && !!source && !!input.hscode && !!input.kala_code && Number(amount) > 0
-    && services.every(row => !!row.id && Number(row.quantity) > 0 && Number.isFinite(Number(row.quantity)))
+  const valid = Number.isSafeInteger(Number(days)) && Number(days) > 0
     && String(percent) !== '' && Number(percent) >= 0 && Number(percent) <= 100
+    && cargoRows.every(row => !!row.source && !!row.hscode.trim() && !!row.code.trim()
+      && Number.isFinite(Number(row.amount)) && Number(row.amount) > 0)
+    && services.every(row => !!row.id && Number(row.quantity) > 0 && Number.isFinite(Number(row.quantity)))
   const [debouncedKey] = useDebouncedValue(key, 450)
   const calculate = useQuery({
     queryKey: ['remaining-preview', receiptId, debouncedKey],
@@ -63,11 +78,9 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
       navigate(`/invoice/${result.invoice_id}`)
     },
   })
-  const selectGoods = (value: string | null) => {
-    setSource(value)
+  const selectGoods = (key: string, value: string | null) => {
     const row = data?.goods.find(item => String(item.id) === value)
-    setHscode(row?.hscode ?? '')
-    setCode(String(row?.kala_code ?? ''))
+    updateRow(key, { source: value, hscode: row?.hscode ?? '', code: String(row?.kala_code ?? '') })
   }
   return <Modal classNames={{ content: 'remaining-modal', header: 'remaining-modal-header', body: 'remaining-modal-body' }} opened onClose={() => { if (!issue.isPending) close() }} size={900} radius="lg" padding="lg" centered dir="rtl"
     title={<Text fw={800} size="lg">صدور صورتحساب باقی‌مانده</Text>} closeOnClickOutside={!issue.isPending}
@@ -84,23 +97,33 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
         </Paper>
         <Paper className="remaining-cargo" withBorder radius="md" p="md">
           <Stack gap="sm">
-            <Text fw={700} c="blue">اطلاعات بار باقی‌مانده</Text>
-            <Select classNames={{ dropdown: 'remaining-goods-dropdown', option: 'remaining-colored-option' }} label="انتخاب کالا از تالی" placeholder="کالا را انتخاب کنید" searchable required value={source} onChange={selectGoods}
+            <Group justify="space-between">
+              <Text fw={700} c="blue">اطلاعات بار باقی‌مانده</Text>
+              <Button variant="light" size="xs" leftSection={<IconPlus size={16} />} disabled={issue.isPending || cargoRows.length >= 100}
+                onClick={() => setCargoRows(previous => [...previous, emptyRow()])}>افزودن ردیف</Button>
+            </Group>
+            {cargoRows.map((row, index) => <Paper key={row.key} withBorder radius="md" p="sm"><Stack gap="sm">
+              <Group justify="space-between"><Text size="sm" fw={600}>ردیف {index + 1}</Text>
+                <ActionIcon color="red" variant="light" disabled={issue.isPending || cargoRows.length === 1} aria-label={`حذف ردیف ${index + 1}`}
+                  onClick={() => setCargoRows(previous => previous.filter(item => item.key !== row.key))}><IconTrash size={18} /></ActionIcon>
+              </Group>
+            <Select classNames={{ dropdown: 'remaining-goods-dropdown', option: 'remaining-colored-option' }} label="انتخاب کالا از تالی" placeholder="کالا را انتخاب کنید" searchable required value={row.source} onChange={value => selectGoods(row.key, value)}
               radius="md" disabled={issue.isPending} data={data.goods.map(row => ({ value: String(row.id),
                 label: `${row.description || 'کالا'} — HS ${row.hscode || '—'}${row.number_hamel ? ` — ${row.number_hamel}` : ''} — ردیف ${row.id}` }))} />
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
-              <TextInput label="HS Code" required radius="md" value={hscode} onChange={e => setHscode(e.currentTarget.value)} disabled={issue.isPending} maxLength={100} />
-              <TextInput label="کد گروه کالا" required radius="md" value={code} onChange={e => setCode(e.currentTarget.value)} disabled={issue.isPending} maxLength={50} />
+              <TextInput label="HS Code" required radius="md" value={row.hscode} onChange={e => updateRow(row.key, { hscode: normalizeSearchDigits(e.currentTarget.value) })} disabled={issue.isPending} maxLength={100} />
+              <TextInput label="کد گروه کالا" required radius="md" value={row.code} onChange={e => updateRow(row.key, { code: normalizeSearchDigits(e.currentTarget.value) })} disabled={issue.isPending} maxLength={50} />
             </SimpleGrid>
-            <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="sm">
-              <NumberInput label={volumetric ? 'تعداد پالت باقی‌مانده' : 'وزن باقی‌مانده (کیلوگرم)'} radius="md" placeholder="مقدار باقی‌مانده"
-                value={amount} onChange={setAmount} min={0} decimalScale={4} required disabled={issue.isPending} />
-              <NumberInput label="تعداد روز" radius="md" placeholder="مثلاً ۷" value={days} onChange={setDays} min={1}
+              <NumberInput onChangeCapture={normalizeNumberInput} label={volumetric ? 'تعداد پالت باقی‌مانده' : 'وزن باقی‌مانده (کیلوگرم)'} radius="md" placeholder="مقدار باقی‌مانده"
+                thousandSeparator="," value={row.amount} onChange={value => updateRow(row.key, { amount: value })} min={0} decimalScale={4} required disabled={issue.isPending} />
+            </Stack></Paper>)}
+            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+              <NumberInput onChangeCapture={normalizeNumberInput} label="تعداد روز" radius="md" placeholder="مثلاً ۷" value={days} onChange={setDays} min={1}
                 allowDecimal={false} required disabled={issue.isPending} />
-              <NumberInput label="درصد بیمه باقی‌مانده" radius="md" value={percent} onChange={setPercent}
+              <NumberInput onChangeCapture={normalizeNumberInput} label="درصد بیمه باقی‌مانده" radius="md" value={percent} onChange={setPercent}
                 min={0} max={100} decimalScale={4} suffix=" %" required disabled={issue.isPending} />
             </SimpleGrid>
-            <Text size="xs" c="dimmed">تعداد روز عیناً در محاسبه اعمال می‌شود.</Text>
+            <Text size="xs" c="dimmed">تعداد روز برای همهٔ ردیف‌ها مشترک است و بیمه یک‌بار برای کل صورتحساب محاسبه می‌شود.</Text>
           </Stack>
         </Paper>
         <Paper className="remaining-services" withBorder radius="md" p="md">
@@ -115,7 +138,7 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
               <Select classNames={{ dropdown: 'remaining-services-dropdown', option: 'remaining-colored-option' }} label="خدمت" placeholder="انتخاب خدمت" searchable required radius="md" style={{ flex: 1, minWidth: 0 }} value={row.id}
                 disabled={issue.isPending} data={data.other_services.map(service => ({ value: String(service.id), label: service.title }))}
                 onChange={id => setServices(previous => previous.map(item => item.key === row.key ? { ...item, id } : item))} />
-              <NumberInput label="تعداد" required radius="md" min={0} decimalScale={4} value={row.quantity} disabled={issue.isPending} w={100}
+              <NumberInput onChangeCapture={normalizeNumberInput} label="تعداد" required radius="md" min={0} decimalScale={4} value={row.quantity} disabled={issue.isPending} w={100}
                 onChange={quantity => setServices(previous => previous.map(item => item.key === row.key ? { ...item, quantity } : item))} />
               <Tooltip label="حذف خدمت" withArrow>
                 <ActionIcon color="red" variant="light" radius="md" size={36} mb={1} style={{ flexShrink: 0 }} disabled={issue.isPending}

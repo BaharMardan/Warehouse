@@ -25,6 +25,27 @@ class RemainingInput(BaseModel):
     insurance_percent: Decimal = Field(ge=0, le=100, allow_inf_nan=False, max_digits=7, decimal_places=4)
 
 
+class RemainingCargoInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_id: int = Field(gt=0)
+    hscode: str = Field(min_length=1, max_length=100)
+    kala_code: str = Field(min_length=1, max_length=50)
+    amount: Decimal = Field(gt=0, allow_inf_nan=False, max_digits=18, decimal_places=4)
+
+
+class RemainingBatchInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rows: list[RemainingCargoInput] = Field(min_length=1, max_length=100)
+    days: int = Field(gt=0, strict=True)
+    insurance_percent: Decimal = Field(ge=0, le=100, allow_inf_nan=False, max_digits=7, decimal_places=4)
+    other_services: list[OtherServiceInput] = Field(default_factory=list, max_length=100)
+
+
+class RemainingBatchIssue(RemainingBatchInput):
+    preview_hash: str = Field(min_length=64, max_length=64)
+    request_id: UUID
+
+
 class RemainingIssue(RemainingInput):
     preview_hash: str = Field(min_length=64, max_length=64)
     request_id: UUID
@@ -92,5 +113,38 @@ def calculate(*, payload: RemainingInput, source: dict, tariff: dict, cargo: str
     result = {"rows": serializable([asdict(row) for row in rows]), "total": str(totals.payable),
               "subtotal": str(totals.subtotal), "tax": str(totals.tax), "snapshot": snapshot,
               "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {original_id}؛ نوع بار: {ri.CARGO_LABELS[cargo]}؛ تعداد روز واردشده: {days} روز"}
+    result["preview_hash"] = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    return result
+
+
+def calculate_many(*, payload: RemainingBatchInput, sources: list[dict], tariffs: list[dict], **context):
+    if len(sources) != len(payload.rows) or len(tariffs) != len(payload.rows):
+        raise ValueError("اطلاعات تعرفه یا کالا کامل نیست")
+    results = [calculate(payload=RemainingInput(**row.model_dump(), days=payload.days,
+                         insurance_percent=payload.insurance_percent,
+                         other_services=payload.other_services if index == 0 else []),
+                         source=source, tariff=tariff, **context)
+               for index, (row, source, tariff) in enumerate(zip(payload.rows, sources, tariffs))]
+    storage = [ri.InvoiceRow(**{**item, "price": Decimal(item["price"]),
+                  "quantity": Decimal(item["quantity"]) if item["quantity"] is not None else None,
+                  "weight": Decimal(item["weight"]) if item["weight"] is not None else None})
+               for result in results for item in result["rows"] if item["kind"] == "storage"]
+    services = [ri.InvoiceRow(**{**item, "price": Decimal(item["price"]), "quantity": Decimal(item["quantity"])})
+                for item in results[0]["rows"] if item["kind"] == "service"]
+    insurance_item = next(item for item in results[0]["rows"] if item["kind"] == "insurance")
+    insurance = ri.InvoiceRow(**{**insurance_item, "price": Decimal(insurance_item["price"])})
+    rows, totals = ri.build_invoice(system_rate=context["settings"]["system_service_rate"], storage=storage,
+        services=services, tax_rate=context["settings"]["tax_rate"], insurance=insurance)
+    snapshot = {key: value for key, value in results[0]["snapshot"].items()
+                if key not in ("inputs", "source", "tariff", "billed_days")}
+    snapshot["inputs"] = serializable(payload.model_dump(include=set(RemainingBatchInput.model_fields)))
+    snapshot["billed_days"] = payload.days
+    snapshot["rows"] = [{"inputs": serializable(row.model_dump()), "source": source, "tariff": tariff}
+                        for row, source, tariff in zip(payload.rows, sources, tariffs)]
+    snapshot = serializable(snapshot)
+    result = {"rows": serializable([asdict(row) for row in rows]), "total": str(totals.payable),
+        "subtotal": str(totals.subtotal), "tax": str(totals.tax), "snapshot": snapshot,
+        "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {context['original_id']}؛ نوع بار: {ri.CARGO_LABELS[snapshot['cargo']]}؛ " +
+                     f"تعداد روز واردشده: {payload.days} روز"}
     result["preview_hash"] = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     return result

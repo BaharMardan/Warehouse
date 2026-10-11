@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getToken, clearToken, UNAUTHORIZED_EVENT } from '../api/client'
+import { getToken, clearToken, UNAUTHORIZED_EVENT, PASSWORD_CHANGE_EVENT } from '../api/client'
 
 interface AuthState {
   isAuthed: boolean
@@ -30,6 +30,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthed) queryClient.clear()
   }, [isAuthed, queryClient])
+
+  useEffect(() => {
+    const onPasswordReset = () => {
+      queryClient.setQueryData(['current-user'], (user: Record<string, unknown> | undefined) =>
+        user ? { ...user, must_change_password: true } : user)
+      queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    }
+    window.addEventListener(PASSWORD_CHANGE_EVENT, onPasswordReset)
+    return () => window.removeEventListener(PASSWORD_CHANGE_EVENT, onPasswordReset)
+  }, [queryClient])
 
   // Any 401 (expired token, deactivated user) ends the session everywhere.
   useEffect(() => {

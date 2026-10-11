@@ -73,7 +73,7 @@ export function UsersPanel() {
   const savePassword = useMutation({
     mutationFn: () => adminApi.setPassword(passwordUser!.id, password),
     onSuccess: () => {
-      setNotice(`رمز عبور «${passwordUser!.username}» تغییر کرد.`)
+      setNotice(`رمز موقت «${passwordUser!.username}» تعیین شد؛ کاربر در ورود بعدی باید آن را تغییر دهد.`)
       setPasswordUser(null)
     },
   })
@@ -284,11 +284,12 @@ export function UsersPanel() {
       <Modal
         opened={passwordUser != null}
         onClose={() => setPasswordUser(null)}
-        title={passwordUser ? `تغییر رمز عبور «${passwordUser.username}»` : ''}
+        title={passwordUser ? `تعیین رمز موقت «${passwordUser.username}»` : ''}
         radius="lg"
         centered
       >
         <Stack gap="sm" dir="rtl">
+          <Text size="sm">رمز موقت را به خود کاربر تحویل دهید. کاربر پیش از ادامه کار باید آن را تغییر دهد.</Text>
           <PasswordInput
             label="رمز عبور جدید"
             description="دست‌کم ۸ نویسه"

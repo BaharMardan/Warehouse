@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, Center, Loader, Stack, Text, ThemeIcon } from '@mantine/core'
+import { Button, Center, Loader, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
 import { ShieldX } from 'lucide-react'
 import { useAuth } from './useAuth'
 import { useCurrentUser, usePermissions } from './usePermissions'
+import { PasswordChangeForm } from '../components/PasswordChangeForm'
 import type { PermissionCode } from './permissions'
 
 /**
@@ -14,6 +15,15 @@ export function CurrentUserGate({ children }: { children: ReactNode }) {
   const { signOut } = useAuth()
   const { data, isError, isFetching, refetch } = useCurrentUser()
 
+  if (data?.must_change_password) return <Center mih="100dvh" p="md" dir="rtl">
+    <Paper withBorder p="xl" radius="lg" w="100%" maw={440}>
+      <Stack>
+        <Text fw={700} size="lg">تعیین رمز عبور شخصی</Text>
+        <PasswordChangeForm temporary />
+        <Button variant="subtle" color="red" onClick={signOut}>خروج</Button>
+      </Stack>
+    </Paper>
+  </Center>
   if (data) return <>{children}</>
 
   if (isError) {

@@ -30,6 +30,7 @@ PUBLIC = {
     ("GET", "/health/db"),
     ("POST", "/auth/login"),
 }
+SELF_SERVICE_WRITES = {("PUT", "/auth/password")}
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -94,6 +95,7 @@ def test_changes_need_a_permission_not_just_a_login():
         for method, path, route in _routes()
         if method in WRITE_METHODS
         and (method, path) not in PUBLIC
+        and (method, path) not in SELF_SERVICE_WRITES
         and _guards(route) <= {"login"}
     ]
 

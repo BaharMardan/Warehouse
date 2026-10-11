@@ -416,6 +416,7 @@
 // }
 
 
+import { apiSend } from '../api/client'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge, Button, Group, Paper, Radio, Stack, Text, TextInput, Tooltip } from '@mantine/core'
@@ -480,6 +481,10 @@ const TONE = {
 } as const
 
 export function HandoffBanner({ state }: { state: HandoffState | undefined }) {
+  const { can } = usePermissions()
+  const previous = useHandoffAction(state?.id_tali, () =>
+    apiSend<HandoffState>(`/tally/${state?.id_tali}/handoff/previous`, 'POST'), 'بازگشت انجام نشد.')
+
   // An unknown step means an older or newer server than this page: show nothing
   // rather than taking the whole tally page down with it.
   const tone = state ? TONE[state.step] : undefined
@@ -506,6 +511,10 @@ export function HandoffBanner({ state }: { state: HandoffState | undefined }) {
           <Badge color={tone.color} variant="light" radius="sm">{tone.title}</Badge>
           <Text size="sm" c="dimmed">{detail}</Text>
         </Group>
+        {!state.has_receipts && state.step !== 'operator' && can('workflow.return') && <Button variant="light" color="orange"
+          loading={previous.isPending} onClick={() => {
+            if (window.confirm('تالی به مرحله قبل برگردد؟')) previous.mutate(undefined as never)
+          }}>بازگشت به مرحله قبل</Button>}
         {answer && <Text size="sm" fw={600}>{answer}</Text>}
       </Group>
     </Paper>

@@ -38,7 +38,7 @@ export function InvoiceListPage() {
           <Table.Th>شماره صورتحساب</Table.Th><Table.Th>تاریخ صدور</Table.Th>
           <Table.Th>شماره تالی</Table.Th><Table.Th>فروشنده</Table.Th>
           <Table.Th>خریدار</Table.Th><Table.Th>مبلغ کل (ریال)</Table.Th>
-          {can('invoice.issue') && <Table.Th>عملیات</Table.Th>}
+          {can('workflow.return') && <Table.Th>عملیات</Table.Th>}
         </Table.Tr></Table.Thead>
         <Table.Tbody>{data.map(row => <Table.Tr key={row.id_sorat} style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/invoice/${row.id_sorat}`)}>
@@ -47,7 +47,7 @@ export function InvoiceListPage() {
           <Table.Td><bdi dir="ltr">{row.tali_number ?? '—'}</bdi></Table.Td>
           <Table.Td>{row.seller_name || '—'}</Table.Td><Table.Td>{row.buyer_name || '—'}</Table.Td>
           <Table.Td><bdi dir="ltr">{money(row.grand_total)}</bdi></Table.Td>
-          {can('invoice.issue') && <Table.Td>
+          {can('workflow.return') && <Table.Td>
             <Button color="red" variant="light" size="xs" disabled={cancel.isPending}
               onClick={event => { event.stopPropagation(); cancel.reset(); setSelected(row) }}>ابطال صورتحساب</Button>
           </Table.Td>}

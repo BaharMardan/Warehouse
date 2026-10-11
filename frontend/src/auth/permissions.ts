@@ -12,6 +12,7 @@ export const PERMISSION_CODES = [
   'tally.view',
   'tally.edit',
   'tally.delete',
+  'workflow.return',
   'tally.services',
   'ghabz.view',
   'ghabz.issue',

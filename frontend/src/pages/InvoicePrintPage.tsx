@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { apiGet } from '../api/client'
 import { IconPrint } from '../components/icons'
-import { InvoiceLine, SavedInvoice, invoiceSections, jalali, money, quantity, signedMoney } from './invoiceTypes'
+import { InvoiceLine, SavedInvoice, invoiceSections, jalali, money, signedMoney } from './invoiceTypes'
 import './TallyPrintPage.css'
 import './InvoicePrintPage.css'
 
@@ -138,7 +138,6 @@ export function InvoicePrintPage() {
             <tr>
               <th>ردیف</th>
               <th>شرح</th>
-              <th>تعداد</th>
               <th>مبلغ کل (ریال)</th>
               <th>تخفیف (ریال)</th>
               <th>مبلغ خالص (ریال)</th>
@@ -149,7 +148,6 @@ export function InvoicePrintPage() {
               <tr key={line.id_detail}>
                 <td>{index + 1}</td>
                 <td>{shown(line.description)}</td>
-                <td>{shown(line.quantity)}</td>
                 <td>{money(line.price)}</td>
                 <td>{money(line.discount)}</td>
                 <td>
@@ -162,7 +160,7 @@ export function InvoicePrintPage() {
               </tr>
             ))}
             <tr className="invoice-print-total">
-              <td colSpan={5}>جمع کل</td>
+              <td colSpan={4}>جمع کل</td>
               <td>{money(data.grand_total)}</td>
             </tr>
           </tbody>
@@ -223,8 +221,6 @@ function ModernTable({ data }: { data: SavedInvoice }) {
           <tr>
             <th>ردیف</th>
             <th>شرح</th>
-            <th>تعداد</th>
-            <th>وزن (کیلوگرم)</th>
             <th>مبلغ (ریال)</th>
           </tr>
         </thead>
@@ -233,33 +229,31 @@ function ModernTable({ data }: { data: SavedInvoice }) {
             <tr key={line.id_detail}>
               <td>{index + 1}</td>
               <td>{shown(line.description)}</td>
-              <td><bdi dir="ltr">{quantity(line.quantity)}</bdi></td>
-              <td><bdi dir="ltr">{quantity(line.weight)}</bdi></td>
               <td><bdi dir="ltr">{money(line.price)}</bdi></td>
             </tr>
           ))}
           <tr className="invoice-print-subtotal">
-            <td colSpan={4}>جمع مبالغ</td>
+            <td colSpan={2}>جمع مبالغ</td>
             <td><bdi dir="ltr">{money(subtotal)}</bdi></td>
           </tr>
           {adjustments.map((line) => (
             <tr key={line.id_detail} className="invoice-print-summary">
-              <td colSpan={4}>{shown(line.description)}</td>
+              <td colSpan={2}>{shown(line.description)}</td>
               <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
             </tr>
           ))}
           <tr className="invoice-print-total invoice-print-before-prepayment">
-            <td colSpan={4}>جمع کل</td>
+            <td colSpan={2}>جمع کل</td>
             <td><bdi dir="ltr">{money(totalBeforePrepayment)}</bdi></td>
           </tr>
           {prepayments.map((line) => (
             <tr key={line.id_detail} className="invoice-print-summary">
-              <td colSpan={4}>{shown(line.description)}</td>
+              <td colSpan={2}>{shown(line.description)}</td>
               <td><bdi dir="ltr">{signedMoney(line.price)}</bdi></td>
             </tr>
           ))}
           <tr className="invoice-print-total invoice-print-payable">
-            <td colSpan={4}>مبلغ قابل پرداخت</td>
+            <td colSpan={2}>مبلغ قابل پرداخت</td>
             <td><bdi dir="ltr">{money(data.grand_total)}</bdi></td>
           </tr>
         </tbody>

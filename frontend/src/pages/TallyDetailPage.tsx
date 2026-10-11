@@ -710,6 +710,20 @@ export function TallyDetailPage() {
 
       <HandoffBanner state={handoff} />
 
+      {handoff?.has_receipts && <Paper withBorder p="md" mb="md">
+        <Text fw={700} mb="sm">اصلاح اطلاعات تالی</Text>
+        {handoff.active_invoice_count > 0
+          ? <Text size="sm" c="orange" mb="sm">این تالی {handoff.active_invoice_count} صورتحساب فعال دارد. برای اصلاح اطلاعات مشترک، ابتدا تمام صورتحساب‌های آن را باطل کنید.</Text>
+          : handoff.can_edit_goods
+            ? <Text size="sm" c="teal" mb="sm">تمام بخش‌های تالی برای اصلاح باز است. پس از اصلاح، اطلاعات قبض‌ها را بررسی و چک‌لیست نهایی را دوباره ثبت کنید.</Text>
+            : <Text size="sm" mb="sm">ابطال صورتحساب به‌تنهایی ثبت نهایی قبلی را باز نکرده است. «بازگشت برای اصلاح» را انتخاب کنید تا ردیف‌های کالا و خدمات قابل ویرایش شوند.</Text>}
+        {(can('workflow.return') || can('tally.services')) && receiptChecklists.map(r => <Group key={r.id} mb="xs">
+          <Text size="sm">قبض {r.number ?? r.id}</Text>
+          <ReceiptWorkflow id={r.id} placement="correction" />
+        </Group>)}
+      </Paper>}
+
+
       <TallyGoodsGrid
         tallyId={headerId}
         headerExtra={<SendToKeeperButton tallyId={headerId} state={handoff} />}

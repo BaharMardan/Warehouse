@@ -10,7 +10,7 @@ import { usePermissions } from '../auth/usePermissions'
 type Workflow = {
   id: number; tally_id: number; is_master: string; status: string
   summary_only: boolean; show_checklist: boolean; show_invoice: boolean
-  can_finalize: boolean; can_invoice: boolean; services_locked: boolean
+  can_return: boolean; can_finalize: boolean; can_invoice: boolean; services_locked: boolean
   allocation_ratio: number | null; invoice_id: number | null; pallet_quantity: number | null
   // A tally's prepayment and discount land on one of its invoices. For detailed
   // receipts the user is asked per receipt until one invoice takes them.
@@ -33,19 +33,19 @@ export function useReceiptWorkflow(id: number) {
   })
 }
 
-export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; placement?: 'receipt' | 'tally' }) {
+export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; placement?: 'receipt' | 'tally' | 'correction' }) {
   const { data: state, error } = useReceiptWorkflow(id)
   const { can } = usePermissions()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const action = useMutation({
-    mutationFn: ({ path, method = 'POST', body }: { path: string; method?: 'PUT' | 'POST'; body?: unknown }) =>
-      apiSend<{ invoice_id?: number }>(`/ghabz/${id}/${path}`, method, body),
+    mutationFn: ({ path, method = 'POST', body }: { path: string; method?: 'PUT' | 'POST' | 'DELETE'; body?: unknown }) =>
+      apiSend<{ invoice_id?: number }>(path.startsWith('/invoice/') ? path : `/ghabz/${id}/${path}`, method, body),
     onSuccess: async (result, variables) => {
       await Promise.all(['receipt-workflow', 'receipt-sources', 'receipt-keeper-queue',
-        'keeper-queue', 'tally-handoff', 'kartabl-list', 'invoice-list', 'ghabz-summary'].map(key =>
+        'keeper-queue', 'abandoned', 'tally-header', 'tally-list', 'tally-insurance-check', 'tally-handoff', 'kartabl-list', 'invoice-list', 'ghabz-summary'].map(key =>
           qc.invalidateQueries({ queryKey: [key] })))
-      if (variables.path === 'invoice' && result.invoice_id) navigate(`/invoice/${result.invoice_id}`)
+      if (variables.path === 'invoice' && result?.invoice_id) navigate(`/invoice/${result.invoice_id}`)
     },
   })
   // Issuing may need two answers, asked in order: the missing-customs error,
@@ -75,12 +75,16 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
   }
   return <>
     {!state.summary_only && <Badge color={state.can_finalize ? 'orange' : 'teal'}>{statusLabels[state.status]}</Badge>}
-    {placement === 'receipt' && state.show_checklist && <Button variant="light"
+    {placement === 'receipt' && state.show_checklist && state.status !== 'invoice_issued' && !state.invoice_id && <Button variant="light"
       onClick={() => navigate(`/tally/id/${state.tally_id}?receipt=${id}`)}>
       چک‌لیست نهایی توسط انباردار
     </Button>}
-    {placement === 'tally' && editable && <Button color="teal" loading={action.isPending}
-      onClick={() => action.mutate({ path: 'final-checklist' })}>تأیید نهایی</Button>}
+    {placement === 'tally' && editable && <Button color="teal" style={{ marginInlineStart: 'auto' }} loading={action.isPending}
+      onClick={() => action.mutate({ path: 'final-checklist' })}>ثبت نهایی</Button>}
+    {placement !== 'tally' && state.can_return && can('workflow.return') && <Button color="orange" variant="light" loading={action.isPending}
+      onClick={() => { if (window.confirm('تمام قبض‌های این تالی برای اصلاح ردیف‌های کالا و خدمات باز می‌شوند و باید دوباره ثبت نهایی شوند. ادامه می‌دهید؟')) action.mutate({ path: 'return' }) }}>بازگشت برای اصلاح</Button>}
+    {placement !== 'tally' && state.invoice_id && can('workflow.return') && <Button color="red" variant="light" loading={action.isPending}
+      onClick={() => { if (window.confirm('صورتحساب باطل شود؟ پس از ابطال آخرین صورتحساب فعال، تمام بخش‌های تالی برای اصلاح باز می‌شوند.')) action.mutate({ path: `/invoice/${state.invoice_id}`, method: 'DELETE' }) }}>ابطال صورتحساب</Button>}
     {placement === 'receipt' && state.show_invoice && state.status === 'finalized' && can('invoice.issue') &&
       <Button color="red" disabled={!state.can_invoice} loading={action.isPending}
         onClick={startIssue}>صدور صورتحساب</Button>}
