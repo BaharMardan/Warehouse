@@ -1,0 +1,26 @@
+[Unit]
+Description=Warehouse Oracle nightly backup (pulls from the DB VM)
+Wants=network-online.target
+Requires=warehouse-backup-tunnel.service
+After=network-online.target warehouse-backup-tunnel.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=warehouse-backup
+Group=warehouse-backup
+EnvironmentFile=/etc/warehouse-backup/backup.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/warehouse-backup/backend
+ExecStart=/opt/warehouse-backup/venv/bin/python /opt/warehouse-backup/backend/backup_warehouse.py
+TimeoutStartSec=2h
+Restart=on-failure
+RestartSec=5min
+Nice=10
+UMask=0077
+# Hardening: the job can write only to the backup folder.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/backups/warehouse

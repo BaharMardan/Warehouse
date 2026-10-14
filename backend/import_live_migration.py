@@ -1,4 +1,4 @@
-"""Restore and verify a private export into the isolated WAREHOUSE_LIVE schema."""
+"""Restore and verify a private export into an explicitly selected empty warehouse schema."""
 import argparse
 from collections import Counter
 from decimal import Decimal
@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 
 import oracledb
 from export_live_migration import checksum, decode, encode, quote
@@ -68,9 +69,29 @@ def bind_type(dtype):
     return None
 
 
+def validate_target_schema(name):
+    name = name.upper()
+    if not re.fullmatch(r"WAREHOUSE_[A-Z0-9_]{1,20}", name):
+        raise ValueError("Target must be a WAREHOUSE_ schema name of at most 30 characters.")
+    return name
+
+
+def ensure_empty_target(cur, target_schema):
+    cur.execute("SELECT USER FROM dual")
+    if cur.fetchone()[0] != target_schema:
+        raise RuntimeError("Connected schema does not match --target-schema.")
+    cur.execute("SELECT COUNT(*) FROM user_objects")
+    if cur.fetchone()[0]:
+        raise RuntimeError("Target schema already has objects; refusing to overwrite.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", required=True)
+    parser.add_argument(
+        "--target-schema", type=validate_target_schema, default="WAREHOUSE_LIVE",
+        help="Existing empty schema to restore into; ORACLE_USER must match. Default: WAREHOUSE_LIVE.",
+    )
     args = parser.parse_args()
     root = Path(args.bundle).resolve()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8-sig"))
@@ -89,20 +110,15 @@ def main():
     print("All bundle checksums verified.", flush=True)
 
     user = os.environ["ORACLE_USER"]
-    if user.upper() != "WAREHOUSE_LIVE":
-        raise RuntimeError("Only isolated WAREHOUSE_LIVE schema is allowed.")
+    if user.upper() != args.target_schema:
+        raise RuntimeError("ORACLE_USER must match --target-schema; refusing to connect.")
     oracledb.defaults.fetch_lobs = False
     oracledb.defaults.fetch_decimals = True
     with oracledb.connect(
         user=user, password=os.environ["ORACLE_PASSWORD"], dsn=os.environ["ORACLE_DSN"]
     ) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT USER FROM dual")
-            if cur.fetchone()[0] != "WAREHOUSE_LIVE":
-                raise RuntimeError("Unexpected connected schema.")
-            cur.execute("SELECT COUNT(*) FROM user_tables")
-            if cur.fetchone()[0]:
-                raise RuntimeError("Target schema already has tables; refusing to overwrite.")
+            ensure_empty_target(cur, args.target_schema)
             for filename in ["01_sequences.sql", "02_tables.sql", "03_constraints.sql",
                              "05_indexes.sql", "07_comments.sql"]:
                 execute_file(cur, root / "schema" / filename)
@@ -192,7 +208,7 @@ def main():
     total = sum(table["rows"] for table in manifest["tables"])
     print(f"RESTORE VERIFIED: {len(manifest['tables'])} tables, {total} rows.", flush=True)
     print("Attachments, password hashes, relationships and ID generators verified.", flush=True)
-    print("Backend has NOT been switched.", flush=True)
+    print(f"Restored schema: {args.target_schema}; backend has NOT been switched.", flush=True)
 
 
 if __name__ == "__main__":

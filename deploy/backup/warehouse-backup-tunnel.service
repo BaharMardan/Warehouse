@@ -1,0 +1,21 @@
+[Unit]
+Description=Private Oracle connection from backup VM to backend VM
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=warehouse-backup
+Group=warehouse-backup
+ExecStart=/usr/bin/ssh -F /etc/warehouse-backup/ssh_config -NT warehouse-oracle-backup
+ExecStartPost=/usr/bin/timeout 45 /bin/bash -c 'until (: > /dev/tcp/127.0.0.1/11521) 2>/dev/null; do sleep 1; done'
+Restart=always
+RestartSec=15s
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
