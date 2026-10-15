@@ -1,0 +1,68 @@
+name: Deploy frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "deploy/frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warehouse-frontend-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Check frontend publisher
+        run: python3 -m unittest discover -s deploy/frontend -p test_publish.py
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-production-${{ github.sha }}
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, warehouse-frontend]
+    timeout-minutes: 10
+    environment:
+      name: frontend-production
+      url: http://192.168.1.32
+    steps:
+      - name: Download the build from this workflow run
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-production-${{ github.sha }}
+          path: ${{ runner.temp }}/warehouse-frontend-${{ github.run_id }}
+      - name: Publish frontend and check Nginx response
+        env:
+          FRONTEND_ARTIFACT: ${{ runner.temp }}/warehouse-frontend-${{ github.run_id }}
+        run: /usr/local/bin/warehouse-publish-frontend "$FRONTEND_ARTIFACT"
