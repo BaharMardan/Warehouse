@@ -1,0 +1,86 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/**"
+      - "backend/requirements.txt"
+      - "backend/run_migrations.py"
+      - "backend/migrations/**"
+      - "backend/backup_warehouse.py"
+      - "backend/extract_schema.py"
+      - "backend/export_live_migration.py"
+      - "backend/run_sql.py"
+      - "deploy-wheels/**"
+      - "deploy/backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warehouse-backend-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check deployment and migration controls
+        run: python3 -m unittest discover -s deploy/backend -p "test_*.py" -v
+      - name: Build production API using the existing offline wheels
+        run: >-
+          docker build -f deploy/backend/Dockerfile
+          --build-arg WAREHOUSE_COMMIT="$GITHUB_SHA"
+          -t "warehouse-api:git-$GITHUB_SHA" .
+      - name: Check image imports, syntax and dependencies without a database
+        run: |
+          docker run --rm --entrypoint /opt/venv/bin/pip "warehouse-api:git-$GITHUB_SHA" check
+          docker run --rm --entrypoint python "warehouse-api:git-$GITHUB_SHA" -c \
+            'import oracledb, fastapi, argon2, jwt, backup_warehouse; from run_migrations import discover; from pathlib import Path; discover(Path("/code/migrations/versions")); [compile(p.read_bytes(), str(p), "exec") for p in Path("/code/app").rglob("*.py")]'
+      - name: Package image and checksum
+        run: |
+          mkdir -p backend-release
+          docker save "warehouse-api:git-$GITHUB_SHA" | gzip > backend-release/image.tar.gz
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          path = Path("backend-release/image.tar.gz")
+          with path.open("rb") as handle:
+              digest = hashlib.file_digest(handle, "sha256").hexdigest()
+          Path("backend-release/release.json").write_text(json.dumps({
+              "commit": os.environ["GITHUB_SHA"],
+              "image": "warehouse-api:git-" + os.environ["GITHUB_SHA"],
+              "sha256": digest,
+          }) + "\n")
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backend-production-${{ github.sha }}
+          path: backend-release/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, warehouse-backend]
+    timeout-minutes: 30
+    environment:
+      name: backend-production
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-production-${{ github.sha }}
+          path: /var/lib/warehouse-backend-deploy/incoming/${{ github.sha }}
+      - name: Deploy API and pending migrations
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: sudo -n /usr/local/sbin/warehouse-deploy-backend "$RELEASE_COMMIT"
