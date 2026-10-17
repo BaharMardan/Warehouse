@@ -51,6 +51,10 @@ const theme = createTheme({
   primaryColor: 'blue',
   defaultRadius: 'md',
   autoContrast: true,
+  colors: {
+    // Forest green #0B6623 (shade 6) is the accent of the reports module.
+    forest: ['#e6f4ea', '#c9e6d0', '#a3d4b0', '#78bf8e', '#4aa86b', '#1f8a45', '#0b6623', '#0a5a1f', '#084c1a', '#063d15'],
+  },
 })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

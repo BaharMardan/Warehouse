@@ -163,7 +163,7 @@
  * change except App.tsx (to register the route).
  */
 import { useMemo, type ComponentType, type CSSProperties } from 'react'
-import { Cog } from 'lucide-react'
+import { ChartColumn, Cog } from 'lucide-react'
 import type { CrudConfig } from './components/CrudResource'
 import { resources } from './resources'
 import {
@@ -179,6 +179,10 @@ const IconSettingsIOS: IconComponent = ({ size = 20, stroke = 1.8 }) => (
   <Cog size={size} strokeWidth={stroke} />
 )
 
+const IconReports: IconComponent = ({ size = 20, stroke = 1.8 }) => (
+  <ChartColumn size={size} strokeWidth={stroke} />
+)
+
 export interface AppModule {
   key: string
   title: string           // tile caption, e.g. 'تالی'
@@ -188,6 +192,7 @@ export interface AppModule {
   color: string           // Mantine color name, drives the tile badge
   enabled?: boolean       // false => tile is visible but greyed out with a "به‌زودی" badge
   permission?: PermissionCode // shown only to users holding it; omit for every logged-in user
+  anyPermission?: PermissionCode[] // shown to users holding at least one of these
   adminOnly?: boolean         // shown only to admins (FA_USERS.IS_ADMIN); no permission code grants it
 }
 
@@ -247,6 +252,15 @@ export const modules: AppModule[] = [
     permission: 'invoice.view',
   },
   {
+    key: 'reports',
+    title: 'گزارش‌گیری',
+    description: 'درآمد صورتحساب‌ها و موجودی انبار در بازهٔ زمانی',
+    route: '/reports',
+    icon: IconReports,
+    color: 'forest',
+    anyPermission: ['reports.stock', 'reports.income'],
+  },
+  {
     key: 'users',
     title: 'مدیریت کاربران',
     description: 'کاربران، نقش‌ها و دسترسی‌ها',
@@ -290,6 +304,10 @@ export function useVisibleModules(): AppModule[] {
             can('base_data.edit') ||
             can('commodity.manage')
           )
+        }
+
+        if (module.anyPermission) {
+          return module.anyPermission.some((code) => can(code))
         }
 
         if (module.permission) {

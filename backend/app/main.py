@@ -54,6 +54,7 @@ from app.routers.invoice import router as invoice_router
 from app.routers.commodity import router as commodity_router
 from app.routers.owners import router as owners_router
 from app.routers.kartabl import router as kartabl_router
+from app.routers.reports import router as reports_router
 from app.routers.admin import router as admin_router
 from app.routers.tally_handoff import router as tally_handoff_router
 from app.routers.settings import router as settings_router
@@ -78,6 +79,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(abandoned_router)
+app.include_router(reports_router)
 app.include_router(auth_router)
 app.include_router(tally_router)
 app.include_router(tally_header_router)

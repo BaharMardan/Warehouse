@@ -49,7 +49,7 @@ EXPECTED = {
         ("سایر خدمات — سایر خدمات — تعداد 1", 1, "200"), (L["strip"], None, "0"), (L["stuffing"], None, "0"),
         (L["night_stop"], 3, "2732400"), (L["diamound"], 1, "2447500"), (L["vehicle_enter"], None, "0")],
     "strip_stuffing_crane_transport": [
-        ("استریپ و تخلیه", 3, "3940923.5"), ("بارگیری", 1, "123.25"), (L["night_stop"], None, "0"),
+        ("استریپ", 2, "300"), ("تخلیه", 1, "3940623.5"), ("بارگیری", 1, "123.25"), (L["night_stop"], None, "0"),
         (L["diamound"], None, "0"), (L["vehicle_enter"], 1, "935000"),
         (f'{L["crane"]} — full', 1, "100"),
         (f'{L["crane"]} — empty', 1, "50"),
@@ -114,6 +114,28 @@ def test_other_services_keep_each_name_quantity_and_amount_in_invoice():
     assert [r.description for r in rows] == [c.description for c in charges]
     assert [r.price for r in rows] == [Decimal(500), Decimal(2000)]
     assert all(ri.service_rank(r.description) == ri.service_rank(L["other_service"]) for r in rows)
+
+
+def test_each_handling_service_is_saved_as_its_own_charge():
+    """Strip and unloading (stuffing and loading) must be totalled independently later."""
+    base = {"number_hamel": "A", "rate_code": "301", "rate_title": "t", "normal": "100",
+            "non_standard": "150", "dangerous": "300", "unloading_amount": None, "loading_amount": None}
+    strip = [
+        {**base, "id": 1, "service_kind": "strip", "pricing_type": "normal", "number_service": 2},
+        {**base, "id": 2, "service_kind": "strip", "pricing_type": "normal", "number_service": 1},
+        {**base, "id": 3, "service_kind": "strip", "pricing_type": "unloading", "number_service": 9,
+         "unloading_amount": Decimal(40)},
+        {**base, "id": 4, "service_kind": "stuffing", "pricing_type": "normal", "number_service": 1},
+        {**base, "id": 5, "service_kind": "stuffing", "pricing_type": "loading", "number_service": 9,
+         "loading_amount": Decimal(7)},
+    ]
+    charges = run({**CASES["invoice_calc_selfcheck"], "other": [], "night": [], "diamound": [],
+                   "strip": strip})
+
+    got = [(c.description, c.price) for c in charges[:4]]
+    assert got == [("استریپ", Decimal(300)), ("تخلیه", Decimal(40)),
+                   ("استافینگ", Decimal(100)), ("بارگیری", Decimal(7))]
+    assert [ri.service_rank(c.description) for c in charges[:4]] == [0, 0, 1, 1]
 
 
 def test_other_service_fractional_quantity_is_not_truncated():

@@ -20,6 +20,8 @@ export const PERMISSION_CODES = [
   'invoice.view',
   'invoice.issue',
   'abandoned.view',
+  'reports.stock',
+  'reports.income',
   'settings.manage',
 ] as const
 

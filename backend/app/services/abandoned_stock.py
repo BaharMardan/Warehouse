@@ -16,7 +16,14 @@ def number(value):
     return ZERO if value is None else Decimal(str(value))
 
 
-def attach_remaining_goods(items, rows):
+def attach_remaining_goods(items, rows, detailed=False):
+    """Attach each tally's goods that are still in stock.
+
+    detailed=True also reports what is left of every field on the goods row:
+    remaining_quantity, remaining_baskol and remaining_ratio, the fraction of the
+    row's first measurable field (weight, quantity, baskol) that is still there.
+    Money and pallets of the row scale by that ratio.
+    """
     by_tally = {item["id"]: item for item in items}
     goods_by_key = {}
     base, remaining = {}, {}
@@ -76,6 +83,11 @@ def attach_remaining_goods(items, rows):
             continue
         if goods["remaining_weight"] is not None:
             goods["remaining_weight"] = remaining[key]["weight"]
+        if detailed:
+            goods["remaining_quantity"] = remaining[key]["quantity"]
+            goods["remaining_baskol"] = remaining[key]["baskol"]
+            goods["remaining_ratio"] = (
+                remaining[key][primary] / base[key][primary] if primary is not None else Decimal(1))
         by_tally[tid]["goods"].append(goods)
     # Preserve empty/unfinished tallies, but remove a tally whose goods have
     # all been covered by active invoices. Cancelled invoices restore stock.

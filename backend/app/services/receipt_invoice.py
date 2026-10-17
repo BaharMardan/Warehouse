@@ -29,7 +29,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from app.services import storage_calc as sc
-from app.services.invoice_handling import selected_labels, handling_labels
+from app.services.invoice_handling import row_label, handling_labels
 from app.services.container_excess import derived_rows
 from app.services.crane_charges import crane_rows
 from app.services.insurance_cover import InsuranceCover
@@ -136,21 +136,28 @@ def service_charges(*, other, strip, night, diamound, vehicle, container_weights
         # the description too; later catalog edits must not change the invoice.
         description = f"سایر خدمات — {title} — تعداد {sc.fmt(count)}"
         charges.append(ServiceCharge(description, count, (price or Decimal(0)) * count))
-    groups = (
-        ("strip", [strip_price(r) for r in strip if r["service_kind"] == "strip"],
-         [None if r["pricing_type"] == "unloading" else r["number_service"]
-          for r in strip if r["service_kind"] == "strip"]),
-        ("stuffing", [strip_price(r) for r in strip if r["service_kind"] == "stuffing"],
-         [None if r["pricing_type"] == "loading" else r["number_service"]
-          for r in strip if r["service_kind"] == "stuffing"]),
+    # Strip and unloading (stuffing and loading) are billed as separate services, so
+    # each gets its own charge and the report can total them independently. A kind
+    # with no selection keeps its single zero row.
+    for key in ("strip", "stuffing"):
+        by_label: dict[str, list] = {}
+        for row in strip:
+            if row["service_kind"] == key:
+                by_label.setdefault(row_label(row, key), []).append(row)
+        for label, rows in by_label.items():
+            total, count, _ = _weighted_total(
+                [strip_price(r) for r in rows],
+                [None if r["pricing_type"] in ("unloading", "loading") else r["number_service"] for r in rows])
+            charges.append(ServiceCharge(label, count, total))
+        if not by_label:
+            charges.append(ServiceCharge(SERVICE_LABELS[key], None, Decimal(0)))
+    for key, prices, counts in (
         ("night_stop", [r["price"] for r in night], [r["number_service"] for r in night]),
         ("diamound", [r["price"] for r in diamound], [r["number_service"] for r in diamound]),
         ("vehicle_enter", [r["price"] for r in vehicle], [r["number_service"] for r in vehicle]),
-    )
-    for key, prices, counts in groups:
+    ):
         total, count, _ = _weighted_total(prices, counts)
-        labels = selected_labels(strip, key) if key in ("strip", "stuffing") else []
-        charges.append(ServiceCharge(" و ".join(labels) if labels else SERVICE_LABELS[key], count, total))
+        charges.append(ServiceCharge(SERVICE_LABELS[key], count, total))
     for row in strip:
         if row["service_kind"] != "crane":
             continue

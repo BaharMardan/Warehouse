@@ -6,10 +6,14 @@ LEGACY = {"هزینه کل استریپ / تخلیه": "strip", "هزینه کل
           "استریپ / تخلیه": "strip", "استافینگ / بارگیری": "stuffing"}
 
 
+def row_label(row, kind):
+    """The handling service one junction row bills: its own pricing type, else the kind."""
+    pricing = row.get("pricing_type")
+    return LABELS[pricing] if pricing in ("unloading", "loading") else LABELS[kind]
+
+
 def selected_labels(rows, kind):
-    return list(dict.fromkeys(
-        LABELS[r.get("pricing_type")] if r.get("pricing_type") in ("unloading", "loading") else LABELS[kind]
-        for r in rows if r.get("service_kind") == kind))
+    return list(dict.fromkeys(row_label(r, kind) for r in rows if r.get("service_kind") == kind))
 
 
 def handling_labels(description):

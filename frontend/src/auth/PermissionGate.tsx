@@ -60,6 +60,12 @@ export function RequirePermission({ code, children }: { code: PermissionCode; ch
   return can(code) ? <>{children}</> : <NoAccess />
 }
 
+/** Like RequirePermission, for a page that several permissions open (each guarding its own part). */
+export function RequireAnyPermission({ codes, children }: { codes: PermissionCode[]; children: ReactNode }) {
+  const { can } = usePermissions()
+  return codes.some((code) => can(code)) ? <>{children}</> : <NoAccess />
+}
+
 /** Route guard for admin-only pages such as user management, which no permission code grants. */
 export function RequireAdmin({ children }: { children: ReactNode }) {
   const { isAdmin } = usePermissions()

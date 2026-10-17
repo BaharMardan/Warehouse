@@ -9,24 +9,31 @@ from app.services import receipt_db as db
 from app.services.abandoned_stock import attach_remaining_goods
 
 router = APIRouter(prefix="/abandoned", tags=["abandoned"])
-AGING_SQL = """
+TEHRAN_TODAY = "TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE))"
+
+# A tally whose cargo has not left yet: no exit date, or one that has not arrived,
+# and no tally-level invoice releasing everything. The aging report and the
+# warehouse stock report (routers/reports.py) share this definition.
+STILL_IN_WAREHOUSE_SQL = f"""AND (h."DATE_CARGO_EXIT" IS NULL OR TRUNC(h."DATE_CARGO_EXIT") >
+       {TEHRAN_TODAY})
+  AND NOT EXISTS (
+      SELECT 1 FROM "FA_SORAT_HESAB_HEADER" i
+      WHERE i."TALI_ID_HEADER" = h."ID_TALI" AND NVL(i."SORAT_IS_DELETED", 'no') = 'no'
+        AND i."ID_GHABZ_ANBAR" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "FA_REMAINING_INVOICE" extra WHERE extra."INVOICE_ID" = i."ID_SORAT"))"""
+
+AGING_SQL = f"""
 SELECT h."ID_TALI" AS id, h."TALI_NUMBER" AS tally_number,
        h."DATE_UNLOADING" AS unloaded_at,
        h."SABT_SEFARESH_NUMBER" AS order_registration_number,
-       TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE)) - TRUNC(h."DATE_UNLOADING") AS age_days,
+       {TEHRAN_TODAY} - TRUNC(h."DATE_UNLOADING") AS age_days,
        COALESCE(o."COMPANY_NAME", TRIM(o."NAME" || ' ' || o."FAMILY")) AS owner_name
 FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = h."ID_PRODUCT_OWNEAR"
 WHERE h."IS_DELETED" = 'no'
   AND h."DATE_UNLOADING" IS NOT NULL
-  AND TRUNC(h."DATE_UNLOADING") <= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE)) - 80
-  AND (h."DATE_CARGO_EXIT" IS NULL OR TRUNC(h."DATE_CARGO_EXIT") >
-       TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE)))
-  AND NOT EXISTS (
-      SELECT 1 FROM "FA_SORAT_HESAB_HEADER" i
-      WHERE i."TALI_ID_HEADER" = h."ID_TALI" AND NVL(i."SORAT_IS_DELETED", 'no') = 'no'
-        AND i."ID_GHABZ_ANBAR" IS NULL
-        AND NOT EXISTS (SELECT 1 FROM "FA_REMAINING_INVOICE" extra WHERE extra."INVOICE_ID" = i."ID_SORAT"))
+  AND TRUNC(h."DATE_UNLOADING") <= {TEHRAN_TODAY} - 80
+  {STILL_IN_WAREHOUSE_SQL}
 ORDER BY h."DATE_UNLOADING", h."ID_TALI"
 """
 
@@ -34,8 +41,10 @@ ORDER BY h."DATE_UNLOADING", h."ID_TALI"
 # Keep the tally-level aging counts and event tokens unchanged. Goods are read
 # separately, once for the entire report, so multiple receipts cannot multiply
 # the tally count or the value/weight of an original goods row.
-GOODS_SQL = f"""
-WITH eligible AS ({AGING_SQL})
+# `eligible_sql` must return the tallies as id and unloaded_at columns.
+def goods_sql(eligible_sql: str) -> str:
+    return f"""
+WITH eligible AS ({eligible_sql})
 SELECT d."ID_HEADERS_TALI" AS tally_id, d."ID_TALI_DETAILS" AS detail_id,
        d."HSCODE" AS hscode, d."DESCRIPTION_KALA" AS description,
        d."CUSTOMS_VALUE" AS customs_value, d."WEIGHTE" AS remaining_weight,
@@ -79,6 +88,9 @@ LEFT JOIN "FA_GHABZ_TALLY_SOURCE" src
 WHERE d."IS_DELETED" = 'no'
 ORDER BY h.unloaded_at, h.id, d."ID_TALI_DETAILS", r."ID_ghabz"
 """
+
+
+GOODS_SQL = goods_sql(AGING_SQL)
 
 
 def attach_goods(items, goods_rows):
