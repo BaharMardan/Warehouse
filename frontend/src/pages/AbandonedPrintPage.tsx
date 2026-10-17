@@ -31,15 +31,20 @@ export function AbandonedPrintPage() {
   </Center>
 
   return <main className="abandoned-print-page" dir="rtl">
-    <Group className="abandoned-print-actions" justify="space-between">
-      <Button color="yellow" leftSection={<IconPrint size={18} />} onClick={() => window.print()} disabled={!rows.length}>چاپ فهرست</Button>
+    <Group className="abandoned-print-actions" justify="flex-end">
       <BackButton to="/abandoned?section=abandoned" />
     </Group>
     <section className="abandoned-print-sheet">
       <header className="abandoned-print-heading">
-        <div>
-          <h1>فهرست متروکه — ۹۰ روز و بیشتر</h1>
-          <p>سامانه انبار آسان تجارت فلات شرق</p>
+        <div className="abandoned-print-preview-heading">
+          <button className="abandoned-print-action" type="button" onClick={() => window.print()}
+            disabled={!rows.length} aria-label="چاپ فهرست متروکه" title="چاپ فهرست متروکه">
+            <IconPrint size={27} stroke={1.8} />
+          </button>
+          <div>
+            <h1>فهرست متروکه — ۹۰ روز و بیشتر</h1>
+            <p>سامانه انبار آسان تجارت فلات شرق</p>
+          </div>
         </div>
         <CompanyLogo />
       </header>

@@ -40,6 +40,43 @@
   break-inside: avoid;
 }
 
+.abandoned-print-preview-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4mm;
+}
+
+.abandoned-print-action {
+  display: grid;
+  box-sizing: border-box;
+  width: 15mm;
+  height: 15mm;
+  flex: 0 0 15mm;
+  place-items: center;
+  cursor: pointer;
+  border: 0;
+  border-radius: 3.2mm;
+  background: linear-gradient(145deg, #fcc419, #f59f00);
+  color: #5b4000;
+  box-shadow: 0 3px 8px rgba(181, 126, 0, 0.24),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
+}
+
+.abandoned-print-action:not(:disabled):hover {
+  background: linear-gradient(145deg, #ffd43b, #f08c00);
+}
+
+.abandoned-print-action:focus-visible {
+  outline: 2px solid #b57e00;
+  outline-offset: 3px;
+}
+
+.abandoned-print-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .abandoned-print-heading h1 {
   margin: 0 0 2mm;
   font-size: 18px;
@@ -110,7 +147,8 @@
     background: white;
   }
 
-  .abandoned-print-actions { display: none; }
+  .abandoned-print-actions,
+  .abandoned-print-action { display: none; }
 
   .abandoned-print-sheet {
     width: 100%;
