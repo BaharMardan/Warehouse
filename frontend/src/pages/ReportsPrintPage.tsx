@@ -208,7 +208,6 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
             </tr>
           </tbody>
         </table>
-        <p className="rp-note">ارزش بیمه‌شدهٔ هر تالی در هر گروه یک بار شمرده می‌شود؛ اگر یک تالی در چند گروه باشد، جمع گروه‌ها ممکن است از جمع کل بیشتر شود.</p>
       </>}
 
       {sections.includes('rows') && <>
