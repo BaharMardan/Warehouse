@@ -75,6 +75,18 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
     <Sheet title="گزارش درآمد صورتحساب‌ها" meta={[
       `بازهٔ صدور: از ${jalali(from)} تا ${jalali(to)}`,
       `تعداد صورتحساب: ${data.invoice_count.toLocaleString('fa-IR')}`]}>
+      {sections.includes('cards') && <>
+        <h2>ارقام کلی</h2>
+        <div className="rp-figures">
+          {([
+            ['جمع کل درآمد (قبل از مالیات)', t.net], ['جمع هزینه‌ها (قبل از تخفیف)', t.gross],
+            ['تخفیف', t.discount], ['مالیات بر ارزش افزوده', t.tax],
+            ['جمع صورتحساب‌ها با مالیات', t.total_with_tax], ['کسر پیش‌پرداخت', t.prepayment],
+            ['مبلغ قابل پرداخت', t.payable],
+          ] as [string, number][]).map(([name, value]) => <div key={name}><span>{name}</span><b>{ltr(money(value))}</b></div>)}
+        </div>
+      </>}
+
       {sections.includes('summary') && <>
         <h2>خلاصهٔ درآمد به تفکیک نوع ردیف (ریال)</h2>
         <table className="rp-table">
@@ -90,11 +102,6 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
             {row('مانده قابل پرداخت (جمع با مالیات − کسر پیش‌پرداخت)', t.payable, 'payable', true)}
           </tbody>
         </table>
-        <p className="rp-note">
-          پیش‌پرداخت درآمد نیست و فقط از مانده قابل پرداخت کم می‌شود. فقط صورتحساب‌های فعال شمرده شده‌اند.
-          {data.left_out.lines > 0 && ` ${data.left_out.lines.toLocaleString('fa-IR')} ردیف قدیمی استریپ/تخلیه (یا استافینگ/بارگیری) یک‌جاثبت‌شده به مبلغ ${money(data.left_out.amount)} ریال در رقم‌ها نیامده است.`}
-          {data.supplementary.invoices > 0 && ` شامل ${data.supplementary.invoices.toLocaleString('fa-IR')} صورتحساب تکمیلی به مبلغ ${money(data.supplementary.amount)} ریال.`}
-        </p>
       </>}
 
       {wantLines && lines.data && <>

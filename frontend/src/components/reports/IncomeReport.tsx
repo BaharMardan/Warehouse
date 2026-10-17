@@ -98,7 +98,8 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   return (
     <Stack gap="lg">
       <Group justify="flex-end">
-        <PrintButton title="چاپ گزارش درآمد" defaults={['summary']} onPrint={print} options={[
+        <PrintButton title="چاپ گزارش درآمد" defaults={['cards', 'summary']} onPrint={print} options={[
+          { value: 'cards', label: 'ارقام کلی (جمع درآمد، تخفیف، مالیات، پیش‌پرداخت و مبلغ قابل پرداخت)' },
           { value: 'summary', label: 'خلاصهٔ درآمد به تفکیک نوع ردیف و جمع‌ها' },
           { value: 'lines', label: `جزئیات ردیف‌ها — ${selectedLabel}`,
             description: 'دسته را در بخش «جزئیات ردیف‌ها» پایین صفحه انتخاب کنید.' },
