@@ -44,7 +44,7 @@ export function AbandonedPrintPage() {
         <CompanyLogo />
       </header>
       <div className="abandoned-print-info">
-        <span>تعداد تالی‌ها: {rows.length.toLocaleString('fa-IR')}</span>
+        <span>تعداد تالی‌ها: {rows.length.toLocaleString('fa-IR')} — تعداد ردیف‌های کالا: {rows.reduce((sum, row) => sum + (row.goods?.length ?? 0), 0).toLocaleString('fa-IR')}</span>
         <span>کاربر: {user?.full_name || user?.username || '—'}</span>
       </div>
       {rows.length ? <AbandonedTable rows={rows} printable /> : <Text>موردی وجود ندارد.</Text>}

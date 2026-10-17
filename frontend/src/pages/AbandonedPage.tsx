@@ -36,11 +36,11 @@ export function AbandonedPage() {
           onClick={() => navigate('/abandoned/print', { state: { rows, userId: user?.id } })}>چاپ فهرست</Button>}
       </Group>
       {!rows.length ? <Text c="dimmed">موردی وجود ندارد.</Text> :
-        <Table.ScrollContainer minWidth={650}><AbandonedTable rows={rows} warning={warning} /></Table.ScrollContainer>}
+        <Table.ScrollContainer minWidth={1250}><AbandonedTable rows={rows} warning={warning} /></Table.ScrollContainer>}
     </Paper>
 
   return <div dir="rtl">
-    <PageHeader title="متروکه" subtitle="تالی‌های بدون صورتحساب فعال که خروج بار آن‌ها ثبت نشده یا تاریخ خروج هنوز نرسیده است"
+    <PageHeader title="متروکه" subtitle="کالاهای باقی‌مانده بدون صورتحساب؛ خروج بار تالی ثبت نشده یا تاریخ خروج هنوز نرسیده است"
       actions={<BackButton to="/" />} />
     {isLoading && <Center py="xl"><Loader color="yellow" /></Center>}
     {isError && <Alert color="red">دریافت فهرست متروکه ناموفق بود.</Alert>}

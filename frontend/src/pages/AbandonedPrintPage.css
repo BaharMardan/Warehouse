@@ -9,15 +9,15 @@
 }
 
 .abandoned-print-actions {
-  width: 190mm;
+  width: 277mm;
   max-width: 100%;
   margin: 0 auto 16px;
 }
 
 .abandoned-print-sheet {
   box-sizing: border-box;
-  width: 190mm;
-  min-height: 277mm;
+  width: 277mm;
+  min-height: 190mm;
   margin: 0 auto;
   padding: 6mm;
   border: 1px solid #f1d37a;
@@ -83,17 +83,21 @@
   font-weight: 700;
 }
 
-.abandoned-print-table th:nth-child(1) { width: 22%; }
-.abandoned-print-table th:nth-child(2) { width: 40%; }
-.abandoned-print-table th:nth-child(3) { width: 18%; }
-.abandoned-print-table th:nth-child(4) { width: 20%; }
-.abandoned-print-table td:nth-child(2) { text-align: right; }
+.abandoned-print-table th:nth-child(1) { width: 4%; }
+.abandoned-print-table th:nth-child(2) { width: 10%; }
+.abandoned-print-table th:nth-child(3) { width: 26%; }
+.abandoned-print-table th:nth-child(4) { width: 14%; }
+.abandoned-print-table th:nth-child(5) { width: 15%; }
+.abandoned-print-table th:nth-child(6) { width: 11%; }
+.abandoned-print-table th:nth-child(7) { width: 11%; }
+.abandoned-print-table th:nth-child(8) { width: 9%; }
+.abandoned-print-table td:nth-child(3) { text-align: right; }
 .abandoned-print-table tbody tr:nth-child(even) { background: #fffbee; }
 .abandoned-print-table thead { display: table-header-group; }
 .abandoned-print-table tr { break-inside: avoid; page-break-inside: avoid; }
 
 @page abandoned {
-  size: A4 portrait;
+  size: A4 landscape;
   margin: 10mm;
 }
 
