@@ -292,6 +292,7 @@ import { useAuth } from '../auth/useAuth'
 import { useCurrentUser } from '../auth/usePermissions'
 import { PasswordChangeForm } from './PasswordChangeForm'
 import { KeeperQueueBell } from './KeeperQueueBell'
+import { HandoffSoundNotifications } from './HandoffSoundNotifications'
 import { resources } from '../resources'
 import { moduleForPath, accentVars, useVisibleModules } from '../modules'
 import { IconSun, IconMoon, IconHome, IconApps } from './icons'
@@ -439,6 +440,7 @@ export function AppLayout() {
                 {dark ? <IconSun size={18} /> : <IconMoon size={18} />}
               </ActionIcon>
             </Tooltip>
+            <HandoffSoundNotifications />
             <KeeperQueueBell />
             {currentUser && (
               <Menu position="bottom-end" shadow="md">

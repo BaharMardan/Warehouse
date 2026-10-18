@@ -292,10 +292,10 @@ export function UsersPanel() {
           <Text size="sm">رمز موقت را به خود کاربر تحویل دهید. کاربر پیش از ادامه کار باید آن را تغییر دهد.</Text>
           <PasswordInput
             label="رمز عبور جدید"
-            description="دست‌کم ۸ نویسه"
+            description="دست‌کم ۸ حرف یا عدد"
             autoComplete="new-password"
             value={password}
-            error={passwordTooShort ? 'رمز عبور باید دست‌کم ۸ نویسه باشد' : undefined}
+            error={passwordTooShort ? 'رمز عبور باید دست‌کم ۸ حرف یا عدد باشد' : undefined}
             onChange={(event) => setPassword(event.currentTarget.value)}
           />
           <PasswordInput

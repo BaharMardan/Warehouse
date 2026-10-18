@@ -27,7 +27,7 @@ export function PasswordChangeForm({ temporary = false, onSuccess, onCancel }: {
       {temporary && <Text size="sm">رمز تحویل‌گرفته از مدیر موقت است. برای ادامه، رمز شخصی خود را تعیین کنید.</Text>}
       <PasswordInput label={temporary ? 'رمز موقت فعلی' : 'رمز عبور فعلی'} autoComplete="current-password"
         required maxLength={128} value={current} disabled={change.isPending} onChange={event => setCurrent(event.currentTarget.value)} />
-      <PasswordInput label="رمز عبور جدید" description="۸ تا ۱۲۸ نویسه" autoComplete="new-password"
+      <PasswordInput label="رمز عبور جدید" description="۸ تا ۱۲۸ حرف یا عدد" autoComplete="new-password"
         required maxLength={128} value={password} disabled={change.isPending}
         error={lengthError ? 'رمز باید ۸ تا ۱۲۸ حرف یا عدد باشد' : sameError ? 'رمز جدید باید با رمز فعلی متفاوت باشد' : undefined}
         onChange={event => setPassword(event.currentTarget.value)} />
