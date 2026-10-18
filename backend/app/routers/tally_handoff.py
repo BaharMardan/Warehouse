@@ -22,7 +22,7 @@ from app.services import row_pallets as rp
 from app.auth.deps import require_permission
 from app.core.db import get_connection
 from app.services import tally_handoff as rules
-from app.services import receipt_db
+from app.services import receipt_db, handoff_notifications
 
 router = APIRouter(prefix="/tally", tags=["tally_handoff"])
 
@@ -175,6 +175,7 @@ def send_to_keeper(tali_id: int, current_user: dict = Depends(require_permission
             if receipt_db.receipts(cursor, tali_id):
                 receipt_db.conflict("قبض‌ها به طور خودکار در چک‌لیست نهایی انباردار قرار می‌گیرند")
             cursor.execute(SEND_TO_KEEPER_SQL, {"tali_id": tali_id, "actor_id": int(current_user["id"])})
+            handoff_notifications.record(cursor, "keeper", tali_id, int(current_user["id"]))
             connection.commit()
             return read_handoff(cursor, tali_id)
 
@@ -217,6 +218,7 @@ def return_to_operator(tali_id: int, current_user: dict = Depends(require_permis
                     receipt_db.conflict("تعداد پالت تمام ردیف‌های تالی را تکمیل کنید")
             _conflict(rules.return_to_operator_error(step, is_volumetric, pallets))
             cursor.execute(RETURN_TO_OPERATOR_SQL, {"tali_id": tali_id, "actor_id": int(current_user["id"])})
+            handoff_notifications.record(cursor, "operator", tali_id, int(current_user["id"]))
             connection.commit()
             return read_handoff(cursor, tali_id)
 
@@ -278,5 +280,6 @@ def previous_step(tali_id: int, user: dict = Depends(require_permission("workflo
                 "RETURNED_AT" = NULL, "RETURNED_BY" = NULL,
                 "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor WHERE "ID_TALI" = :tid""",
                 {"step": target, "actor": user["id"], "tid": tali_id})
+            handoff_notifications.record(cur, target, tali_id, int(user["id"]))
             conn.commit()
             return read_handoff(cur, tali_id)

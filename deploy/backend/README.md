@@ -167,3 +167,28 @@ The frontend calls relative /api, so changing IP does not itself require a new
 frontend build. Oracle uses Docker's oracle service name internally.
 Keep/reserve stable LAN addresses .31, .32 and .33 where possible. If moving the
 physical ESXi server, a different modem may use a different LAN subnet/gateway.
+
+
+## Handoff notification release
+
+Version 0001 creates FA_HANDOFF_CLOCK and FA_HANDOFF_EVENTS. Test it in a
+separate restored schema and release the backend through the migration-aware
+deploy helper before releasing the frontend. Do not deploy only the Python
+files: document sends require these tables. Existing transfers are not backfilled.
+
+The browser polls committed transfers every five seconds, filtering by the
+current recipient's permissions and excluding their own sends. Each transfer,
+including receipt creation/finalization and correction returns, queues one
+chime even when the waiting count stays constant. A failed transaction publishes
+no event. Initial page load establishes a baseline without replaying history.
+Keep the page open; operating-system push notifications are not implemented.
+Click the sound button if the browser blocks audio. Closed/sleeping browsers
+cannot guarantee immediate playback.
+
+Acceptance: open separate operator and keeper sessions, activate sound in each,
+send two documents to the keeper, then return/finalize them. Require one chime
+per transfer on the receiving session. Also return and resend the same tally,
+and send/complete different documents within one poll interval so the waiting
+count stays constant. Test failure/rollback, browser refresh, blocked audio,
+network disconnect/reconnect and role changes. Never use production customer
+documents for a test that changes workflow state.

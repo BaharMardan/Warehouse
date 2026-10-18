@@ -15,9 +15,11 @@ receipts, and its issued invoices.
 The worklist never issues invoices (that happens on the receipt page after the
 keeper's final checklist); it only links to invoices that already exist.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.auth.deps import require_permission
+from app.auth.deps import require_permission, require_login
+from app.core.db import get_connection
+from app.services import handoff_notifications
 from app.services.base import fetch_all
 
 router = APIRouter(prefix="/kartabl", tags=["kartabl"])
@@ -148,3 +150,16 @@ SELECT COUNT(*) AS waiting
 def keeper_queue():
     from app.routers.receipt_workflow import keeper_queue as receipt_queue
     return {"waiting": int(fetch_all(KEEPER_QUEUE_SQL)[0]["waiting"]) + len(receipt_queue())}
+
+
+@router.get("/handoff-events")
+def handoff_events(
+    after: int | None = Query(default=None, ge=0, le=9_223_372_036_854_775_807),
+    user: dict = Depends(require_login),
+):
+    targets = handoff_notifications.targets_for(user["permissions"])
+    if not targets:
+        raise HTTPException(403, "دسترسی دریافت اعلان اسناد را ندارید")
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            return handoff_notifications.read(cursor, after, targets, int(user["id"]))

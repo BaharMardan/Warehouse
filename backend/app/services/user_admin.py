@@ -32,15 +32,15 @@ def clean_text(value: str | None) -> str | None:
 
 def username_error(username: str) -> str | None:
     if not USERNAME_PATTERN.fullmatch(username):
-        return "نام کاربری باید ۳ تا ۵۰ نویسه و فقط شامل حروف انگلیسی، عدد و . _ @ - باشد"
+        return "نام کاربری باید ۳ تا ۵۰ حرف یا عدد و فقط شامل حروف انگلیسی، عدد و . _ @ - باشد"
     return None
 
 
 def password_error(password: str) -> str | None:
     if len(password) < PASSWORD_MIN:
-        return "رمز عبور باید دست‌کم ۸ نویسه باشد"
+        return "رمز عبور باید دست‌کم ۸ حرف یا عدد باشد"
     if len(password) > PASSWORD_MAX:
-        return "رمز عبور حداکثر می‌تواند ۱۲۸ نویسه باشد"
+        return "رمز عبور حداکثر می‌تواند ۱۲۸ حرف یا عدد باشد"
     return None
 
 

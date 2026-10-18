@@ -125,6 +125,9 @@ def reopen_for_correction(cursor, tally_id, actor_id):
         "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor WHERE "ID_TALI" = :tid""",
         {"tid": tally_id, "actor": actor_id})
 
+    from app.services.handoff_notifications import record
+    record(cursor, "keeper", tally_id, actor_id)
+
 
 def guard_source(cursor, tally_id, *, allow_correction=False):
     tally = lock_tally(cursor, tally_id)

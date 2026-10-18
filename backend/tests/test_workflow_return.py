@@ -34,6 +34,8 @@ def test_return_rejects_invalid_state_or_active_invoice(monkeypatch, status, act
 
 
 def test_return_reopens_all_finalized_receipts_and_discards_shared_prices(monkeypatch):
+    notify = MagicMock()
+    monkeypatch.setattr(api.handoff_notifications, "record", notify)
     conn = setup_receipt(monkeypatch)
     assert api.return_receipt(1, {"id": 5}) == {"id": 1}
     calls = conn.cursor.return_value.__enter__.return_value.execute.call_args_list
@@ -42,11 +44,14 @@ def test_return_reopens_all_finalized_receipts_and_discards_shared_prices(monkey
     assert '"ALLOCATION_RATIO" = NULL' in calls[0].args[0]
     assert "FA_RECEIPT_SERVICE_POOL" in calls[1].args[0]
     assert calls[2].args[1]["actor"] == 5
+    notify.assert_called_once_with(conn.cursor.return_value.__enter__.return_value, "keeper", 10, 5)
     conn.commit.assert_called_once()
 
 
 @pytest.mark.parametrize("step,target", [("keeper", "operator"), ("returned", "keeper")])
 def test_tally_previous_step(monkeypatch, step, target):
+    notify = MagicMock()
+    monkeypatch.setattr(handoff.handoff_notifications, "record", notify)
     conn = MagicMock()
     conn.__enter__.return_value = conn
     monkeypatch.setattr(handoff, "get_connection", lambda: conn)
@@ -56,6 +61,7 @@ def test_tally_previous_step(monkeypatch, step, target):
     assert handoff.previous_step(10, {"id": 5}) == {"step": target}
     call = conn.cursor.return_value.__enter__.return_value.execute.call_args
     assert call.args[1]["step"] == target
+    notify.assert_called_once_with(conn.cursor.return_value.__enter__.return_value, target, 10, 5)
     conn.commit.assert_called_once()
 
 

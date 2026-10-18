@@ -1381,6 +1381,9 @@ def create_master_ghabz(
                     ],
                 )
 
+                from app.services.handoff_notifications import record
+                record(cursor, "keeper", tali_id, int(current_user["id"]), header_id)
+
             conn.commit()
             return {
                 "id_ghabz": header_id,
@@ -1508,6 +1511,9 @@ def create_ghabz_from_tally(
                         for line in lines
                     ],
                 )
+
+                from app.services.handoff_notifications import record
+                record(cursor, "keeper", tali_id, int(current_user["id"]), new_id)
 
             conn.commit()
             return {

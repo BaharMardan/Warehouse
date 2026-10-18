@@ -1,7 +1,8 @@
 # Production schema migrations
 
 Only versions/0001_description.py, 0002_description.py, ... are discovered.
-The initial directory is empty: installing deployment does not replay historical
+Version 0001 adds the handoff notification clock and event tables. It does not
+backfill historical transfers. Installing deployment does not replay historical
 add_*.py or migrate_*.py scripts or import development data.
 
 Each file defines upgrade(cursor), using the supplied python-oracledb cursor.

@@ -10,6 +10,7 @@ from app.services import receipt_db as db
 from app.services.receipt_sources import allocate_sources, automatic_selections
 from app.services.receipt_allocation import allocation_ratio, allocated_amount, decimal, EPS
 from app.services.tally_handoff import return_to_operator_error
+from app.services import handoff_notifications
 from app.services import receipt_invoice as ri
 from app.services import row_pallets as rp
 from app.routers.tally_handoff import PalletInput
@@ -447,6 +448,7 @@ def finalize(receipt_id: int, user: dict = Depends(require_permission("tally.ser
             cur.execute("""UPDATE "FA_TALI_HEADER" SET "HANDOFF_STEP" = 'returned',
                 "RETURNED_AT" = SYSDATE, "RETURNED_BY" = :actor WHERE "ID_TALI" = :tid""",
                 {"actor": user["id"], "tid": current["tally_id"]})
+            handoff_notifications.record(cur, "operator", current["tally_id"], int(user["id"]), receipt_id)
         conn.commit()
     return get_workflow(receipt_id)
 
