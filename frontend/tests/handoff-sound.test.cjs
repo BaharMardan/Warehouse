@@ -26,7 +26,7 @@ function listener(responses, permissions = ['tally.services']) {
   const sounds = []
   const mocks = {
     react: { useRef: current => ({ current }) },
-    '@tanstack/react-query': { useQuery: options => { poll = options.queryFn } },
+    '@tanstack/react-query': { useQuery: options => { poll = options.queryFn; return { isError: false, refetch() {} } } },
     '@mantine/core': {},
     'lucide-react': {},
     '../api/client': { apiGet: async url => {
@@ -42,7 +42,7 @@ function listener(responses, permissions = ['tally.services']) {
     './useHandoffSound': { useHandoffSound: () => ({
       ready: true, enqueue: count => sounds.push(count),
     }) },
-    'react/jsx-runtime': { jsx: (component, props) => component(props) },
+    'react/jsx-runtime': { jsx: (component, props) => typeof component === 'function' ? component(props) : props, jsxs: (component, props) => typeof component === 'function' ? component(props) : props },
   }
   load('HandoffSoundNotifications.tsx', mocks).HandoffSoundNotifications()
   return { get poll() { return poll }, urls, sounds }
@@ -96,6 +96,8 @@ function audioHook() {
     }
     async resume() { this.state = 'running'; this.onstatechange?.() }
     async close() { this.state = 'closed' }
+    createBuffer() { return {} }
+    createBufferSource() { return { connect() {}, disconnect() {}, start() {} } }
     createOscillator() {
       this.notes++
       return { frequency: {}, connect() {}, disconnect() {}, start() {}, stop() {} }
@@ -160,4 +162,13 @@ test('browser suspension preserves the remaining chimes until resumed', async ()
   assert.equal(state.timers.size, 0)
   assert.equal(state.handlers.size, 0)
   assert.equal(state.contexts[0].state, 'closed')
+})
+
+
+test('explicit sound test plays a chime even when no delivery is pending', async () => {
+  const state = audioHook()
+  await state.hook.test()
+  assert.equal(state.contexts.length, 1)
+  assert.equal(state.contexts[0].notes, 2)
+  state.cleanup()
 })

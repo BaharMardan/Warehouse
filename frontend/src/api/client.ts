@@ -71,8 +71,9 @@ async function forbiddenError(res: Response): Promise<ForbiddenError> {
   return new ForbiddenError(typeof detail === 'string' ? detail : fallback)
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+export async function apiGet<T>(path: string, options: Pick<RequestInit, 'cache' | 'signal'> = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers: { ...authHeaders() },
   })
   if (res.status === 401) {

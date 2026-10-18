@@ -36,16 +36,27 @@ export function useHandoffSound(enabled: boolean) {
     try {
       const Audio = window.AudioContext ??
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-      if (!Audio) return
+      if (!Audio) return false
       if (!context.current || context.current.state === 'closed') {
         context.current = new Audio()
         context.current.onstatechange = () => setReady(context.current?.state === 'running')
       }
-      await context.current.resume()
-      setReady(context.current.state === 'running')
+      const audio = context.current
+      // Start a silent buffer synchronously in the gesture as well as resuming.
+      // Safari may report a running context before the output has been unlocked.
+      const unlock = audio.createBufferSource()
+      unlock.buffer = audio.createBuffer(1, 1, audio.sampleRate)
+      unlock.connect(audio.destination)
+      unlock.onended = () => unlock.disconnect()
+      unlock.start()
+      await audio.resume()
+      if (context.current !== audio) return false
+      setReady(audio.state === 'running')
       if (timer.current === undefined) drain()
+      return audio.state === 'running'
     } catch {
       setReady(false)
+      return false
     }
   }, [drain])
 
@@ -54,9 +65,13 @@ export function useHandoffSound(enabled: boolean) {
     if (timer.current === undefined) drain()
   }, [drain])
 
+  const test = useCallback(async () => {
+    if (await enable()) enqueue(1)
+  }, [enable, enqueue])
+
   useEffect(() => {
     if (!enabled) return
-    const unlock = () => { void enable() }
+    const unlock = () => { if (context.current?.state !== 'running') void enable() }
     window.addEventListener('pointerdown', unlock)
     window.addEventListener('keydown', unlock)
     return () => {
@@ -73,5 +88,5 @@ export function useHandoffSound(enabled: boolean) {
     }
   }, [enabled, enable])
 
-  return { ready, enable, enqueue }
+  return { ready, enable, enqueue, test }
 }

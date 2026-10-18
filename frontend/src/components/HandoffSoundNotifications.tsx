@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ActionIcon, Tooltip } from '@mantine/core'
-import { VolumeX } from 'lucide-react'
+import { ActionIcon, Group, Tooltip } from '@mantine/core'
+import { BellOff, Volume2, VolumeX } from 'lucide-react'
 import { apiGet } from '../api/client'
 import { usePermissions } from '../auth/usePermissions'
 import { useHandoffSound } from './useHandoffSound'
@@ -26,12 +26,13 @@ function Listener({ userId }: { userId: number }) {
   const enqueue = useRef(sound.enqueue)
   enqueue.current = sound.enqueue
 
-  useQuery({
+  const notifications = useQuery({
     queryKey: ['handoff-sound', userId],
     queryFn: async () => {
       const after = cursor.current
       const result = await apiGet<Deliveries>(
         '/kartabl/handoff-events' + (after === null ? '' : `?after=${after}`),
+        { cache: 'no-store' },
       )
       // Initial load establishes a baseline; existing documents do not ring.
       if (after !== null) enqueue.current(result.keeper + result.operator)
@@ -44,11 +45,22 @@ function Listener({ userId }: { userId: number }) {
     refetchIntervalInBackground: true,
   })
 
-  if (sound.ready) return null
-  return <Tooltip label="برای شنیدن صدای اسناد دریافتی کلیک کنید" withArrow>
-    <ActionIcon variant="light" color="orange" size="lg"
-      aria-label="فعال‌کردن صدای اعلان‌ها" onClick={() => void sound.enable()}>
-      <VolumeX size={20} />
-    </ActionIcon>
-  </Tooltip>
+  const label = sound.ready
+    ? 'آزمایش صدای اعلان‌ها'
+    : 'فعال‌کردن و آزمایش صدای اعلان‌ها'
+  return <Group gap={4} wrap="nowrap">
+    {notifications.isError && <Tooltip label="دریافت اعلان‌ها قطع شده؛ برای تلاش دوباره کلیک کنید" withArrow>
+      <ActionIcon variant="light" color="red" size="lg"
+        aria-label="تلاش دوباره برای دریافت اعلان‌ها"
+        onClick={() => void notifications.refetch()}>
+        <BellOff size={20} />
+      </ActionIcon>
+    </Tooltip>}
+    <Tooltip label={label} withArrow>
+      <ActionIcon variant="light" color={sound.ready ? 'teal' : 'orange'} size="lg"
+        aria-label={label} onClick={() => void sound.test()}>
+        {sound.ready ? <Volume2 size={20} /> : <VolumeX size={20} />}
+      </ActionIcon>
+    </Tooltip>
+  </Group>
 }
