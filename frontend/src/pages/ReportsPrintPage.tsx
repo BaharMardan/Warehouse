@@ -8,7 +8,7 @@ import { useCurrentUser, usePermissions } from '../auth/usePermissions'
 import { BackButton } from '../components/BackButton'
 import { CompanyLogo } from '../components/CompanyLogo'
 import { IconPrint } from '../components/icons'
-import { amount, jalali, money, percent } from '../components/reports/reportFormat'
+import { amount, jalali, money } from '../components/reports/reportFormat'
 import './ReportsPrintPage.css'
 
 const CARGO: Record<string, string> = { weight: 'وزنی', volumetric: 'حجمی', container: 'کانتینری', yes: 'حجمی', no: 'وزنی' }
@@ -62,12 +62,11 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
   const cat = (key: string) => data.categories.find((c) => c.key === key)!
   const label = category ? cat(category)?.label : 'همهٔ ردیف‌ها'
   const row = (name: string, value: number, key: string, strong = false, counts?: [number, number]) => (
-    <tr key={key} className={strong ? 'rp-strong' : undefined}>
+    <tr key={key} className={strong ? `rp-strong${key === 'payable' ? ' rp-payable' : ''}` : undefined}>
       <td className="rp-text">{name}</td>
       <td>{counts ? ltr(counts[0].toLocaleString('fa-IR')) : ''}</td>
       <td>{counts ? ltr(counts[1].toLocaleString('fa-IR')) : ''}</td>
       <td>{ltr(money(value))}</td>
-      <td>{!strong && counts && t.gross ? ltr(percent(value, t.gross)) : ''}</td>
     </tr>)
   const entry = (key: string) => row(cat(key).label, cat(key).amount, key, false, [cat(key).invoices, cat(key).lines])
 
@@ -79,27 +78,28 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
         <h2>ارقام کلی</h2>
         <div className="rp-figures">
           {([
-            ['جمع کل درآمد (قبل از مالیات)', t.net], ['جمع هزینه‌ها (قبل از تخفیف)', t.gross],
+            ['جمع', t.net], ['جمع هزینه‌ها (قبل از تخفیف)', t.gross],
             ['تخفیف', t.discount], ['مالیات بر ارزش افزوده', t.tax],
-            ['جمع صورتحساب‌ها با مالیات', t.total_with_tax], ['کسر پیش‌پرداخت', t.prepayment],
+            ['جمع کل', t.total_with_tax], ['کسر پیش‌پرداخت', t.prepayment],
             ['مبلغ قابل پرداخت', t.payable],
-          ] as [string, number][]).map(([name, value]) => <div key={name}><span>{name}</span><b>{ltr(money(value))}</b></div>)}
+          ] as [string, number][]).map(([name, value]) => <div key={name}
+            className={name === 'مبلغ قابل پرداخت' ? 'rp-figure-payable' : ['جمع', 'جمع کل'].includes(name) ? 'rp-figure-total' : undefined}><span>{name}</span><b>{ltr(money(value))}</b></div>)}
         </div>
       </>}
 
       {sections.includes('summary') && <>
         <h2>خلاصهٔ درآمد به تفکیک نوع ردیف (ریال)</h2>
         <table className="rp-table">
-          <thead><tr><th>دسته</th><th>تعداد صورتحساب</th><th>تعداد ردیف</th><th>مبلغ</th><th>سهم از جمع هزینه‌ها</th></tr></thead>
+          <thead><tr><th>دسته</th><th>تعداد صورتحساب</th><th>تعداد ردیف</th><th>مبلغ</th></tr></thead>
           <tbody>
-            {data.categories.filter((c) => c.section === 'charge' && c.lines > 0).map((c) => entry(c.key))}
+            {data.categories.filter((c) => c.section === 'charge' && c.lines > 0 && (!['other', 'vehicle_enter', 'night_stop'].includes(c.key) || c.amount !== 0)).map((c) => entry(c.key))}
             {row('جمع هزینه‌ها', t.gross, 'gross', true)}
             {cat('discount').lines > 0 && entry('discount')}
-            {row('جمع کل درآمد (قبل از مالیات)', t.net, 'net', true)}
+            {row('جمع', t.net, 'net', true)}
             {entry('tax')}
-            {row('جمع صورتحساب‌ها با مالیات', t.total_with_tax, 'withTax', true)}
+            {row('جمع کل', t.total_with_tax, 'withTax', true)}
             {cat('prepayment').lines > 0 && entry('prepayment')}
-            {row('مانده قابل پرداخت (جمع با مالیات − کسر پیش‌پرداخت)', t.payable, 'payable', true)}
+            {row('مبلغ قابل پرداخت', t.payable, 'payable', true)}
           </tbody>
         </table>
       </>}

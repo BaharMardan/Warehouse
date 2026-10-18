@@ -3,7 +3,7 @@ import { Alert, Badge, Button, Center, Group, Loader, Paper, Select, SimpleGrid,
 import { Link, useNavigate } from 'react-router-dom'
 import { PrintButton } from './PrintDialog'
 import { useIncomeLines, useIncomeSummary, type IncomeCategory } from '../../api/reports'
-import { amount, downloadCsv, jalali, money, percent } from './reportFormat'
+import { amount, downloadCsv, jalali, money } from './reportFormat'
 
 const ALL = 'all'
 
@@ -37,19 +37,18 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
     requestAnimationFrame(() => linesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
-  const charges = data.categories.filter((c) => c.section === 'charge')
+  const charges = data.categories.filter((c) => c.section === 'charge' && (!['other', 'vehicle_enter', 'night_stop'].includes(c.key) || c.amount !== 0))
   const adjustment = (key: string) => data.categories.find((c) => c.key === key)!
   const adjustmentOrCharge = (key: string) => data.categories.find((c) => c.key === key)?.label ?? key
   const { summary: totals } = data
 
-  const categoryRow = (category: IncomeCategory, base: number) => (
+  const categoryRow = (category: IncomeCategory) => (
     <Table.Tr key={category.key} c={category.lines === 0 ? 'dimmed' : undefined}
       bg={selected === category.key ? 'var(--app-accent-light)' : undefined}>
       <Table.Td>{category.label}</Table.Td>
       <Table.Td><bdi dir="ltr">{category.invoices.toLocaleString('fa-IR')}</bdi></Table.Td>
       <Table.Td><bdi dir="ltr">{category.lines.toLocaleString('fa-IR')}</bdi></Table.Td>
       <Table.Td ta="left"><bdi dir="ltr">{money(category.amount)}</bdi></Table.Td>
-      <Table.Td><bdi dir="ltr">{category.section === 'charge' ? percent(category.amount, base) : ''}</bdi></Table.Td>
       <Table.Td>
         <Button size="compact-sm" variant="subtle" color="forest" disabled={category.lines === 0}
           onClick={() => showLines(category.key)}>مشاهده ردیف‌ها</Button>
@@ -58,12 +57,13 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   )
 
   const subtotal = (label: string, value: number, key: string, count?: number) => (
-    <Table.Tr key={key} fw={700} bg="var(--mantine-color-default-hover)">
+    <Table.Tr key={key} fw={700} bg="var(--mantine-color-default-hover)"
+      style={{ borderTop: `${key === 'payable' ? 4 : 2}px solid var(--mantine-color-forest-8)` }}>
       <Table.Td>{label}</Table.Td>
       <Table.Td>{count == null ? '' : <bdi dir="ltr">{count.toLocaleString('fa-IR')}</bdi>}</Table.Td>
       <Table.Td />
       <Table.Td ta="left"><bdi dir="ltr">{money(value)}</bdi></Table.Td>
-      <Table.Td /><Table.Td />
+      <Table.Td />
     </Table.Tr>
   )
 
@@ -73,15 +73,15 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
     [...charges.map((c) => [c.label, c.invoices, c.lines, c.amount]),
       ['جمع هزینه‌ها', '', '', totals.gross],
       ['تخفیف', adjustment('discount').invoices, adjustment('discount').lines, -totals.discount],
-      ['جمع کل درآمد (قبل از مالیات)', data.invoice_count, '', totals.net],
+      ['جمع', data.invoice_count, '', totals.net],
       ['مالیات بر ارزش افزوده', adjustment('tax').invoices, adjustment('tax').lines, totals.tax],
-      ['جمع صورتحساب‌ها با مالیات', '', '', totals.total_with_tax],
+      ['جمع کل', '', '', totals.total_with_tax],
       ['کسر پیش‌پرداخت', adjustment('prepayment').invoices, adjustment('prepayment').lines, -totals.prepayment],
-      ['مانده قابل پرداخت (جمع با مالیات − کسر پیش‌پرداخت)', '', '', totals.payable]],
+      ['مبلغ قابل پرداخت', '', '', totals.payable]],
   )
 
   const categoryOptions = [{ value: ALL, label: 'همهٔ ردیف‌ها' },
-    ...data.categories.filter((c) => c.lines > 0 || c.key === selected).map((c) => ({ value: c.key, label: c.label }))]
+    ...data.categories.filter((c) => (!['other', 'vehicle_enter', 'night_stop'].includes(c.key) || c.amount !== 0) && (c.lines > 0 || c.key === selected)).map((c) => ({ value: c.key, label: c.label }))]
 
   const exportLines = () => lines.data && downloadCsv(
     `income-lines_${selected}_${from}_${to}.csv`,
@@ -107,12 +107,12 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
         ]} />
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-        <Figure strong label="جمع کل درآمد (قبل از مالیات)" value={totals.net}
+        <Figure strong label="جمع" value={totals.net}
           hint={`${data.invoice_count.toLocaleString('fa-IR')} صورتحساب`} />
         <Figure label="جمع هزینه‌ها (قبل از تخفیف)" value={totals.gross} />
         <Figure label="تخفیف" value={totals.discount} />
         <Figure label="مالیات بر ارزش افزوده" value={totals.tax} />
-        <Figure label="جمع صورتحساب‌ها با مالیات" value={totals.total_with_tax} />
+        <Figure label="جمع کل" value={totals.total_with_tax} />
         <Figure label="کسر پیش‌پرداخت" value={totals.prepayment} hint="از درآمد کم نمی‌شود" />
         <Figure strong label="مبلغ قابل پرداخت" value={totals.payable}
           hint="پس از مالیات و کسر پیش‌پرداخت" />
@@ -128,17 +128,17 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
             <Table highlightOnHover>
               <Table.Thead><Table.Tr>
                 <Table.Th>دسته</Table.Th><Table.Th>تعداد صورتحساب</Table.Th><Table.Th>تعداد ردیف</Table.Th>
-                <Table.Th ta="left">مبلغ</Table.Th><Table.Th>سهم از جمع هزینه‌ها</Table.Th><Table.Th />
+                <Table.Th ta="left">مبلغ</Table.Th><Table.Th />
               </Table.Tr></Table.Thead>
               <Table.Tbody>
-                {charges.map((c) => categoryRow(c, totals.gross))}
+                {charges.map((c) => categoryRow(c))}
                 {subtotal('جمع هزینه‌ها', totals.gross, 'gross')}
-                {categoryRow(adjustment('discount'), totals.gross)}
-                {subtotal('جمع کل درآمد (قبل از مالیات)', totals.net, 'net', data.invoice_count)}
-                {categoryRow(adjustment('tax'), totals.gross)}
-                {subtotal('جمع صورتحساب‌ها با مالیات', totals.total_with_tax, 'withTax')}
-                {categoryRow(adjustment('prepayment'), totals.gross)}
-                {subtotal('مانده قابل پرداخت (جمع با مالیات − کسر پیش‌پرداخت)', totals.payable, 'payable')}
+                {categoryRow(adjustment('discount'))}
+                {subtotal('جمع', totals.net, 'net', data.invoice_count)}
+                {categoryRow(adjustment('tax'))}
+                {subtotal('جمع کل', totals.total_with_tax, 'withTax')}
+                {categoryRow(adjustment('prepayment'))}
+                {subtotal('مبلغ قابل پرداخت', totals.payable, 'payable')}
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>}

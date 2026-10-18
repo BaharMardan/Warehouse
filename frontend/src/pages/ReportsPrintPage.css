@@ -88,11 +88,15 @@
 .rp-table td.rp-text { text-align: right; }
 .rp-table tbody tr:nth-child(even) { background: #f3f9f5; }
 .rp-table tr.rp-strong { background: #d4ebdb; font-weight: 700; }
+.rp-table tr.rp-strong td { border-top: 2px solid #084c1a; }
+.rp-table tr.rp-payable td { border-top-width: 4px; }
 .rp-table thead { display: table-header-group; }
 .rp-table tr { break-inside: avoid; page-break-inside: avoid; }
 
 .rp-figures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; font-size: 11px; }
 .rp-figures div { padding: 2mm 3mm; border: 1px solid #b9d6c3; border-radius: 2mm; background: #f3f9f5; }
+.rp-figures div.rp-figure-total { border-top: 2px solid #084c1a; }
+.rp-figures div.rp-figure-payable { border-top: 4px solid #084c1a; }
 .rp-figures span { display: block; color: #3d5a47; font-size: 10px; }
 .rp-figures b { font-size: 13px; }
 

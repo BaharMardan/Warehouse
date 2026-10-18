@@ -898,7 +898,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   Text, Button, Group, Table, Paper, Badge, Tooltip, ActionIcon,
-  TextInput, Select, SimpleGrid, ThemeIcon, Skeleton, Box, Stack, Center,
+  TextInput, SimpleGrid, ThemeIcon, Skeleton, Box, Stack, Center,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { toJalaali } from 'jalaali-js'
@@ -961,24 +961,11 @@ function isoToJalali(iso: string | null): string {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const localISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-const daysAgoISO = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return localISO(d) }
 
 // Persian/Arabic-Indic digits -> Latin, so search matches either.
 const normalizeDigits = (s: string) =>
   s.replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-
-// Optional header-level fields that /tally/list does not return today. Read
-// defensively so the dangerous stat + warehouse/dangerous filters activate
-// automatically if the endpoint ever includes them (no API change made here).
-const rowIsDangerous = (r: TallyRow) => {
-  const v = (r as Record<string, unknown>).is_dangerous
-  return v === true || v === 1 || v === 'yes' || v === '1'
-}
-const rowWarehouse = (r: TallyRow) => {
-  const v = (r as Record<string, unknown>).warehouse_name ?? (r as Record<string, unknown>).anbar_name
-  return typeof v === 'string' && v.trim() ? v.trim() : null
-}
 
 // ---- inline SVG icons (no icon dependency in this project) ----
 type IconProps = { size?: number; stroke?: number }
@@ -995,8 +982,6 @@ const IconBox = mk(<><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" /><path d="M4
 const IconAlert = mk(<><path d="M12 3l9 16H3z" /><path d="M12 10v4M12 17h.01" /></>)
 const IconClock = mk(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)
 const IconSearch = mk(<><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></>)
-const IconWarehouse = mk(<><path d="M3 21V9l9-5 9 5v12" /><path d="M3 21h18" /><path d="M8 21v-6h8v6" /></>)
-const IconCalendar = mk(<><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 2v4M16 2v4" /></>)
 const IconRefresh = mk(<><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8" /><path d="M20 4v4h-4" /><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16" /><path d="M4 20v-4h4" /></>)
 const IconPlus = mk(<path d="M12 5v14M5 12h14" />)
 const IconEye = mk(<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>)
@@ -1044,9 +1029,6 @@ export function TallyListPage() {
   // ---- local UI state for presentational filtering only ----
   const [search, setSearch] = useState('')
   const [debounced] = useDebouncedValue(search, 200)
-  const [warehouse, setWarehouse] = useState<string | null>(null)
-  const [dateRange, setDateRange] = useState<string | null>(null)
-  const [danger, setDanger] = useState<string | null>(null)
 
   const rows = useMemo(() => data ?? [], [data])
 
@@ -1056,20 +1038,12 @@ export function TallyListPage() {
     return {
       total: rows.length,
       today: rows.filter((r) => (r.date_enter_marze ?? '').slice(0, 10) === today).length,
-      dangerous: rows.filter(rowIsDangerous).length,
       pending: rows.filter((r) => r.workflow_status !== 'closed').length,
     }
   }, [rows])
 
-  const warehouseOptions = useMemo(() => {
-    const set = new Set<string>()
-    rows.forEach((r) => { const w = rowWarehouse(r); if (w) set.add(w) })
-    return [...set].sort().map((w) => ({ value: w, label: w }))
-  }, [rows])
-
   const filtered = useMemo(() => {
     const q = normalizeDigits(debounced.trim().toLowerCase())
-    const today = localISO(new Date())
     return rows.filter((r) => {
       if (q) {
         const hay = normalizeDigits(
@@ -1078,22 +1052,12 @@ export function TallyListPage() {
         )
         if (!hay.includes(q)) return false
       }
-      if (warehouse && rowWarehouse(r) !== warehouse) return false
-      if (danger === 'yes' && !rowIsDangerous(r)) return false
-      if (danger === 'no' && rowIsDangerous(r)) return false
-      if (dateRange) {
-        const d = (r.date_enter_marze ?? '').slice(0, 10)
-        if (!d) return false
-        if (dateRange === 'today' && d !== today) return false
-        if (dateRange === '7' && d < daysAgoISO(7)) return false
-        if (dateRange === '30' && d < daysAgoISO(30)) return false
-      }
       return true
     })
-  }, [rows, debounced, warehouse, danger, dateRange])
+  }, [rows, debounced])
 
-  const hasFilters = Boolean(debounced || warehouse || dateRange || danger)
-  const clearFilters = () => { setSearch(''); setWarehouse(null); setDateRange(null); setDanger(null) }
+  const hasFilters = Boolean(debounced)
+  const clearFilters = () => setSearch('')
 
   return (
     <Box dir="rtl" style={{ maxWidth: 1280, margin: '0 auto' }}>
@@ -1153,32 +1117,6 @@ export function TallyListPage() {
             leftSection={<IconSearch size={16} />}
             value={search} onChange={(e) => setSearch(e.currentTarget.value)}
             style={{ flex: '1 1 240px', minWidth: 200 }}
-          />
-          <Select
-            radius="md" placeholder="انبار" clearable
-            leftSection={<IconWarehouse size={16} />}
-            data={warehouseOptions} value={warehouse} onChange={setWarehouse}
-            disabled={warehouseOptions.length === 0}
-            w={150}
-          />
-          <Select
-            radius="md" placeholder="بازه تاریخ" clearable
-            leftSection={<IconCalendar size={16} />}
-            data={[
-              { value: 'today', label: 'امروز' },
-              { value: '7', label: '۷ روز اخیر' },
-              { value: '30', label: '۳۰ روز اخیر' },
-            ]}
-            value={dateRange} onChange={setDateRange} w={150}
-          />
-          <Select
-            radius="md" placeholder="کالای خطرناک" clearable
-            leftSection={<IconAlert size={16} />}
-            data={[
-              { value: 'yes', label: 'دارد' },
-              { value: 'no', label: 'ندارد' },
-            ]}
-            value={danger} onChange={setDanger} w={150}
           />
         </Group>
       </Paper>

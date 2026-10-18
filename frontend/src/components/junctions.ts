@@ -105,18 +105,19 @@ export const tallyJunctions: JunctionConfig[] = [
     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
     extraField: { key: 'number_service', label: 'تعداد' },
   },
-  {
-    key: 'time-stop', title: 'توقف شبانه حامل‌های خالی',
-    apiPath: '/tali-kala-time-stop', readPath: 'time-stop', linkKey: 'kala_time_stop_vehicle_id',
-    catalogPath: '/kala-time-stop', catalogValueKey: 'id_kala_time_stop_vehicle',
-    catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
-    extraField: { key: 'number_service', label: 'تعداد' },
-  },
-  {
-    key: 'vehicle-enter', title: 'ورودی / حق محوطه',
-    apiPath: '/tali-kala-vehicle-enter', readPath: 'vehicle-enter', linkKey: 'kala_vehicle_enter_price_id',
-    catalogPath: '/kala-vehicle-enter', catalogValueKey: 'id_kala_vehicle_enter_price',
-    catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
-    extraField: { key: 'number_service', label: 'تعداد' },
-  },
+  // Temporarily hidden on the tally page. Uncomment these configs to restore both sections.
+//   {
+//     key: 'time-stop', title: 'توقف شبانه حامل‌های خالی',
+//     apiPath: '/tali-kala-time-stop', readPath: 'time-stop', linkKey: 'kala_time_stop_vehicle_id',
+//     catalogPath: '/kala-time-stop', catalogValueKey: 'id_kala_time_stop_vehicle',
+//     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+//     extraField: { key: 'number_service', label: 'تعداد' },
+//   },
+//   {
+//     key: 'vehicle-enter', title: 'ورودی / حق محوطه',
+//     apiPath: '/tali-kala-vehicle-enter', readPath: 'vehicle-enter', linkKey: 'kala_vehicle_enter_price_id',
+//     catalogPath: '/kala-vehicle-enter', catalogValueKey: 'id_kala_vehicle_enter_price',
+//     catalogLabel: (r) => `${r.code ?? ''} ${r.title ? `(${r.title})` : ''}`.trim(),
+//     extraField: { key: 'number_service', label: 'تعداد' },
+//   },
 ]

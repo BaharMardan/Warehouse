@@ -229,7 +229,7 @@ export function UsersPanel() {
           {!editing && (
             <PasswordInput
               label="رمز عبور"
-              description="دست‌کم ۸ نویسه"
+              description="دست‌کم ۸ حرف یا عدد"
               required
               autoComplete="new-password"
               value={form.password}

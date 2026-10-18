@@ -29,7 +29,7 @@ export function PasswordChangeForm({ temporary = false, onSuccess, onCancel }: {
         required maxLength={128} value={current} disabled={change.isPending} onChange={event => setCurrent(event.currentTarget.value)} />
       <PasswordInput label="رمز عبور جدید" description="۸ تا ۱۲۸ نویسه" autoComplete="new-password"
         required maxLength={128} value={password} disabled={change.isPending}
-        error={lengthError ? 'رمز باید ۸ تا ۱۲۸ نویسه باشد' : sameError ? 'رمز جدید باید با رمز فعلی متفاوت باشد' : undefined}
+        error={lengthError ? 'رمز باید ۸ تا ۱۲۸ حرف یا عدد باشد' : sameError ? 'رمز جدید باید با رمز فعلی متفاوت باشد' : undefined}
         onChange={event => setPassword(event.currentTarget.value)} />
       <PasswordInput label="تکرار رمز عبور جدید" autoComplete="new-password"
         required maxLength={128} value={again} disabled={change.isPending} error={mismatch ? 'دو رمز عبور یکسان نیستند' : undefined}
