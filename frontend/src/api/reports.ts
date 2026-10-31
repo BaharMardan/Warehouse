@@ -96,15 +96,15 @@ export function useIncomeLines(from: string, to: string, category: string | null
   })
 }
 
-export function useStockReport(filters: StockFilters, enabled: boolean) {
+export function useStockReport(filters: StockFilters, enabled: boolean, nonCustoms = false) {
   const params = {
     group_by: filters.groupBy, hscode: filters.hscode.trim(), owner_id: filters.ownerId,
     anbar_id: filters.anbarId, location: filters.location,
     unloaded_from: filters.unloadedFrom, unloaded_to: filters.unloadedTo,
   }
   return useQuery({
-    queryKey: ['reports', 'stock', params],
-    queryFn: () => apiGet<StockData>(`/reports/stock?${query(params)}`),
+    queryKey: ['reports', nonCustoms ? 'non-customs-stock' : 'stock', params],
+    queryFn: () => apiGet<StockData>(`${nonCustoms ? '/non-customs/stock' : '/reports/stock'}?${query(params)}`),
     enabled,
     placeholderData: keepPreviousData,
   })

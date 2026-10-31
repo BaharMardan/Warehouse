@@ -52,6 +52,7 @@ const theme = createTheme({
   defaultRadius: 'md',
   autoContrast: true,
   colors: {
+    navy: ['#eef1f8', '#dae1f0', '#b5c3e1', '#8fa4d1', '#6c85bd', '#48639a', '#243a73', '#1f3264', '#192955', '#132044'],
     // Forest green #0B6623 (shade 6) is the accent of the reports module.
     forest: ['#e6f4ea', '#c9e6d0', '#a3d4b0', '#78bf8e', '#4aa86b', '#1f8a45', '#0b6623', '#0a5a1f', '#084c1a', '#063d15'],
   },

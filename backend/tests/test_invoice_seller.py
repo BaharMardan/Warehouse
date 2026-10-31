@@ -1,7 +1,7 @@
 from app.routers import invoice
 from app.routers import receipt_workflow
 from app.services.invoice_seller import SELLER
-from test_issue_invoice_flow import wired
+from test_issue_invoice_flow import issue_with_preview, wired
 
 
 def test_existing_invoice_uses_fixed_identity(monkeypatch):
@@ -18,7 +18,7 @@ def test_list_uses_fixed_seller(monkeypatch):
 
 def test_new_invoice_persists_fixed_seller(wired):
     _, _, cur = wired
-    receipt_workflow.issue_invoice(1, {"id": 1}, receipt_workflow.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, receipt_workflow.InvoiceIssueInput(apply_deductions=False))
     sql, params = cur.execute.call_args_list[0].args
     for key, value in SELLER.items():
         assert params[key] == value

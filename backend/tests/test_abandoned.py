@@ -9,7 +9,7 @@ def row(days=90, tid=1):
             "unloaded_at": datetime(2026, 1, 1), "owner_name": None}
 
 
-@pytest.mark.parametrize("days,stage,remaining", [(79, None, None), (80, "warning", 10),
+@pytest.mark.parametrize("days,stage,remaining", [(59, None, None), (60, "warning", 30), (79, "warning", 11), (80, "warning", 10),
     (89, "warning", 1), (90, "abandoned", 0), (120, "abandoned", 0)])
 def test_calendar_boundaries(days, stage, remaining):
     items = api.classify([row(days)], set())

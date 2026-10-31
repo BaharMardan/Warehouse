@@ -58,7 +58,7 @@ export function InvoiceDetailPage() {
 }
 
 // 1405 invoices: every charge with how it was calculated, then the summary
-// «جمع مبالغ − تخفیف + مالیات − پیش‌پرداخت = قابل پرداخت» for the operator's check.
+// «جمع ردیف‌ها − تخفیف + مالیات − پیش‌پرداخت = قابل پرداخت» for the operator's check.
 function ModernDetails({ data }: { data: SavedInvoice }) {
   const { charges, subtotal, adjustments, prepayments, totalBeforePrepayment } = invoiceSections(data.details)
   return <Paper withBorder p="md"><Title order={4} mb="xs">جزئیات صورتحساب</Title>
@@ -75,7 +75,7 @@ function ModernDetails({ data }: { data: SavedInvoice }) {
         <Table.Td><Text size="sm" c="dimmed">{line.calc_note || '—'}</Text></Table.Td>
       </Table.Tr>)}</Table.Tbody>
       <Table.Tbody>
-        <Table.Tr style={{ borderBottom: '2px solid #c92a2a' }}><Table.Td colSpan={4} fw={700}>جمع مبالغ</Table.Td>
+        <Table.Tr style={{ borderBottom: '2px solid #c92a2a' }}><Table.Td colSpan={4} fw={700}>جمع ردیف‌ها</Table.Td>
           <Table.Td fw={700}><bdi dir="ltr">{money(subtotal)}</bdi></Table.Td><Table.Td /></Table.Tr>
         {adjustments.map((line) => <Table.Tr key={line.id_detail}>
           <Table.Td colSpan={4}>{line.description}</Table.Td>

@@ -198,6 +198,12 @@ export interface AppModule {
 
 export const modules: AppModule[] = [
   {
+    key: 'non-customs', title: 'انبار غیر گمرکی',
+    description: 'کالای تسویه‌شده باقی‌مانده، موجودی و صورتحساب مجدد',
+    route: '/non-customs', icon: IconReceipt, color: 'navy',
+    permission: 'non_customs.view',
+  },
+  {
     key: 'abandoned',
     title: 'متروکه',
     description: 'کالاهای متروکه و هشدار نزدیک‌شدن به ۹۰ روز',

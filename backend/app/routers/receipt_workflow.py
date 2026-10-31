@@ -2,6 +2,10 @@
 from app.services.invoice_seller import SELLER
 from app.services.crane_charges import CRANE_CATALOG_SQL
 from decimal import Decimal, ROUND_HALF_UP
+from dataclasses import asdict
+from hashlib import sha256
+import json
+from app.services.invoice_number import ManualInvoiceNumber, require_number, ensure_available, insert_numbered_header
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from app.auth.deps import require_permission
@@ -218,7 +222,8 @@ def missing_customs_message(names):
             "هزینه بیمه این ردیف‌ها صفر محاسبه می‌شود. برای صدور صورتحساب این مورد را تأیید کنید.")
 
 
-class InvoiceIssueInput(BaseModel):
+class InvoiceIssueInput(ManualInvoiceNumber):
+    preview_hash: str | None = Field(default=None, min_length=64, max_length=64)
     # Answer to «آیا مبلغ پیش‌پرداخت و تخفیف روی همین قبض اعمال شود؟»
     apply_deductions: bool | None = None
     # The user saw the missing-customs-value error and still issues the invoice.
@@ -471,6 +476,148 @@ def return_receipt(receipt_id: int, user: dict = Depends(require_permission("wor
     return get_workflow(receipt_id)
 
 
+def calculate_invoice(cur, current, tally, payload):
+    receipt_id = current["id"]
+    answer = payload.apply_deductions if payload else None
+    ratio = decimal(current["allocation_ratio"])
+    pool = get_pool(cur, current["tally_id"])
+    if not pool or ratio <= 0:
+        db.conflict("تخصیص هزینه‌های این قبض تکمیل نشده است")
+
+    # --- storage: cargo type, day count, linked rows -------------------------
+    try:
+        cargo = ri.cargo_type(tally["is_volumetric"])
+    except ValueError as exc:
+        db.conflict(str(exc))
+    if tally["date_unloading"] is None:
+        db.conflict("تاریخ تخلیه تالی ثبت نشده است")
+    db.validate_header_dates(tally)
+    end_date = tally.get("date_cargo_exit")
+    if end_date is None:
+        end_date = db.one(cur, TEHRAN_TODAY_SQL)["today"]
+    try:
+        days = billed_days(tally["date_unloading"], end_date)
+    except ValueError as exc:
+        db.conflict(str(exc))
+    lines = db.rows(cur, RECEIPT_STORAGE_SQL,
+                    {"tid": current["tally_id"], "rid": receipt_id})
+    if cargo == "volumetric" and current["is_master"] != "yes":
+        if any(r.get("pallets") is not None for r in rp.tally_rows(cur, current["tally_id"])):
+            try:
+                sources = source_rows(cur, current)
+                selected_ids = {int(r["id"]) for r in sources
+                                if any(r[k + "_share"] for k in ("quantity", "weight", "baskol"))}
+                counts = rp.resolve_counts(
+                    rp.receipt_rows(cur, current, selected_ids), sources,
+                    current["pallet_quantity"], rp.allocations(cur, receipt_id))
+                lines = [{**line, "pallets": counts.get(int(line["id"]), line.get("pallets"))}
+                         for line in lines]
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+    container_weights = None
+    if cargo == "container":
+        container_weights = {row["number_hamel"]: row["weight_kg"] for row in
+                             db.rows(cur, CONTAINER_WEIGHTS_SQL, {"tid": current["tally_id"]})}
+    # Detailed receipt: its own pallet count. General receipt: the tally's.
+    pallets = (tally["volumetric_pallets"] if current["is_master"] == "yes"
+               else current["pallet_quantity"])
+    try:
+        storage = ri.storage_rows(cargo, lines, days.billed, pallets=pallets,
+                                  container_weights=container_weights)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    # --- shared services: this receipt's share of the frozen pool -------------
+    previous_ratio = db.one(cur, """SELECT SUM(h."ALLOCATION_RATIO") AS ratio
+        FROM "fa_ghabz_anbar_header" h
+        WHERE h."TALI_ID" = :tid AND h."IS_DELETED" = 'no'
+          AND EXISTS (SELECT 1 FROM "FA_SORAT_HESAB_HEADER" i
+            WHERE i."ID_GHABZ_ANBAR" = h."ID_ghabz" AND NVL(i."SORAT_IS_DELETED", 'no') = 'no')
+        """, {"tid": current["tally_id"]})["ratio"]
+    previous = db.rows(cur, """SELECT d."SERVICE_POOL_LINE" AS line_no,
+        SUM(d."PRICE_DETAILS") AS price FROM "FA_SORA_HESAB_DETAILS" d
+        JOIN "FA_SORAT_HESAB_HEADER" i ON i."ID_SORAT" = d."ID_SORA_HEADER"
+        WHERE i."TALI_ID_HEADER" = :tid AND NVL(i."SORAT_IS_DELETED", 'no') = 'no'
+          AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')
+          AND d."SERVICE_POOL_LINE" IS NOT NULL
+        GROUP BY d."SERVICE_POOL_LINE" """, {"tid": current["tally_id"]})
+    previous = {int(row["line_no"]): row["price"] for row in previous}
+    allocated = []
+    for charge in pool:
+        if charge["line_no"] == 0:
+            continue
+        try:
+            amount = allocated_amount(charge["price"], ratio, previous_ratio,
+                                      previous.get(int(charge["line_no"]), 0))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        allocated.append({"line_no": charge["line_no"], "description": charge["description"],
+                          "total": charge["price"], "amount": amount})
+    services = ri.service_rows(allocated, ratio)
+
+    # --- insurance: shared ceilings consumed in tally registration order ---------
+    missing = missing_customs(cur, receipt_id)
+    if missing and not (payload and payload.confirm_missing_customs):
+        raise HTTPException(422, missing_customs_message(missing))
+    cover = insurance_cover(
+        current["tally_id"], db.rows(cur, INSURANCE_HEADERS_SQL),
+        {int(row["id_tali"]): row for row in db.rows(cur, INSURANCE_TOTALS_SQL)})
+    values = {int(row["receipt_id"]): row["customs_value"] for row in
+              db.rows(cur, RECEIPT_CUSTOMS_SQL, {"tid": current["tally_id"], "rid": receipt_id})}
+    insurance = ri.insurance_row(
+        values.pop(receipt_id, 0), cover,
+        sum((decimal(value) for value in values.values()), Decimal(0)), days.billed,
+        missing=missing)
+
+    # --- settings, deductions, totals ------------------------------------------
+    settings = {row["setting_key"]: row["value_number"]
+                for row in db.rows(cur, INVOICE_SETTINGS_SQL)}
+    deductions = db.one(cur, DEDUCTIONS_SQL, {"tid": current["tally_id"]}) or {}
+    plan = ri.deduction_plan(
+        is_general=current["is_master"] == "yes",
+        prepayment=deductions.get("prepayment"), discount=deductions.get("discount"),
+        already_applied=int(deductions.get("applied_rows") or 0) > 0, answer=answer)
+    if plan == "ask":
+        raise HTTPException(422, "مشخص کنید پیش‌پرداخت و تخفیف روی همین قبض اعمال شود یا خیر")
+    try:
+        invoice_rows, totals = ri.build_invoice(
+            system_rate=settings.get("system_service_rate"), storage=storage,
+            services=services, tax_rate=settings.get("tax_rate") or 0,
+            prepayment=deductions.get("prepayment"), discount=deductions.get("discount"),
+            apply_deductions=plan == "apply",
+            receipt_label=str(current.get("number_text") or receipt_id),
+            insurance=insurance)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    result = {
+        "rows": [asdict(row) for row in invoice_rows],
+        "totals": {**asdict(totals), "net": totals.subtotal - totals.discount,
+                   "total_with_tax": totals.subtotal - totals.discount + totals.tax},
+        "calc_note": ri.header_note(cargo, days),
+    }
+    result = json.loads(json.dumps(result, default=str))
+    result["preview_hash"] = sha256(json.dumps(
+        {"receipt_id": receipt_id, **result}, sort_keys=True).encode()).hexdigest()
+    return invoice_rows, result
+
+
+def invoice_context(cur, receipt_id):
+    current, siblings, tally = db.receipt(cur, receipt_id, lock=True)
+    if not db.workflow(current, siblings)["can_invoice"]:
+        db.conflict("صدور صورتحساب فقط پس از ثبت نهایی قبض اصلی یا تفکیکی مجاز است")
+    return current, tally
+
+
+@router.post("/{receipt_id}/invoice/preview", dependencies=[Depends(require_permission("invoice.issue"))])
+def preview_invoice(receipt_id: int, payload: InvoiceIssueInput):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            current, tally = invoice_context(cur, receipt_id)
+            _, result = calculate_invoice(cur, current, tally, payload)
+            return result
+
+
 @router.post("/{receipt_id}/invoice", status_code=201)
 def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invoice.issue")),
                   payload: InvoiceIssueInput | None = None):
@@ -479,7 +626,6 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
     Everything is read and written under the tally lock, so the prepayment and
     discount can only ever land on one invoice of the tally.
     """
-    answer = payload.apply_deductions if payload else None
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, siblings, tally = db.receipt(cur, receipt_id, lock=True)
@@ -490,129 +636,36 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
                 return {"invoice_id": prior["id"]}
             if prior or not db.workflow(current, siblings)["can_invoice"]:
                 db.conflict("صدور صورتحساب فقط پس از ثبت نهایی قبض اصلی یا تفکیکی مجاز است")
-            ratio = decimal(current["allocation_ratio"])
-            pool = get_pool(cur, current["tally_id"])
-            if not pool or ratio <= 0:
-                db.conflict("تخصیص هزینه‌های این قبض تکمیل نشده است")
-
-            # --- storage: cargo type, day count, linked rows -------------------------
-            try:
-                cargo = ri.cargo_type(tally["is_volumetric"])
-            except ValueError as exc:
-                db.conflict(str(exc))
-            if tally["date_unloading"] is None:
-                db.conflict("تاریخ تخلیه تالی ثبت نشده است")
-            db.validate_header_dates(tally)
-            end_date = tally.get("date_cargo_exit")
-            if end_date is None:
-                end_date = db.one(cur, TEHRAN_TODAY_SQL)["today"]
-            try:
-                days = billed_days(tally["date_unloading"], end_date)
-            except ValueError as exc:
-                db.conflict(str(exc))
-            lines = db.rows(cur, RECEIPT_STORAGE_SQL,
-                            {"tid": current["tally_id"], "rid": receipt_id})
-            if cargo == "volumetric" and current["is_master"] != "yes":
-                if any(r.get("pallets") is not None for r in rp.tally_rows(cur, current["tally_id"])):
-                    try:
-                        rp.ensure_receipt_counts(cur, current, source_rows(cur, current))
-                        lines = db.rows(cur, RECEIPT_STORAGE_SQL,
-                                        {'tid': current['tally_id'], 'rid': receipt_id})
-                    except ValueError as exc:
-                        raise HTTPException(422, str(exc)) from exc
-            container_weights = None
-            if cargo == "container":
-                container_weights = {row["number_hamel"]: row["weight_kg"] for row in
-                                     db.rows(cur, CONTAINER_WEIGHTS_SQL, {"tid": current["tally_id"]})}
-            # Detailed receipt: its own pallet count. General receipt: the tally's.
-            pallets = (tally["volumetric_pallets"] if current["is_master"] == "yes"
-                       else current["pallet_quantity"])
-            try:
-                storage = ri.storage_rows(cargo, lines, days.billed, pallets=pallets,
-                                          container_weights=container_weights)
-            except ValueError as exc:
-                raise HTTPException(422, str(exc)) from exc
-
-            # --- shared services: this receipt's share of the frozen pool -------------
-            previous_ratio = db.one(cur, """SELECT SUM(h."ALLOCATION_RATIO") AS ratio
-                FROM "fa_ghabz_anbar_header" h
-                WHERE h."TALI_ID" = :tid AND h."IS_DELETED" = 'no'
-                  AND EXISTS (SELECT 1 FROM "FA_SORAT_HESAB_HEADER" i
-                    WHERE i."ID_GHABZ_ANBAR" = h."ID_ghabz" AND NVL(i."SORAT_IS_DELETED", 'no') = 'no')
-                """, {"tid": current["tally_id"]})["ratio"]
-            previous = db.rows(cur, """SELECT d."SERVICE_POOL_LINE" AS line_no,
-                SUM(d."PRICE_DETAILS") AS price FROM "FA_SORA_HESAB_DETAILS" d
-                JOIN "FA_SORAT_HESAB_HEADER" i ON i."ID_SORAT" = d."ID_SORA_HEADER"
-                WHERE i."TALI_ID_HEADER" = :tid AND NVL(i."SORAT_IS_DELETED", 'no') = 'no'
-                  AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')
-                  AND d."SERVICE_POOL_LINE" IS NOT NULL
-                GROUP BY d."SERVICE_POOL_LINE" """, {"tid": current["tally_id"]})
-            previous = {int(row["line_no"]): row["price"] for row in previous}
-            allocated = []
-            for charge in pool:
-                if charge["line_no"] == 0:
-                    continue
+            invoice_rows, preview = calculate_invoice(cur, current, tally, payload)
+            invoice_number = require_number(payload.invoice_number if payload else None)
+            if not payload or payload.preview_hash != preview["preview_hash"]:
+                raise HTTPException(409, "مبلغ صورتحساب تغییر کرده است؛ پیش‌نمایش را دوباره دریافت کنید")
+            ensure_available(cur, invoice_number)
+            if (ri.cargo_type(tally["is_volumetric"]) == "volumetric"
+                    and current["is_master"] != "yes"
+                    and any(r.get("pallets") is not None for r in rp.tally_rows(cur, current["tally_id"]))):
                 try:
-                    amount = allocated_amount(charge["price"], ratio, previous_ratio,
-                                              previous.get(int(charge["line_no"]), 0))
+                    rp.ensure_receipt_counts(cur, current, source_rows(cur, current))
                 except ValueError as exc:
-                    raise HTTPException(409, str(exc)) from exc
-                allocated.append({"line_no": charge["line_no"], "description": charge["description"],
-                                  "total": charge["price"], "amount": amount})
-            services = ri.service_rows(allocated, ratio)
-
-            # --- insurance: shared ceilings consumed in tally registration order ---------
-            missing = missing_customs(cur, receipt_id)
-            if missing and not (payload and payload.confirm_missing_customs):
-                raise HTTPException(422, missing_customs_message(missing))
-            cover = insurance_cover(
-                current["tally_id"], db.rows(cur, INSURANCE_HEADERS_SQL),
-                {int(row["id_tali"]): row for row in db.rows(cur, INSURANCE_TOTALS_SQL)})
-            values = {int(row["receipt_id"]): row["customs_value"] for row in
-                      db.rows(cur, RECEIPT_CUSTOMS_SQL, {"tid": current["tally_id"], "rid": receipt_id})}
-            insurance = ri.insurance_row(
-                values.pop(receipt_id, 0), cover,
-                sum((decimal(value) for value in values.values()), Decimal(0)), days.billed,
-                missing=missing)
-
-            # --- settings, deductions, totals ------------------------------------------
-            settings = {row["setting_key"]: row["value_number"]
-                        for row in db.rows(cur, INVOICE_SETTINGS_SQL)}
-            deductions = db.one(cur, DEDUCTIONS_SQL, {"tid": current["tally_id"]}) or {}
-            plan = ri.deduction_plan(
-                is_general=current["is_master"] == "yes",
-                prepayment=deductions.get("prepayment"), discount=deductions.get("discount"),
-                already_applied=int(deductions.get("applied_rows") or 0) > 0, answer=answer)
-            if plan == "ask":
-                raise HTTPException(422, "مشخص کنید پیش‌پرداخت و تخفیف روی همین قبض اعمال شود یا خیر")
-            try:
-                invoice_rows, _ = ri.build_invoice(
-                    system_rate=settings.get("system_service_rate"), storage=storage,
-                    services=services, tax_rate=settings.get("tax_rate") or 0,
-                    prepayment=deductions.get("prepayment"), discount=deductions.get("discount"),
-                    apply_deductions=plan == "apply",
-                    receipt_label=str(current.get("number_text") or receipt_id),
-                    insurance=insurance)
-            except ValueError as exc:
-                raise HTTPException(422, str(exc)) from exc
+                    raise HTTPException(422, str(exc)) from exc
 
             buyer = db.one(cur, """SELECT "ADDRESS" AS address, "PHONE" AS phone,
                 "ECONOMIC_CODE" AS economic_code, NVL("NATIONAL_ID", "NATIONAL_CODE") AS national_id
                 FROM "FA_PRODUCT_OWNER" WHERE "ID_OWNER" = :id""",
                 {"id": tally["id_product_ownear"]}) or {}
             output = cur.var(int)
-            cur.execute("""INSERT INTO "FA_SORAT_HESAB_HEADER"
-                ("TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID",
+            insert_numbered_header(cur, """INSERT INTO "FA_SORAT_HESAB_HEADER"
+                ("ID_SORAT", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID",
                  "BUYER_COMPANY_ADDRESS", "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE",
                  "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI")
-                VALUES (:tid, :rid, :buyer, :address, :phone, :economic, :national, SYSDATE, :actor,
+                VALUES (:invoice_number, :tid, :rid, :buyer, :address, :phone, :economic, :national, SYSDATE, :actor,
                         'no', 'no', :calc_note, :seller_name, :seller_address, :seller_national_id)
                 RETURNING "ID_SORAT" INTO :new_id""",
-                {**SELLER, "tid": current["tally_id"], "rid": receipt_id, "buyer": tally["id_product_ownear"],
+                {**SELLER, "invoice_number": invoice_number, "tid": current["tally_id"], "rid": receipt_id, "buyer": tally["id_product_ownear"],
                  "address": buyer.get("address"), "phone": buyer.get("phone"),
                  "economic": buyer.get("economic_code"), "national": buyer.get("national_id"),
-                 "actor": user["id"], "calc_note": ri.header_note(cargo, days), "new_id": output})
+                 "actor": user["id"], "calc_note": preview["calc_note"], "new_id": output})
             invoice_id = output.getvalue()[0]
             cur.executemany("""INSERT INTO "FA_SORA_HESAB_DETAILS"
                 ("ID_SORA_HEADER", "DESCRIPTION", "NUMBER_KALA", "WEIGHTE", "PRICE_DETAILS",

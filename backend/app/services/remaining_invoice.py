@@ -4,6 +4,7 @@ from decimal import Decimal
 import hashlib
 import json
 from uuid import UUID
+from app.services.invoice_number import ManualInvoiceNumber
 from pydantic import BaseModel, Field, ConfigDict
 from app.services import storage_calc as sc, receipt_invoice as ri
 
@@ -41,12 +42,12 @@ class RemainingBatchInput(BaseModel):
     other_services: list[OtherServiceInput] = Field(default_factory=list, max_length=100)
 
 
-class RemainingBatchIssue(RemainingBatchInput):
+class RemainingBatchIssue(RemainingBatchInput, ManualInvoiceNumber):
     preview_hash: str = Field(min_length=64, max_length=64)
     request_id: UUID
 
 
-class RemainingIssue(RemainingInput):
+class RemainingIssue(RemainingInput, ManualInvoiceNumber):
     preview_hash: str = Field(min_length=64, max_length=64)
     request_id: UUID
 

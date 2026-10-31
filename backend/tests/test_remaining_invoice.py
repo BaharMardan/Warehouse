@@ -74,7 +74,7 @@ def wired(monkeypatch):
     monkeypatch.setattr(db, "receipt", lambda *a, **k: ({"id": 858, "tally_id": 1523}, [], {}))
     monkeypatch.setattr(db, "one", lambda *a, **k: None)
     monkeypatch.setattr(api, "preview", lambda *a: calc())
-    request = RemainingIssue(**payload().model_dump(), preview_hash=calc()["preview_hash"], request_id=uuid4())
+    request = RemainingIssue(**payload().model_dump(), preview_hash=calc()["preview_hash"], request_id=uuid4(), invoice_number=900)
     return conn, cur, request
 
 

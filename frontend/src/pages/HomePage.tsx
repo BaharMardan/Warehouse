@@ -43,7 +43,7 @@ function ModuleTile({ module: m }: { module: AppModule }) {
       </div>
       <Stack gap={4}>
         <span className="hp-tile-title">{m.title}</span>
-        <span className="hp-tile-desc">{m.description}</span>
+        {!['base-data', 'settings'].includes(m.key) && <span className="hp-tile-desc">{m.description}</span>}
       </Stack>
       {disabled && <span className="hp-tile-badge">به‌زودی</span>}
     </>

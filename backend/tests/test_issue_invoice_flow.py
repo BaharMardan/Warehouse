@@ -86,7 +86,7 @@ def saved_rows(cur):
 def test_detailed_receipt_must_answer_the_deduction_question(wired):
     _, conn, cur = wired
     with pytest.raises(HTTPException) as exc:
-        api.issue_invoice(1, {"id": 1})
+        issue_with_preview(1, {"id": 1})
     assert exc.value.status_code == 422
     cur.executemany.assert_not_called()
     conn.commit.assert_not_called()
@@ -94,7 +94,7 @@ def test_detailed_receipt_must_answer_the_deduction_question(wired):
 
 def test_yes_applies_prepayment_and_discount_on_this_invoice(wired):
     _, conn, cur = wired
-    result = api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=True))
+    result = issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=True))
     assert result == {"invoice_id": 555}
     rows = saved_rows(cur)
     assert [r["kind"] for r in rows] == ["system", "storage", "service", "discount", "tax", "prepayment"]
@@ -113,21 +113,21 @@ def test_yes_applies_prepayment_and_discount_on_this_invoice(wired):
 
 def test_no_leaves_deductions_for_another_receipt(wired):
     _, _, cur = wired
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     assert [r["kind"] for r in saved_rows(cur)] == ["system", "storage", "service", "tax"]
 
 
 def test_general_receipt_applies_deductions_without_asking(wired):
     state, _, cur = wired
     state["current"] = {**receipt("yes"), "allocation_ratio": Decimal(1)}
-    api.issue_invoice(1, {"id": 1})
+    issue_with_preview(1, {"id": 1})
     assert [r["kind"] for r in saved_rows(cur)][-3:] == ["discount", "tax", "prepayment"]
 
 
 def test_deductions_already_applied_are_not_asked_again(wired):
     state, _, cur = wired
     state["deductions"] = {**state["deductions"], "applied_rows": 2}
-    api.issue_invoice(1, {"id": 1})
+    issue_with_preview(1, {"id": 1})
     assert "prepayment" not in [r["kind"] for r in saved_rows(cur)]
 
 
@@ -135,7 +135,7 @@ def test_missing_unloading_date_is_refused(wired, monkeypatch):
     monkeypatch.setattr(receipt_db, "receipt",
                         lambda *a, **k: (receipt(), [receipt()], {**TALLY, "date_unloading": None}))
     with pytest.raises(HTTPException) as exc:
-        api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=True))
+        issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=True))
     assert exc.value.status_code == 409
 
 
@@ -145,7 +145,7 @@ def test_insurance_shortfall_after_an_earlier_tally(wired):
     state["headers"] = [{**state["headers"][0], "id_tali": 9}, state["headers"][0]]
     state["totals"] = [{"id_tali": 9, "customs_value": 4_800_000_000, "insured_ceiling": 5_000_000_000},
                        state["totals"][0]]
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     rows = saved_rows(cur)
     assert [r["kind"] for r in rows] == ["system", "storage", "service", "insurance", "tax"]
     # this receipt: 300,000,000 of value, 200,000,000 cover left -> 100,000,000 x 0.00055 x 1
@@ -156,7 +156,7 @@ def test_insurance_shortfall_after_an_earlier_tally(wired):
 def test_uninsured_tally_is_charged_on_the_receipts_customs_value(wired):
     state, _, cur = wired
     state["headers"] = [{**state["headers"][0], "is_bimeh": "خیر"}]
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     insurance = [r for r in saved_rows(cur) if r["kind"] == "insurance"]
     assert insurance[0]["price"] == Decimal(165000)   # 300,000,000 x 0.00055 x 1
 
@@ -165,7 +165,7 @@ def test_missing_customs_needs_confirmation_with_a_clear_error(wired):
     state, conn, cur = wired
     state["missing"] = [{"id": 1, "hscode": "7208", "description": "ورق"}]
     with pytest.raises(HTTPException) as exc:
-        api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+        issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     assert exc.value.status_code == 422
     assert "ارزش گمرکی ردیف‌های 7208 در تالی ثبت نشده است" in exc.value.detail
     cur.executemany.assert_not_called()
@@ -176,7 +176,7 @@ def test_confirmed_missing_customs_issues_with_a_zero_insurance_row(wired):
     state, _, cur = wired
     state["missing"] = [{"id": 1, "hscode": "7208", "description": "ورق"}]
     state["receipt_values"] = [{"receipt_id": 1, "customs_value": 0}]
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False,
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False,
                                                            confirm_missing_customs=True))
     insurance = [r for r in saved_rows(cur) if r["kind"] == "insurance"]
     assert insurance[0]["price"] == 0 and "(ردیف‌ها: 7208)" in insurance[0]["note"]
@@ -205,10 +205,17 @@ def test_issue_container_invoice_saves_base_plus_excess(wired, monkeypatch, code
         return original_rows(cursor, sql, params)
 
     monkeypatch.setattr(receipt_db, "rows", rows)
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     storage = [row for row in saved_rows(cur) if row["kind"] == "storage"]
     assert len(storage) == 1
     assert storage[0]["price"] == Decimal(expected)
     assert "تن مازاد" in storage[0]["note"]
     assert "60 روز" in storage[0]["note"]
     conn.commit.assert_called_once()
+
+
+def issue_with_preview(receipt_id, user, payload=None):
+    payload = payload or api.InvoiceIssueInput()
+    result = api.preview_invoice(receipt_id, payload)
+    return api.issue_invoice(receipt_id, user, payload.model_copy(update={
+        "invoice_number": 555, "preview_hash": result["preview_hash"]}))

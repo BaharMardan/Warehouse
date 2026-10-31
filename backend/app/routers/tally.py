@@ -373,6 +373,7 @@ SELECT
     t_country."SYS_TERM_VALUE"          AS country_name,
     h."ID_COMPANY"                      AS id_company,
     TRIM(c_comp."COMPANY_NAME")         AS company_name,
+    TRIM(c_resp."NAME" || ' ' || c_resp."FAMILY") AS representative_name,
     h."ID_PRODUCT_OWNEAR"               AS id_product_ownear,
     CASE
         WHEN o."TYPE" = 'حقوقی' THEN TRIM(o."COMPANY_NAME")
@@ -397,6 +398,7 @@ FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_SYS_TERMS"              t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
 LEFT JOIN "FA_SYS_TERMS"              t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
 LEFT JOIN "FA_TRANSPORT_COMPANY"      c_comp    ON c_comp."ID_COMPANY"       = h."ID_COMPANY"
+LEFT JOIN "FA_REPRESENTATIVE_COMPANY" c_resp ON c_resp."ID_REPRE_COMPANY" = h."ID_RESPONS_COMPANY"
 LEFT JOIN "FA_PRODUCT_OWNER"          o         ON o."ID_OWNER"           = h."ID_PRODUCT_OWNEAR"
 WHERE h."IS_DELETED" = 'no'
 ORDER BY h."ID_TALI" DESC

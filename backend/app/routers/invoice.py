@@ -329,12 +329,16 @@ def cancel_invoice(invoice_id: int, user: dict = Depends(require_permission("wor
             header = db.one(cur, """SELECT "ID_GHABZ_ANBAR" AS ghabz_id,
                 (SELECT COUNT(*) FROM "FA_REMAINING_INVOICE" r
                  JOIN "FA_SORAT_HESAB_HEADER" child ON child."ID_SORAT" = r."INVOICE_ID"
-                 WHERE r."ORIGINAL_INVOICE_ID" = :id AND NVL(child."SORAT_IS_DELETED", 'no') = 'no') AS remaining_count
+                 WHERE r."ORIGINAL_INVOICE_ID" = :id AND NVL(child."SORAT_IS_DELETED", 'no') = 'no') AS remaining_count,
+                (SELECT COUNT(*) FROM "FA_NON_CUSTOMS" n
+                 WHERE n."ORIGINAL_INVOICE_ID" = :id) AS non_customs_count
                 FROM "FA_SORAT_HESAB_HEADER"
                 WHERE "ID_SORAT" = :id AND NVL("SORAT_IS_DELETED", 'no') = 'no'
                 FOR UPDATE""", {"id": invoice_id})
             if header is None:
                 raise HTTPException(404, "صورتحساب یافت نشد")
+            if header.get("non_customs_count", 0):
+                raise HTTPException(409, "این صورتحساب دارای سابقه انبار غیر گمرکی است؛ ابطال نیازمند اصلاح سابقه موجودی است")
             if header.get("remaining_count", 0):
                 raise HTTPException(409, "ابتدا صورتحساب‌های باقی‌ماندهٔ وابسته را باطل کنید")
             cur.execute("""UPDATE "FA_SORAT_HESAB_HEADER"

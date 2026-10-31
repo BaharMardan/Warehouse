@@ -59,6 +59,10 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("invoice.issue", "صدور صورتحساب", "invoice", implies=("invoice.view", "ghabz.view")),
     Permission("abandoned.view", "مشاهده متروکه و هشدارها", "abandoned", implies=("tally.view",)),
 
+    Permission("non_customs.view", "مشاهده بخش انبار غیر گمرکی", "non-customs"),
+    Permission("non_customs.stock", "تب موجودی انبار غیر گمرکی", "non-customs", implies=("non_customs.view",)),
+    Permission("non_customs.operations", "تب عملیات انبار غیر گمرکی (ثبت کالا و خروج)", "non-customs", implies=("non_customs.view",)),
+
     Permission("reports.stock", "گزارش موجودی انبار", "reports"),
     Permission("reports.income", "گزارش درآمد و صورتحساب‌ها", "reports"),
 

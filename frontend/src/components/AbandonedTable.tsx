@@ -15,7 +15,7 @@ export function AbandonedTable({ rows, warning = false, printable = false }: {
   return <Table striped={!printable} highlightOnHover={!printable}
     className={printable ? 'abandoned-print-table' : undefined}>
     <Table.Thead><Table.Tr>
-      <Table.Th>ردیف</Table.Th><Table.Th>HS Code</Table.Th><Table.Th>شرح کالا</Table.Th>
+      <Table.Th>ردیف</Table.Th><Table.Th>HS Code</Table.Th><Table.Th>شرح کالا</Table.Th><Table.Th>صاحب کالا</Table.Th>
       <Table.Th>ارزش گمرکی کالا</Table.Th><Table.Th>وزن اظهار (کالاهای باقی‌مانده) — کیلوگرم</Table.Th>
       <Table.Th>شماره ثبت سفارش</Table.Th><Table.Th>شماره قبض انبار</Table.Th><Table.Th>تاریخ تخلیه</Table.Th>
       {warning && <Table.Th>روز تا متروکه‌شدن</Table.Th>}
@@ -28,6 +28,7 @@ export function AbandonedTable({ rows, warning = false, printable = false }: {
         </Button>}</Table.Td>
       <Table.Td><bdi dir="ltr">{goods?.hscode || '—'}</bdi></Table.Td>
       <Table.Td>{goods?.description || '—'}</Table.Td>
+      <Table.Td>{tally.owner_name || '—'}</Table.Td>
       <Table.Td><bdi dir="ltr">{number(goods?.customs_value)}</bdi></Table.Td>
       <Table.Td><bdi dir="ltr">{number(goods?.remaining_weight)}</bdi></Table.Td>
       <Table.Td style={{ whiteSpace: 'pre-line' }}><bdi dir="ltr">{tally.order_registration_number || '—'}</bdi></Table.Td>

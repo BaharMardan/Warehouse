@@ -90,6 +90,7 @@ import { InvoicePrintPage } from './pages/InvoicePrintPage'
 import { CurrentUserGate, RequireAdmin, RequireAnyPermission, RequirePermission } from './auth/PermissionGate'
 import { UserManagementPage } from './pages/UserManagementPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { NonCustomsPage } from './pages/NonCustomsPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { ReportsPrintPage } from './pages/ReportsPrintPage'
 
@@ -117,7 +118,7 @@ function AppRoutes() {
         <Route path="/tally/:tallyNumber/print" element={<RequirePermission code="tally.view"><TallyPrintPage /></RequirePermission>} />
         <Route path="/ghabz/:id/print" element={<RequirePermission code="ghabz.view"><GhabzPrintPage /></RequirePermission>} />
         <Route path="/abandoned/print" element={<RequirePermission code="abandoned.view"><AbandonedPrintPage /></RequirePermission>} />
-        <Route path="/reports/print" element={<RequireAnyPermission codes={['reports.stock', 'reports.income']}><ReportsPrintPage /></RequireAnyPermission>} />
+        <Route path="/reports/print" element={<RequireAnyPermission codes={['reports.stock', 'reports.income', 'non_customs.stock']}><ReportsPrintPage /></RequireAnyPermission>} />
         <Route path="/invoice/:id/print" element={<RequirePermission code="invoice.view"><InvoicePrintPage /></RequirePermission>} />
         <Route element={<AppLayout />}>
           {/* Landing page after login: the Odoo-style module launcher. */}
@@ -149,6 +150,7 @@ function AppRoutes() {
           <Route path="/kartabl" element={<RequirePermission code="kartabl.view"><KartablPage /></RequirePermission>} />
           <Route path="/invoice" element={<RequirePermission code="invoice.view"><InvoiceListPage /></RequirePermission>} />
           <Route path="/invoice/:id" element={<RequirePermission code="invoice.view"><InvoiceDetailPage /></RequirePermission>} />
+          <Route path="/non-customs" element={<RequirePermission code="non_customs.view"><NonCustomsPage /></RequirePermission>} />
           <Route path="/reports" element={<RequireAnyPermission codes={['reports.stock', 'reports.income']}><ReportsPage /></RequireAnyPermission>} />
           <Route path="/users" element={<RequireAdmin><UserManagementPage /></RequireAdmin>} />
           <Route path="/settings" element={<RequirePermission code="settings.manage"><SettingsPage /></RequirePermission>} />

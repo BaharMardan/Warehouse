@@ -42,9 +42,10 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   const adjustmentOrCharge = (key: string) => data.categories.find((c) => c.key === key)?.label ?? key
   const { summary: totals } = data
 
-  const categoryRow = (category: IncomeCategory) => (
+  const categoryRow = (category: IncomeCategory, index: number) => (
     <Table.Tr key={category.key} c={category.lines === 0 ? 'dimmed' : undefined}
       bg={selected === category.key ? 'var(--app-accent-light)' : undefined}>
+      <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
       <Table.Td>{category.label}</Table.Td>
       <Table.Td><bdi dir="ltr">{category.invoices.toLocaleString('fa-IR')}</bdi></Table.Td>
       <Table.Td><bdi dir="ltr">{category.lines.toLocaleString('fa-IR')}</bdi></Table.Td>
@@ -59,7 +60,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   const subtotal = (label: string, value: number, key: string, count?: number) => (
     <Table.Tr key={key} fw={700} bg="var(--mantine-color-default-hover)"
       style={{ borderTop: `${key === 'payable' ? 4 : 2}px solid var(--mantine-color-forest-8)` }}>
-      <Table.Td>{label}</Table.Td>
+      <Table.Td colSpan={2}>{label}</Table.Td>
       <Table.Td>{count == null ? '' : <bdi dir="ltr">{count.toLocaleString('fa-IR')}</bdi>}</Table.Td>
       <Table.Td />
       <Table.Td ta="left"><bdi dir="ltr">{money(value)}</bdi></Table.Td>
@@ -69,15 +70,15 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
 
   const exportCategories = () => downloadCsv(
     `income-by-category_${from}_${to}.csv`,
-    ['دسته', 'تعداد صورتحساب', 'تعداد ردیف', 'مبلغ (ریال)'],
-    [...charges.map((c) => [c.label, c.invoices, c.lines, c.amount]),
-      ['جمع هزینه‌ها', '', '', totals.gross],
-      ['تخفیف', adjustment('discount').invoices, adjustment('discount').lines, -totals.discount],
-      ['جمع', data.invoice_count, '', totals.net],
-      ['مالیات بر ارزش افزوده', adjustment('tax').invoices, adjustment('tax').lines, totals.tax],
-      ['جمع کل', '', '', totals.total_with_tax],
-      ['کسر پیش‌پرداخت', adjustment('prepayment').invoices, adjustment('prepayment').lines, -totals.prepayment],
-      ['مبلغ قابل پرداخت', '', '', totals.payable]],
+    ['ردیف', 'دسته', 'تعداد صورتحساب', 'تعداد ردیف', 'مبلغ (ریال)'],
+    [...charges.map((c, index) => [index + 1, c.label, c.invoices, c.lines, c.amount]),
+      ['', 'جمع هزینه‌ها', '', '', totals.gross],
+      [charges.length + 1, 'تخفیف', adjustment('discount').invoices, adjustment('discount').lines, -totals.discount],
+      ['', 'جمع', data.invoice_count, '', totals.net],
+      [charges.length + 2, 'مالیات بر ارزش افزوده', adjustment('tax').invoices, adjustment('tax').lines, totals.tax],
+      ['', 'جمع کل', '', '', totals.total_with_tax],
+      [charges.length + 3, 'کسر پیش‌پرداخت', adjustment('prepayment').invoices, adjustment('prepayment').lines, -totals.prepayment],
+      ['', 'مبلغ قابل پرداخت', '', '', totals.payable]],
   )
 
   const categoryOptions = [{ value: ALL, label: 'همهٔ ردیف‌ها' },
@@ -85,8 +86,8 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
 
   const exportLines = () => lines.data && downloadCsv(
     `income-lines_${selected}_${from}_${to}.csv`,
-    ['تاریخ صدور', 'شماره صورتحساب', 'شماره تالی', 'شماره قبض', 'خریدار', 'دسته', 'شرح', 'تعداد', 'وزن', 'مبلغ (ریال)'],
-    lines.data.lines.map((l) => [jalali(l.issued_at), l.invoice_id, l.tally_number, l.receipt_number,
+    ['ردیف', 'تاریخ صدور', 'شماره صورتحساب', 'شماره تالی', 'شماره قبض', 'خریدار', 'دسته', 'شرح', 'تعداد', 'وزن', 'مبلغ (ریال)'],
+    lines.data.lines.map((l, index) => [index + 1, jalali(l.issued_at), l.invoice_id, l.tally_number, l.receipt_number,
       l.buyer_name, l.category_label, l.description, l.quantity, l.weight, l.amount]),
   )
 
@@ -127,17 +128,17 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
           <Table.ScrollContainer minWidth={700}>
             <Table highlightOnHover>
               <Table.Thead><Table.Tr>
-                <Table.Th>دسته</Table.Th><Table.Th>تعداد صورتحساب</Table.Th><Table.Th>تعداد ردیف</Table.Th>
+                <Table.Th>ردیف</Table.Th><Table.Th>دسته</Table.Th><Table.Th>تعداد صورتحساب</Table.Th><Table.Th>تعداد ردیف</Table.Th>
                 <Table.Th ta="left">مبلغ</Table.Th><Table.Th />
               </Table.Tr></Table.Thead>
               <Table.Tbody>
-                {charges.map((c) => categoryRow(c))}
+                {charges.map((c, index) => categoryRow(c, index))}
                 {subtotal('جمع هزینه‌ها', totals.gross, 'gross')}
-                {categoryRow(adjustment('discount'))}
+                {categoryRow(adjustment('discount'), charges.length)}
                 {subtotal('جمع', totals.net, 'net', data.invoice_count)}
-                {categoryRow(adjustment('tax'))}
+                {categoryRow(adjustment('tax'), charges.length + 1)}
                 {subtotal('جمع کل', totals.total_with_tax, 'withTax')}
-                {categoryRow(adjustment('prepayment'))}
+                {categoryRow(adjustment('prepayment'), charges.length + 2)}
                 {subtotal('مبلغ قابل پرداخت', totals.payable, 'payable')}
               </Table.Tbody>
             </Table>
@@ -178,14 +179,15 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
           <Table.ScrollContainer minWidth={1000}>
             <Table striped highlightOnHover>
               <Table.Thead><Table.Tr>
-                <Table.Th>تاریخ صدور</Table.Th><Table.Th>صورتحساب</Table.Th><Table.Th>تالی</Table.Th>
+                <Table.Th>ردیف</Table.Th><Table.Th>تاریخ صدور</Table.Th><Table.Th>صورتحساب</Table.Th><Table.Th>تالی</Table.Th>
                 <Table.Th>قبض</Table.Th><Table.Th>خریدار</Table.Th><Table.Th>دسته</Table.Th>
                 <Table.Th>شرح</Table.Th><Table.Th>تعداد</Table.Th><Table.Th>وزن</Table.Th>
                 <Table.Th ta="left">مبلغ (ریال)</Table.Th>
               </Table.Tr></Table.Thead>
               <Table.Tbody>
-                {lines.data.lines.map((l) => (
+                {lines.data.lines.map((l, index) => (
                   <Table.Tr key={l.line_id}>
+                    <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
                     <Table.Td>{jalali(l.issued_at)}</Table.Td>
                     <Table.Td><Button component={Link} to={`/invoice/${l.invoice_id}`} variant="subtle"
                       color="forest" size="compact-sm">{l.invoice_id.toLocaleString('en-US')}</Button></Table.Td>
@@ -216,13 +218,14 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
           <Table.ScrollContainer minWidth={850}>
             <Table striped>
               <Table.Thead><Table.Tr>
-                <Table.Th>صورتحساب</Table.Th><Table.Th>تاریخ صدور</Table.Th><Table.Th>تاریخ ابطال</Table.Th>
+                <Table.Th>ردیف</Table.Th><Table.Th>صورتحساب</Table.Th><Table.Th>تاریخ صدور</Table.Th><Table.Th>تاریخ ابطال</Table.Th>
                 <Table.Th>تالی</Table.Th><Table.Th>قبض</Table.Th><Table.Th>خریدار</Table.Th>
                 <Table.Th ta="left">مبلغ باطل‌شده</Table.Th><Table.Th>وضعیت</Table.Th>
               </Table.Tr></Table.Thead>
               <Table.Tbody>
-                {data.cancelled.invoices.map((c) => (
+                {data.cancelled.invoices.map((c, index) => (
                   <Table.Tr key={c.invoice_id}>
+                    <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
                     <Table.Td><bdi dir="ltr">{c.invoice_id}</bdi></Table.Td>
                     <Table.Td>{jalali(c.issued_at)}</Table.Td>
                     <Table.Td>{jalali(c.cancelled_at)}</Table.Td>

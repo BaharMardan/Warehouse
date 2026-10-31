@@ -8,6 +8,9 @@ from app.services import receipt_db as db
 
 @pytest.fixture
 def wired(monkeypatch):
+    # This suite checks cancellation writes; notification persistence has its own tests.
+    from app.services import handoff_notifications
+    monkeypatch.setattr(handoff_notifications, "record", MagicMock())
     conn = MagicMock()
     conn.__enter__.return_value = conn
     cur = conn.cursor.return_value.__enter__.return_value

@@ -1,5 +1,6 @@
 """Preview and issue independent remaining-cargo invoices under the tally lock."""
 import json
+from app.services.invoice_number import require_number, ensure_available, insert_numbered_header
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import require_permission
 from app.core.db import get_connection
@@ -65,28 +66,36 @@ def preview(cur, current, tally, payload):
         raise HTTPException(422, str(exc)) from exc
 
 
-@router.get("/{receipt_id}/remaining-invoice", dependencies=[Depends(require_permission("invoice.issue"))])
-def options(receipt_id: int):
+def require_remaining_access(non_customs: bool = False, user: dict = Depends(require_permission("invoice.issue"))):
+    if non_customs and "non_customs.operations" not in user["permissions"]:
+        raise HTTPException(403, "دسترسی تب عملیات انبار غیر گمرکی برای شما تعریف نشده است")
+    return user
+
+
+@router.get("/{receipt_id}/remaining-invoice", dependencies=[Depends(require_remaining_access)])
+def options(receipt_id: int, non_customs: bool = False):
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
             iid = original(cur, receipt_id)
             return serializable({"original_invoice_id": iid, "cargo": tally["is_volumetric"],
                 "other_services": db.rows(cur, SERVICE_CATALOG_SQL),
-                "goods": db.rows(cur, GOODS_SQL, {"tid": current["tally_id"]}),
+                "goods": warehouse_goods(cur, receipt_id, current["tally_id"]) if non_customs else db.rows(cur, GOODS_SQL, {"tid": current["tally_id"]}),
                 "original_insurance": db.one(cur, INSURANCE_SQL, {"iid": iid})["amount"]})
 
 
-@router.post("/{receipt_id}/remaining-invoice/preview", dependencies=[Depends(require_permission("invoice.issue"))])
-def preview_invoice(receipt_id: int, payload: RemainingInput | RemainingBatchInput):
+@router.post("/{receipt_id}/remaining-invoice/preview", dependencies=[Depends(require_remaining_access)])
+def preview_invoice(receipt_id: int, payload: RemainingInput | RemainingBatchInput, non_customs: bool = False):
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
+            if non_customs:
+                check_warehouse(cur, receipt_id, payload, tally)
             return preview(cur, current, tally, payload)
 
 
-@router.post("/{receipt_id}/remaining-invoice", status_code=201)
-def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue, user: dict = Depends(require_permission("invoice.issue"))):
+@router.post("/{receipt_id}/remaining-invoice", status_code=201, dependencies=[Depends(require_remaining_access)])
+def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue, user: dict = Depends(require_permission("invoice.issue")), non_customs: bool = False):
     with get_connection() as conn:
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
@@ -95,25 +104,28 @@ def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue
                 FROM "FA_REMAINING_INVOICE" r JOIN "FA_SORAT_HESAB_HEADER" h ON h."ID_SORAT" = r."INVOICE_ID"
                 WHERE r."REQUEST_ID" = :request_id''', {"request_id": str(payload.request_id)})
             if prior:
-                if prior["receipt_id"] != receipt_id or prior["preview_hash"] != payload.preview_hash or prior["deleted"] == 'yes':
+                if (prior["receipt_id"] != receipt_id or prior["preview_hash"] != payload.preview_hash
+                    or prior["deleted"] == 'yes' or prior["id"] != payload.invoice_number):
                     raise HTTPException(409, "درخواست قبلاً استفاده شده است؛ پنجره را دوباره باز کنید")
                 return {"invoice_id": prior["id"]}
+            if non_customs:
+                check_warehouse(cur, receipt_id, payload, tally)
             result = preview(cur, current, tally, payload)
             if result["preview_hash"] != payload.preview_hash:
                 raise HTTPException(409, "مقادیر یا تعرفه‌ها تغییر کرده‌اند؛ پیش‌نمایش را دوباره محاسبه کنید")
-            cur.execute('''INSERT INTO "FA_SORAT_HESAB_HEADER"
-                ("TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
+            invoice_number = require_number(payload.invoice_number)
+            ensure_available(cur, invoice_number)
+            insert_numbered_header(cur, '''INSERT INTO "FA_SORAT_HESAB_HEADER"
+                ("ID_SORAT", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
                  "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE",
                  "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI")
-                SELECT "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
+                SELECT :invoice_number, "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
                  "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE), :actor, 'no', 'no', :note, "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI"
                 FROM "FA_SORAT_HESAB_HEADER" WHERE "ID_SORAT" = :original_id''',
-                {"actor": user["id"], "note": result["calc_note"], "original_id": result["snapshot"]["original_invoice_id"]})
-            # Read the identity of this inserted row, never MAX(id) across concurrent sessions.
-            cur.execute('SELECT "ID_SORAT" FROM "FA_SORAT_HESAB_HEADER" WHERE ROWID = :rid', {"rid": cur.lastrowid})
-            invoice_id = cur.fetchone()[0]
+                {"invoice_number": invoice_number, "actor": user["id"], "note": result["calc_note"], "original_id": result["snapshot"]["original_invoice_id"]})
+            invoice_id = invoice_number
             cur.executemany('''INSERT INTO "FA_SORA_HESAB_DETAILS"
                 ("ID_SORA_HEADER", "DESCRIPTION", "NUMBER_KALA", "WEIGHTE", "PRICE_DETAILS",
                  "ROW_KIND", "CALC_NOTE", "TAKHFIF_DETAILS", "TAKHFIF_ALL", "CREATE_AT", "CREATE_BY", "IS_DELETED")
@@ -128,3 +140,21 @@ def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue
                  "preview_hash": result["preview_hash"]})
         conn.commit()
     return {"invoice_id": invoice_id}
+
+
+def warehouse_goods(cur, receipt_id, tally_id):
+    from app.routers.non_customs import stock
+    registered = {r["source_id"]: r for r in stock(cur, receipt_id) if r["invoice_active"] == 1}
+    goods = []
+    for row in db.rows(cur, GOODS_SQL, {"tid": tally_id}):
+        entry = registered.get(row["id"])
+        if entry:
+            basis = "pallets" if entry["cargo"] in ("yes", "volumetric") else "weight"
+            goods.append({**row, "remaining_amount": entry[basis]})
+    return goods
+
+
+def check_warehouse(cur, receipt_id, payload, tally):
+    from app.routers.non_customs import stock
+    from app.services.non_customs import validate_bill
+    validate_bill(payload, [r for r in stock(cur, receipt_id) if r["invoice_active"] == 1], tally.get("is_volumetric"))

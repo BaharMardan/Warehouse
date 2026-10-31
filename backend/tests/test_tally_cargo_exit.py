@@ -7,7 +7,7 @@ from app.services import receipt_db as db
 from app.routers import receipt_workflow as api
 from app.crud.registry import TaliHeaderInput
 from app.services.jalali import from_jalali
-from test_issue_invoice_flow import wired, saved_rows
+from test_issue_invoice_flow import issue_with_preview, wired, saved_rows
 
 
 @pytest.mark.parametrize("exit_day,billed", [(from_jalali(1405, 3, 1), 60),
@@ -19,7 +19,7 @@ def test_invoice_uses_exit_date_even_if_after_issue_day(wired, exit_day, billed,
         current, siblings, tally = original(*args, **kwargs)
         return current, siblings, {**tally, "date_cargo_exit": exit_day}
     monkeypatch.setattr(db, "receipt", receipt)
-    api.issue_invoice(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
+    issue_with_preview(1, {"id": 1}, api.InvoiceIssueInput(apply_deductions=False))
     storage = next(row for row in saved_rows(cur) if row["kind"] == "storage")
     assert storage["price"] == 56003 * 1.5 * 30 * billed
     conn.commit.assert_called_once()
@@ -33,7 +33,7 @@ def test_invoice_rejects_exit_before_unloading(wired, monkeypatch):
         return current, siblings, {**tally, "date_cargo_exit": date(2020, 1, 1)}
     monkeypatch.setattr(db, "receipt", receipt)
     with pytest.raises(HTTPException) as exc:
-        api.issue_invoice(1, {"id": 1})
+        issue_with_preview(1, {"id": 1})
     assert exc.value.status_code == 422
     conn.commit.assert_not_called()
 

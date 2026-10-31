@@ -211,7 +211,7 @@ function printCharges(charges: InvoiceLine[]): InvoiceLine[] {
 }
 
 // 1405 invoices: compact charges followed by summary rows
-// «جمع مبالغ − تخفیف + مالیات − پیش‌پرداخت = مبلغ قابل پرداخت».
+// «جمع ردیف‌ها − تخفیف + مالیات − پیش‌پرداخت = مبلغ قابل پرداخت».
 function ModernTable({ data }: { data: SavedInvoice }) {
   const { charges, subtotal, adjustments, prepayments, totalBeforePrepayment } = invoiceSections(data.details)
   return (
@@ -233,7 +233,7 @@ function ModernTable({ data }: { data: SavedInvoice }) {
             </tr>
           ))}
           <tr className="invoice-print-subtotal">
-            <td colSpan={2}>جمع مبالغ</td>
+            <td colSpan={2}>جمع ردیف‌ها</td>
             <td><bdi dir="ltr">{money(subtotal)}</bdi></td>
           </tr>
           {adjustments.map((line) => (

@@ -38,3 +38,21 @@ If DDL invalidates a dependent trigger, compile/check it explicitly in upgrade;
 invalid objects cause the migration to fail.
 Concurrent deployment is serialized by the host deploy lock. Run production
 migrations through the deploy helper, not standalone competing processes.
+
+## Local HR development database
+
+The production runner intentionally accepts only WAREHOUSE_LIVE and
+WAREHOUSE_RESTORE. For a local HR schema, stop the development API, create
+and verify a backup, then run these from backend/ using its virtual environment:
+
+~~~powershell
+.\.venv\Scripts\python.exe run_local_migrations.py --plan
+.\.venv\Scripts\python.exe run_local_migrations.py --apply --backup-confirmed
+.\.venv\Scripts\python.exe run_local_migrations.py --plan
+~~~
+
+The local runner loads backend/.env through the application settings, permits
+only HR at a loopback address, and uses the same immutable migration ledger,
+sentinel-table checks and backup requirement as production. It never falls back
+to another schema. Do not use --backup-confirmed until a backup has succeeded.
+Restart the development API after applying migrations.

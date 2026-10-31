@@ -51,7 +51,7 @@ export function AbandonedPage() {
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
         {([
           { key: 'abandoned', title: 'کالاهای متروکه', description: '۹۰ روز و بیشتر از تاریخ تخلیه', count: data.abandoned_count },
-          { key: 'warning', title: 'هشدار متروکه', description: '۸۰ تا ۸۹ روز از تاریخ تخلیه؛ نزدیک به متروکه‌شدن', count: data.warning_count },
+          { key: 'warning', title: 'هشدار متروکه', description: '۶۰ تا ۸۹ روز از تاریخ تخلیه؛ نزدیک به متروکه‌شدن', count: data.warning_count },
         ] as const).map(item =>
           <Paper key={item.key} withBorder radius="lg" style={{ overflow: 'hidden', borderColor: 'var(--mantine-color-yellow-5)' }}>
             <UnstyledButton onClick={() => setParams({ section: item.key })}
@@ -70,7 +70,7 @@ export function AbandonedPage() {
       </SimpleGrid> :
       <Stack>
         <Group><Button variant="light" color="yellow" onClick={() => setParams({})}>بازگشت به بخش‌های متروکه</Button></Group>
-        {section(selected === 'abandoned' ? 'متروکه — ۹۰ روز و بیشتر' : 'هشدار متروکه — ۸۰ تا ۸۹ روز',
+        {section(selected === 'abandoned' ? 'متروکه — ۹۰ روز و بیشتر' : 'هشدار متروکه — ۶۰ تا ۸۹ روز',
           data.items.filter(row => row.stage === selected), selected === 'warning')}
       </Stack>
     )}

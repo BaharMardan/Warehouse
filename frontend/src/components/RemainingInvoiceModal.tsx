@@ -1,4 +1,5 @@
 import './RemainingInvoiceModal.css'
+import { InvoiceNumberInput, validInvoiceNumber } from './InvoiceNumberInput'
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Tooltip } from '@mantine/core'
@@ -20,7 +21,7 @@ function normalizeNumberInput(event: FormEvent<HTMLInputElement>) {
   if (start != null && end != null) input.setSelectionRange(start, end)
 }
 
-type Goods = { id: number; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null }
+type Goods = { id: number; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null; remaining_amount?: string | number }
 type Service = { id: number; title: string; price: string | null }
 type Options = { other_services: Service[]; original_invoice_id: number; cargo: string; goods: Goods[]; original_insurance: string }
 type CargoInput = { source_id: number; hscode: string; kala_code: string; amount: string }
@@ -37,7 +38,8 @@ function requestId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number; close: () => void }) {
+export function RemainingInvoiceModal({ receiptId, close, nonCustoms = false }: { receiptId: number; close: () => void; nonCustoms?: boolean }) {
+  const [invoiceNumber, setInvoiceNumber] = useState('')
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [request] = useState(requestId)
@@ -47,8 +49,8 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
   const updateRow = (key: string, change: Partial<CargoRow>) => setCargoRows(previous => previous.map(row => row.key === key ? { ...row, ...change } : row))
   const [services, setServices] = useState<{ key: string; id: string | null; quantity: string | number }[]>([])
   const { data, isPending, isError } = useQuery({
-    queryKey: ['remaining-options', receiptId],
-    queryFn: () => apiGet<Options>(`/ghabz/${receiptId}/remaining-invoice`),
+    queryKey: ['remaining-options', receiptId, nonCustoms],
+    queryFn: () => apiGet<Options>(`/ghabz/${receiptId}/remaining-invoice${nonCustoms ? "?non_customs=true" : ""}`),
   })
   const input: Input = { days: Number(days), insurance_percent: String(percent), other_services: services.map(row => ({ service_id: Number(row.id), quantity: String(row.quantity) })),
     rows: cargoRows.map(row => ({ source_id: Number(row.source), hscode: row.hscode.trim(), kala_code: row.code.trim(), amount: String(row.amount) })) }
@@ -61,8 +63,8 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
     && services.every(row => !!row.id && Number(row.quantity) > 0 && Number.isFinite(Number(row.quantity)))
   const [debouncedKey] = useDebouncedValue(key, 450)
   const calculate = useQuery({
-    queryKey: ['remaining-preview', receiptId, debouncedKey],
-    queryFn: () => apiSend<Preview>(`/ghabz/${receiptId}/remaining-invoice/preview`, 'POST', JSON.parse(debouncedKey)),
+    queryKey: ['remaining-preview', receiptId, nonCustoms, debouncedKey],
+    queryFn: () => apiSend<Preview>(`/ghabz/${receiptId}/remaining-invoice/preview${nonCustoms ? "?non_customs=true" : ""}`, 'POST', JSON.parse(debouncedKey)),
     enabled: !!data && valid && key === debouncedKey,
     retry: false,
     staleTime: 0,
@@ -70,8 +72,8 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
   const current = valid && key === debouncedKey && !calculate.isError ? calculate.data : undefined
   const calculating = valid && (key !== debouncedKey || calculate.isFetching)
   const issue = useMutation({
-    mutationFn: () => apiSend<{ invoice_id: number }>(`/ghabz/${receiptId}/remaining-invoice`, 'POST',
-      { ...input, preview_hash: current!.preview_hash, request_id: request }),
+    mutationFn: () => apiSend<{ invoice_id: number }>(`/ghabz/${receiptId}/remaining-invoice${nonCustoms ? "?non_customs=true" : ""}`, 'POST',
+      { ...input, preview_hash: current!.preview_hash, request_id: request, invoice_number: invoiceNumber }),
     onSuccess: async result => {
       await qc.invalidateQueries({ queryKey: ['invoice-list'] })
       close()
@@ -80,7 +82,7 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
   })
   const selectGoods = (key: string, value: string | null) => {
     const row = data?.goods.find(item => String(item.id) === value)
-    updateRow(key, { source: value, hscode: row?.hscode ?? '', code: String(row?.kala_code ?? '') })
+    updateRow(key, { source: value, hscode: row?.hscode ?? '', code: String(row?.kala_code ?? ''), ...(nonCustoms ? { amount: row?.remaining_amount ?? '' } : {}) })
   }
   return <Modal classNames={{ content: 'remaining-modal', header: 'remaining-modal-header', body: 'remaining-modal-body' }} opened onClose={() => { if (!issue.isPending) close() }} size={900} radius="lg" padding="lg" centered dir="rtl"
     title={<Text fw={800} size="lg">صدور صورتحساب باقی‌مانده</Text>} closeOnClickOutside={!issue.isPending}
@@ -160,6 +162,7 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
             <Table.Td>{invoiceDescription(row.description) || '—'}</Table.Td><Table.Td>{row.quantity ?? '—'}</Table.Td><Table.Td><bdi>{money(row.price)}</bdi></Table.Td><Table.Td><Text size="xs" c="dimmed">{row.note}</Text></Table.Td>
           </Table.Tr>)}</Table.Tbody></Table>
       </Table.ScrollContainer>}
+      <InvoiceNumberInput value={invoiceNumber} onChange={setInvoiceNumber} disabled={issue.isPending} />
       {issue.isError && <Alert color="red" radius="md">{errorMessage(issue.error, 'صدور انجام نشد؛ دوباره تلاش کنید')}</Alert>}
       <Paper className="remaining-total" withBorder radius="md" p="md" aria-live="polite">
         <Group justify="space-between" mb="md">
@@ -170,8 +173,8 @@ export function RemainingInvoiceModal({ receiptId, close }: { receiptId: number;
         </Group>
         <Group justify="flex-end">
           <Button variant="default" radius="md" disabled={issue.isPending} onClick={close}>انصراف</Button>
-          <Button color="teal" radius="md" loading={issue.isPending} disabled={!current || calculating || !valid}
-            onClick={() => { if (current && !issue.isPending) issue.mutate() }}>صدور صورتحساب باقی‌مانده</Button>
+          <Button color="teal" radius="md" loading={issue.isPending} disabled={!current || calculating || !valid || !validInvoiceNumber(invoiceNumber)}
+            onClick={() => { if (current && validInvoiceNumber(invoiceNumber) && !issue.isPending) issue.mutate() }}>صدور صورتحساب باقی‌مانده</Button>
         </Group>
       </Paper>
     </Stack>

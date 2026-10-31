@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Badge, Button, Group, Modal, Paper, Stack, Table, Text } from '@mantine/core'
+import { Alert, Badge, Button, Group, Paper, Stack, Table, Text } from '@mantine/core'
 import { useNavigate } from 'react-router-dom'
 import { apiGet, apiSend, errorMessage } from '../api/client'
+import { InvoiceIssueModal } from './InvoiceIssueModal'
 import { ReceiptPallets } from './ReceiptPallets'
-import { RemainingInvoiceModal } from './RemainingInvoiceModal'
 import { usePermissions } from '../auth/usePermissions'
 
 type Workflow = {
@@ -19,8 +19,6 @@ type Workflow = {
   // issuing shows this error first and needs an explicit confirmation.
   missing_customs?: string[]
 }
-type IssueAnswers = { confirm_missing_customs?: boolean; apply_deductions?: boolean }
-const rials = (value: number | null | undefined) => Number(value ?? 0).toLocaleString('en-US')
 const statusLabels: Record<string, string> = {
   created: 'در انتظار چک‌لیست انباردار', sent_to_keeper: 'در انتظار چک‌لیست انباردار',
   finalized: 'ثبت نهایی شده', invoice_issued: 'صورتحساب صادرشده',
@@ -48,31 +46,11 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
       if (variables.path === 'invoice' && result?.invoice_id) navigate(`/invoice/${result.invoice_id}`)
     },
   })
-  // Issuing may need two answers, asked in order: the missing-customs error,
-  // then the prepayment/discount question.
-  const [remainingOpen, setRemainingOpen] = useState(false)
-  const [issueStep, setIssueStep] = useState<null | 'customs' | 'deductions'>(null)
-  const [answers, setAnswers] = useState<IssueAnswers>({})
-  const issueInvoice = (final: IssueAnswers) => {
-    setIssueStep(null)
-    setAnswers({})
-    action.mutate({ path: 'invoice', body: Object.keys(final).length ? final : undefined })
-  }
+  const [issueOpen, setIssueOpen] = useState(false)
   if (error) return <Text c="red">خطا در دریافت وضعیت چک‌لیست قبض.</Text>
   if (!state) return <Text size="sm">در حال دریافت وضعیت قبض…</Text>
   const editable = can('tally.services') && state.can_finalize
   const missingCustoms = state.missing_customs ?? []
-  const startIssue = () => {
-    if (missingCustoms.length > 0) setIssueStep('customs')
-    else if (state.deductions?.ask) setIssueStep('deductions')
-    else issueInvoice({})
-  }
-  const confirmCustoms = () => {
-    if (state.deductions?.ask) {
-      setAnswers({ confirm_missing_customs: true })
-      setIssueStep('deductions')
-    } else issueInvoice({ confirm_missing_customs: true })
-  }
   return <>
     {!state.summary_only && <Badge color={state.can_finalize ? 'orange' : 'teal'}>{statusLabels[state.status]}</Badge>}
     {placement === 'receipt' && state.show_checklist && state.status !== 'invoice_issued' && !state.invoice_id && <Button variant="light"
@@ -87,41 +65,11 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
       onClick={() => { if (window.confirm('صورتحساب باطل شود؟ پس از ابطال آخرین صورتحساب فعال، تمام بخش‌های تالی برای اصلاح باز می‌شوند.')) action.mutate({ path: `/invoice/${state.invoice_id}`, method: 'DELETE' }) }}>ابطال صورتحساب</Button>}
     {placement === 'receipt' && state.show_invoice && state.status === 'finalized' && can('invoice.issue') &&
       <Button color="red" disabled={!state.can_invoice} loading={action.isPending}
-        onClick={startIssue}>صدور صورتحساب</Button>}
-    <Modal opened={issueStep === 'customs'} onClose={() => setIssueStep(null)} title="ارزش گمرکی ثبت نشده" centered dir="rtl">
-      <Stack gap="sm">
-        <Alert color="red" variant="light" title="ارزش گمرکی این کالاها در تالی ثبت نشده است.">
-          ردیف‌ها: <bdi dir="ltr">{missingCustoms.join('، ')}</bdi>
-          <br />
-          هزینه بیمه این ردیف‌ها صفر محاسبه می‌شود و در صورتحساب یک ردیف بیمه با مبلغ صفر ثبت خواهد شد.
-        </Alert>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={() => setIssueStep(null)}>انصراف</Button>
-          <Button color="red" onClick={confirmCustoms}>صدور با بیمه صفر برای این ردیف‌ها</Button>
-        </Group>
-      </Stack>
-    </Modal>
-    <Modal opened={issueStep === 'deductions'} onClose={() => setIssueStep(null)} title="پیش‌پرداخت و تخفیف" centered dir="rtl">
-      <Stack gap="sm">
-        <Text fw={600}>آیا مبلغ پیش‌پرداخت و تخفیف روی همین قبض اعمال شود؟</Text>
-        {Number(state.deductions?.prepayment ?? 0) > 0 &&
-          <Text size="sm">پیش‌پرداخت: <bdi dir="ltr">{rials(state.deductions?.prepayment)}</bdi> ریال</Text>}
-        {Number(state.deductions?.discount ?? 0) > 0 &&
-          <Text size="sm">تخفیف: <bdi dir="ltr">{rials(state.deductions?.discount)}</bdi> ریال</Text>}
-        <Text size="sm" c="dimmed">
-          اگر «خیر» را انتخاب کنید، این سؤال هنگام صدور صورتحساب قبض‌های دیگر این تالی دوباره پرسیده می‌شود.
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={() => issueInvoice({ ...answers, apply_deductions: false })}>خیر</Button>
-          <Button color="red" onClick={() => issueInvoice({ ...answers, apply_deductions: true })}>بله</Button>
-        </Group>
-      </Stack>
-    </Modal>
+        onClick={() => setIssueOpen(true)}>صدور صورتحساب</Button>}
+    {issueOpen && <InvoiceIssueModal receiptId={id} missingCustoms={missingCustoms}
+      askDeductions={!!state.deductions?.ask} close={() => setIssueOpen(false)} />}
     {placement === 'receipt' && state.invoice_id && can('invoice.view') && <Button color="red" variant="light"
       onClick={() => navigate(`/invoice/${state.invoice_id}`)}>مشاهده صورتحساب</Button>}
-    {placement === 'receipt' && state.invoice_id && can('invoice.issue') &&
-      <Button variant="light" color="orange" onClick={() => setRemainingOpen(true)}>صدور صورتحساب باقی‌مانده</Button>}
-    {remainingOpen && <RemainingInvoiceModal receiptId={id} close={() => setRemainingOpen(false)} />}
     {action.error && <Text c="red" size="sm">{errorMessage(action.error, 'عملیات انجام نشد')}</Text>}
 
   </>

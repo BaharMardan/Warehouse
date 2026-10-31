@@ -61,8 +61,13 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
   const t = data.summary
   const cat = (key: string) => data.categories.find((c) => c.key === key)!
   const label = category ? cat(category)?.label : 'همهٔ ردیف‌ها'
+  const numberedCategories = data.categories.filter((c) =>
+    c.section === 'charge'
+      ? c.lines > 0 && (!['other', 'vehicle_enter', 'night_stop'].includes(c.key) || c.amount !== 0)
+      : c.key === 'tax' || c.lines > 0)
   const row = (name: string, value: number, key: string, strong = false, counts?: [number, number]) => (
     <tr key={key} className={strong ? `rp-strong${key === 'payable' ? ' rp-payable' : ''}` : undefined}>
+      <td>{strong ? '' : (numberedCategories.findIndex((c) => c.key === key) + 1).toLocaleString('fa-IR')}</td>
       <td className="rp-text">{name}</td>
       <td>{counts ? ltr(counts[0].toLocaleString('fa-IR')) : ''}</td>
       <td>{counts ? ltr(counts[1].toLocaleString('fa-IR')) : ''}</td>
@@ -90,7 +95,7 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
       {sections.includes('summary') && <>
         <h2>خلاصهٔ درآمد به تفکیک نوع ردیف (ریال)</h2>
         <table className="rp-table">
-          <thead><tr><th>دسته</th><th>تعداد صورتحساب</th><th>تعداد ردیف</th><th>مبلغ</th></tr></thead>
+          <thead><tr><th>ردیف</th><th>دسته</th><th>تعداد صورتحساب</th><th>تعداد ردیف</th><th>مبلغ</th></tr></thead>
           <tbody>
             {data.categories.filter((c) => c.section === 'charge' && c.lines > 0 && (!['other', 'vehicle_enter', 'night_stop'].includes(c.key) || c.amount !== 0)).map((c) => entry(c.key))}
             {row('جمع هزینه‌ها', t.gross, 'gross', true)}
@@ -107,17 +112,18 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
       {wantLines && lines.data && <>
         <h2>جزئیات ردیف‌ها — {label}</h2>
         <table className="rp-table">
-          <thead><tr><th>تاریخ صدور</th><th>صورتحساب</th><th>تالی</th><th>قبض</th><th>خریدار</th><th>دسته</th><th>شرح</th><th>مبلغ (ریال)</th></tr></thead>
+          <thead><tr><th>ردیف</th><th>تاریخ صدور</th><th>صورتحساب</th><th>تالی</th><th>قبض</th><th>خریدار</th><th>دسته</th><th>شرح</th><th>مبلغ (ریال)</th></tr></thead>
           <tbody>
-            {lines.data.lines.map((l) => (
+            {lines.data.lines.map((l, index) => (
               <tr key={l.line_id}>
+                <td>{(index + 1).toLocaleString('fa-IR')}</td>
                 <td>{jalali(l.issued_at)}</td><td>{ltr(l.invoice_id)}</td><td>{l.tally_number ?? '—'}</td>
                 <td>{ltr(l.receipt_number ?? '—')}</td><td className="rp-text">{l.buyer_name ?? '—'}</td>
                 <td className="rp-text">{l.category_label}</td><td className="rp-text">{l.description ?? '—'}</td>
                 <td>{ltr(money(l.amount))}</td>
               </tr>
             ))}
-            <tr className="rp-strong"><td colSpan={7} className="rp-text">جمع</td><td>{ltr(money(lines.data.total))}</td></tr>
+            <tr className="rp-strong"><td colSpan={8} className="rp-text">جمع</td><td>{ltr(money(lines.data.total))}</td></tr>
           </tbody>
         </table>
         {lines.data.truncated && <p className="rp-note">فهرست به‌دلیل تعداد زیاد کوتاه شده است؛ جمع، کل ردیف‌ها را شامل می‌شود.</p>}
@@ -126,10 +132,11 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
       {sections.includes('cancelled') && data.cancelled.count > 0 && <>
         <h2>صورتحساب‌های باطل‌شده (در درآمد نیامده‌اند) — جمع {money(data.cancelled.amount)} ریال</h2>
         <table className="rp-table">
-          <thead><tr><th>صورتحساب</th><th>تاریخ صدور</th><th>تاریخ ابطال</th><th>تالی</th><th>قبض</th><th>خریدار</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+          <thead><tr><th>ردیف</th><th>صورتحساب</th><th>تاریخ صدور</th><th>تاریخ ابطال</th><th>تالی</th><th>قبض</th><th>خریدار</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
           <tbody>
-            {data.cancelled.invoices.map((c) => (
+            {data.cancelled.invoices.map((c, index) => (
               <tr key={c.invoice_id}>
+                <td>{(index + 1).toLocaleString('fa-IR')}</td>
                 <td>{ltr(c.invoice_id)}</td><td>{jalali(c.issued_at)}</td><td>{jalali(c.cancelled_at)}</td>
                 <td>{c.tally_number ?? '—'}</td><td>{ltr(c.receipt_number ?? '—')}</td>
                 <td className="rp-text">{c.buyer_name ?? '—'}</td><td>{ltr(money(c.amount))}</td>
@@ -149,7 +156,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
     groupBy, hscode: params.get('hscode') ?? '', ownerId: params.get('owner_id'),
     anbarId: params.get('anbar_id'), location: params.get('location'),
     unloadedFrom: params.get('unloaded_from'), unloadedTo: params.get('unloaded_to'),
-  }, true)
+  }, true, params.get('source') === 'non-customs')
   const data: StockData | undefined = stock.data
   if (stock.isError) return <Alert color="red">دریافت گزارش ناموفق بود.</Alert>
   if (!data) return <Center py="xl"><Loader color="forest" /></Center>
@@ -164,14 +171,14 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
     params.get('unloaded_from') && `تخلیه از ${jalali(params.get('unloaded_from'))} تا ${jalali(params.get('unloaded_to'))}`,
   ].filter(Boolean) as string[]
   const figures: [string, string][] = [
-    ['تعداد تالی', t.tallies.toLocaleString('fa-IR')], ['تعداد ردیف کالا', t.rows.toLocaleString('fa-IR')],
+    ['تعداد تالی', t.tallies.toLocaleString('fa-IR')],
     ['وزن اظهار (kg)', amount(t.weight)], ['وزن باسکول (kg)', amount(t.baskol)],
-    ['پالت', amount(t.pallets)], ['کانتینر', amount(t.containers, 0)],
+    ['کانتینر', amount(t.containers, 0)],
     ['ارزش کل کالاها (گمرکی، ریال)', money(t.customs_value)], ['ارزش کل بیمه‌شده (ریال)', money(t.insured_value)],
   ]
 
   return (
-    <Sheet title="گزارش موجودی انبار" meta={[
+    <Sheet title={params.get('source') === 'non-customs' ? 'گزارش موجودی انبار غیر گمرکی' : 'گزارش موجودی انبار'} meta={[
       `وضعیت لحظه‌ای تا ${new Date(data.as_of).toLocaleString('fa-IR')}`,
       filters.length ? `فیلتر: ${filters.join('؛ ')}` : 'بدون فیلتر']}>
       {sections.includes('totals') && <>
@@ -179,8 +186,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
         <div className="rp-figures">
           {figures.map(([name, value]) => <div key={name}><span>{name}</span><b>{ltr(value)}</b></div>)}
         </div>
-        {(t.pallets_missing > 0 || t.insurance_unknown > 0) && <p className="rp-note">
-          {t.pallets_missing > 0 && `برای ${t.pallets_missing.toLocaleString('fa-IR')} تالی حجمی، پالت برخی حامل‌ها ثبت نشده و در جمع نیست. `}
+        {t.insurance_unknown > 0 && <p className="rp-note">
           {t.insurance_unknown > 0 && `${t.insurance_unknown.toLocaleString('fa-IR')} تالی بیمه‌دار بدون مبلغ بیمه‌نامه در جمع بیمه نیست.`}
         </p>}
       </>}
@@ -189,21 +195,23 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
         <h2>موجودی به تفکیک {GROUP_LABEL[groupBy]}</h2>
         <table className="rp-table">
           <thead><tr>
+            <th>ردیف</th>
             <th>{GROUP_LABEL[groupBy]}</th><th>شرح کالا</th><th>نوع بسته‌بندی</th><th>صاحب کالا</th><th>انبار / نوع محل</th>
-            <th>ردیف</th><th>وزن (kg)</th><th>پالت</th><th>کانتینر</th><th>ارزش کالا</th><th>ارزش بیمه‌شده</th>
+            <th>وزن (kg)</th><th>پالت</th><th>کانتینر</th><th>ارزش کالا</th><th>ارزش بیمه‌شده</th>
           </tr></thead>
           <tbody>
-            {data.groups.map((g) => (
+            {data.groups.map((g, index) => (
               <tr key={g.key}>
+                <td>{(index + 1).toLocaleString('fa-IR')}</td>
                 <td>{ltr(g.label)}</td><td className="rp-text">{list(g.descriptions)}</td><td>{list(g.package_types)}</td>
                 <td className="rp-text">{list(g.owners)}</td><td>{list(g.anbars)} / {list(g.locations)}</td>
-                <td>{ltr(g.rows.toLocaleString('fa-IR'))}</td><td>{ltr(amount(g.weight))}</td><td>{ltr(amount(g.pallets))}</td>
+                <td>{ltr(amount(g.weight))}</td><td>{ltr(amount(g.pallets))}</td>
                 <td>{ltr(amount(g.containers, 0))}</td><td>{ltr(money(g.customs_value))}</td><td>{ltr(money(g.insured_value))}</td>
               </tr>
             ))}
             <tr className="rp-strong">
-              <td colSpan={5} className="rp-text">جمع کل</td>
-              <td>{ltr(t.rows.toLocaleString('fa-IR'))}</td><td>{ltr(amount(t.weight))}</td><td>{ltr(amount(t.pallets))}</td>
+              <td colSpan={6} className="rp-text">جمع کل</td>
+              <td>{ltr(amount(t.weight))}</td><td>{ltr(amount(t.pallets))}</td>
               <td>{ltr(amount(t.containers, 0))}</td><td>{ltr(money(t.customs_value))}</td><td>{ltr(money(t.insured_value))}</td>
             </tr>
           </tbody>
@@ -214,13 +222,15 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
         <h2>ریز ردیف‌های کالا</h2>
         <table className="rp-table">
           <thead><tr>
+            <th>ردیف</th>
             <th>تالی</th><th>تاریخ تخلیه</th><th>صاحب کالا</th><th>HS Code</th><th>شرح کالا</th><th>بسته‌بندی</th>
             <th>انبار / طاق</th><th>نوع محل</th><th>نوع بار</th><th>تعداد</th><th>وزن (kg)</th><th>پالت</th>
             <th>ارزش کالا</th><th>ارزش بیمه‌نامهٔ تالی</th>
           </tr></thead>
           <tbody>
-            {data.rows.map((r) => (
+            {data.rows.map((r, index) => (
               <tr key={r.detail_id}>
+                <td>{(index + 1).toLocaleString('fa-IR')}</td>
                 <td>{r.tally_number ?? r.tally_id}</td><td>{jalali(r.unloaded_at)}</td><td className="rp-text">{r.owner_name}</td>
                 <td>{ltr(r.hscode ?? '—')}</td><td className="rp-text">{r.description ?? '—'}</td><td>{r.package_type ?? '—'}</td>
                 <td>{r.anbar_name}{r.tagh_name ? ` / ${r.tagh_name}` : ''}</td><td>{r.location_label}</td>
@@ -241,19 +251,20 @@ export function ReportsPrintPage() {
   const { can } = usePermissions()
   const sections = (params.get('sections') ?? '').split(',').filter(Boolean)
   const kind = params.get('kind')
+  const canStock = can(params.get('source') === 'non-customs' ? 'non_customs.stock' : 'reports.stock')
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
 
   return (
     <main className="rp-page" dir="rtl">
       <Group className="rp-actions">
-        <BackButton to="/reports" />
+        <BackButton to={params.get('source') === 'non-customs' ? '/non-customs' : '/reports'} />
       </Group>
       {kind === 'income' && can('reports.income') && from && to && sections.length > 0 &&
         <IncomePrint sections={sections} from={from} to={to} category={params.get('category')} />}
-      {kind === 'stock' && can('reports.stock') && sections.length > 0 &&
+      {kind === 'stock' && canStock && sections.length > 0 &&
         <StockPrint sections={sections} params={params} />}
-      {!((kind === 'income' && can('reports.income')) || (kind === 'stock' && can('reports.stock'))) &&
+      {!((kind === 'income' && can('reports.income')) || (kind === 'stock' && canStock)) &&
         <Alert color="red">گزارش درخواستی نامعتبر است یا دسترسی آن را ندارید.</Alert>}
     </main>
   )

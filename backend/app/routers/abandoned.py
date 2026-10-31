@@ -32,7 +32,7 @@ FROM "FA_TALI_HEADER" h
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = h."ID_PRODUCT_OWNEAR"
 WHERE h."IS_DELETED" = 'no'
   AND h."DATE_UNLOADING" IS NOT NULL
-  AND TRUNC(h."DATE_UNLOADING") <= {TEHRAN_TODAY} - 80
+  AND TRUNC(h."DATE_UNLOADING") <= {TEHRAN_TODAY} - 60
   {STILL_IN_WAREHOUSE_SQL}
 ORDER BY h."DATE_UNLOADING", h."ID_TALI"
 """
@@ -101,7 +101,7 @@ def classify(rows, seen):
     result = []
     for row in rows:
         days = int(row["age_days"])
-        if days < 80:
+        if days < 60:
             continue
         stage = "abandoned" if days >= 90 else "warning"
         unloaded = row["unloaded_at"]

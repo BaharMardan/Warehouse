@@ -932,6 +932,7 @@ type TallyRow = {
   marze_name: string | null
   country_name: string | null
   company_name: string | null
+  representative_name: string | null
   owner_name: string | null
   workflow_status: 'open' | 'pending' | 'closed'
 }
@@ -1014,7 +1015,7 @@ function StatCard({ icon, value, label, color }: {
 }
 
 
-const COLS = 9 // for skeleton width
+const COLS = 10 // for skeleton width
 
 export function TallyListPage() {
   const navigate = useNavigate()
@@ -1047,7 +1048,7 @@ export function TallyListPage() {
     return rows.filter((r) => {
       if (q) {
         const hay = normalizeDigits(
-          [r.tali_number, r.marze_name, r.country_name, r.company_name, r.owner_name]
+          [r.tali_number, r.marze_name, r.country_name, r.company_name, r.representative_name, r.owner_name]
             .map((x) => (x ?? '')).join(' ').toLowerCase(),
         )
         if (!hay.includes(q)) return false
@@ -1189,7 +1190,7 @@ export function TallyListPage() {
           //         <Table.Th style={{ textAlign: 'center' }}>عملیات</Table.Th>
           //       </Table.Tr>
           //     </Table.Thead>
-          <Table.ScrollContainer minWidth={860}>
+          <Table.ScrollContainer minWidth={1020}>
             <Table
               striped
               highlightOnHover
@@ -1217,6 +1218,7 @@ export function TallyListPage() {
                   <Table.Th>نام مرز</Table.Th>
                   <Table.Th>مبدا (کشور)</Table.Th>
                   <Table.Th>نام شرکت حمل</Table.Th>
+                  <Table.Th>نماینده‌ی شرکت حمل</Table.Th>
                   <Table.Th>صاحب کالا</Table.Th>
                   <Table.Th>تاریخ ورود به مرز</Table.Th>
                   <Table.Th>تاریخ تخلیه</Table.Th>
@@ -1240,6 +1242,7 @@ export function TallyListPage() {
                       <Table.Td>{row.marze_name ?? '—'}</Table.Td>
                       <Table.Td>{row.country_name ?? '—'}</Table.Td>
                       <Table.Td>{row.company_name?.trim() || '—'}</Table.Td>
+                      <Table.Td>{row.representative_name?.trim() || '—'}</Table.Td>
                       <Table.Td>{row.owner_name?.trim() || '—'}</Table.Td>
                       <Table.Td>{isoToJalali(row.date_enter_marze)}</Table.Td>
                       <Table.Td>{isoToJalali(row.date_unloading)}</Table.Td>
