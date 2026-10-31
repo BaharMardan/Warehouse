@@ -28,7 +28,9 @@ CANDIDATES_SQL = """SELECT r."ID_ghabz" AS receipt_id, r."TALI_ID" AS tally_id,
  COALESCE(o."COMPANY_NAME", TRIM(o."NAME" || ' ' || o."FAMILY")) AS owner_name,
  NVL(d."WEIGHTE",0) * NVL(s."WEIGHT_SHARE",0) AS weight,
  NVL(d."NUMBER_KALA",0) * NVL(s."QUANTITY_SHARE",0) AS quantity,
- NVL(p."PALLETS",0) AS pallets
+ CASE WHEN r."IS_MASTER" = 'yes'
+      THEN COALESCE(d."ROW_PALLETS", d."NUMBER_PALLET", 0)
+      ELSE NVL(p."PALLETS", 0) END AS pallets
  FROM "fa_ghabz_anbar_header" r
  JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = r."TALI_ID" AND t."IS_DELETED" = 'no'
  JOIN "FA_GHABZ_TALLY_SOURCE" s ON s."RECEIPT_ID" = r."ID_ghabz"
