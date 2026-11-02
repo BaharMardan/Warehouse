@@ -27,7 +27,7 @@ function AbandonedBadge() {
   if (!data) return null
   return <Badge color="red" className="hp-aging-badge"
     title={`${data.abandoned_count} متروکه، ${data.warning_count} در آستانه متروکه${data.has_unseen ? '؛ موارد جدید' : ''}`}>
-    <bdi dir="ltr">{data.total.toLocaleString('fa-IR')}{data.has_unseen ? '+' : ''}</bdi>
+    <bdi dir="ltr">{data.total.toLocaleString('en-US')}{data.has_unseen ? '+' : ''}</bdi>
   </Badge>
 }
 

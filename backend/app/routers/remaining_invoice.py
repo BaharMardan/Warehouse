@@ -17,6 +17,7 @@ WHERE h."ID_GHABZ_ANBAR" = :rid AND NVL(h."SORAT_IS_DELETED", 'no') = 'no'
 AND NOT EXISTS (SELECT 1 FROM "FA_REMAINING_INVOICE" r WHERE r."INVOICE_ID" = h."ID_SORAT")
 ORDER BY h."ID_SORAT"'''
 GOODS_SQL = '''SELECT d."ID_TALI_DETAILS" AS id, d."DESCRIPTION_KALA" AS description,
+ ROW_NUMBER() OVER (ORDER BY d."ID_TALI_DETAILS") AS row_number,
  d."HSCODE" AS hscode, p."CODE" AS kala_code, d."ZARIB_MAHAL" AS zarib_mahal,
  d."NUMBER_HAMEL" AS number_hamel, d."WEIGHTE" AS weight_kg
 FROM "FA_TALI_DETAILES" d LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = d."CODE_GROUPE_KALA"

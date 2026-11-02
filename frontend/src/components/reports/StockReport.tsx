@@ -57,7 +57,7 @@ function RowsTable({ rows }: { rows: StockRow[] }) {
         <Table.Tbody>
           {rows.map((row, index) => (
             <Table.Tr key={row.detail_id}>
-              <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+              <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
               <Table.Td><Button component={Link} to={`/tally/id/${row.tally_id}`} variant="subtle"
                 color="forest" size="compact-sm">{row.tally_number ?? row.tally_id}</Button></Table.Td>
               <Table.Td>{jalali(row.unloaded_at)}</Table.Td>
@@ -99,7 +99,7 @@ function GroupsTable({ data, groupLabel }: { data: StockData; groupLabel: string
     <Table.Td ta="left"><bdi dir="ltr">{money(group.customs_value)}</bdi></Table.Td>
     <Table.Td ta="left">
       <bdi dir="ltr">{money(group.insured_value)}</bdi>
-      {group.insurance_unknown > 0 && <Text size="xs" c="orange">{group.insurance_unknown.toLocaleString('fa-IR')} تالی بدون مبلغ بیمه‌نامه</Text>}
+      {group.insurance_unknown > 0 && <Text size="xs" c="orange">{group.insurance_unknown.toLocaleString('en-US')} تالی بدون مبلغ بیمه‌نامه</Text>}
     </Table.Td>
   </>)
   return (
@@ -118,7 +118,7 @@ function GroupsTable({ data, groupLabel }: { data: StockData; groupLabel: string
             return [
               <Table.Tr key={group.key} style={{ cursor: 'pointer' }} onClick={() => toggle(group.key)}
                 bg={isOpen ? 'var(--app-accent-light)' : undefined}>
-                <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+                <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
                 <Table.Td fw={700}>{isOpen ? '▾' : '◂'} <bdi dir="ltr">{group.label}</bdi></Table.Td>
                 <Table.Td maw={260}><Text size="sm" lineClamp={2} title={list(group.descriptions)}>{list(group.descriptions)}</Text></Table.Td>
                 <Table.Td>{list(group.package_types)}</Table.Td>
@@ -207,7 +207,7 @@ export function StockReport({ from, to, enabled, nonCustoms = false }: { from: s
   return (
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-        <Figure label="تالی‌های دارای کالا" value={t.tallies.toLocaleString('fa-IR')} />
+        <Figure label="تالی‌های دارای کالا" value={t.tallies.toLocaleString('en-US')} />
         <Figure label="وزن اظهار کل (کیلوگرم)" value={amount(t.weight)}
           hint={`${amount(t.weight / 1000, 3)} تن؛ باسکول: ${amount(t.baskol)} کیلوگرم`} />
         <Figure label="تعداد کالا" value={amount(t.quantity)} />
@@ -215,7 +215,7 @@ export function StockReport({ from, to, enabled, nonCustoms = false }: { from: s
         <Figure label="کانتینر" value={amount(t.containers, 0)} />
         <Figure label="ارزش کل کالاها (گمرکی، ریال)" value={money(t.customs_value)} />
         <Figure label="ارزش کل بیمه‌شده (ریال)" value={money(t.insured_value)}
-          hint={t.insurance_unknown > 0 ? `${t.insurance_unknown.toLocaleString('fa-IR')} تالی بیمه‌دار بدون مبلغ بیمه‌نامه، در این جمع نیست` : undefined} />
+          hint={t.insurance_unknown > 0 ? `${t.insurance_unknown.toLocaleString('en-US')} تالی بیمه‌دار بدون مبلغ بیمه‌نامه، در این جمع نیست` : undefined} />
       </SimpleGrid>
 
       <Paper withBorder p="md" radius="md">

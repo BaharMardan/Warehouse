@@ -29,7 +29,7 @@ export function TallyWorkflowStepper({ tallyCreated, receiptsIssued, invoiceIssu
         <span className="tally-workflow-step-icon" aria-hidden><Icon size={21} /></span>
         <span className="tally-workflow-step-label">{stage.label}</span>
         <span className="tally-workflow-step-status" aria-hidden>
-          {done ? <Check size={15} strokeWidth={2.5} /> : done === null ? '…' : (index + 1).toLocaleString('fa-IR')}
+          {done ? <Check size={15} strokeWidth={2.5} /> : done === null ? '…' : (index + 1).toLocaleString('en-US')}
         </span>
       </li>
     })}

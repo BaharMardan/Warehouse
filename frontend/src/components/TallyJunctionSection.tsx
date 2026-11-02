@@ -632,11 +632,11 @@ export function TallyJunctionSection({ config, tallyId }: { config: JunctionConf
                       <Table.Td>
                         {row.selected_price == null
                           ? '—'
-                          : `${Number(row.selected_price).toLocaleString('fa-IR')} ریال`}
+                          : `${Number(row.selected_price).toLocaleString('en-US')} ریال`}
                       </Table.Td>
                     )}
                     {config.serviceKind && (
-                      <Table.Td>{row.calculated_amount == null ? '—' : `${Number(row.calculated_amount).toLocaleString('fa-IR')} ریال`}</Table.Td>
+                      <Table.Td>{row.calculated_amount == null ? '—' : `${Number(row.calculated_amount).toLocaleString('en-US')} ریال`}</Table.Td>
                     )}
                     <Table.Td>{row.description ?? '—'}</Table.Td>
                     {canEdit && (

@@ -14,7 +14,11 @@ export type CancelledInvoice = {
   tally_id: number | null; tally_number: string | null; receipt_number: string | null
   buyer_name: string | null; amount: number; reissued: number
 }
+export type IncomeOwner = IncomeTotals & {
+  owner_id: number; owner_name: string; invoice_count: number; cancelled_count: number; cancelled_amount: number
+}
 export type IncomeSummary = {
+  owner_id: number | null; owners: IncomeOwner[]
   from: string; to: string; invoice_count: number
   categories: IncomeCategory[]; summary: IncomeTotals
   supplementary: { invoices: number; amount: number }
@@ -78,19 +82,19 @@ const query = (params: Record<string, string | null | undefined>) => {
   return search.toString()
 }
 
-export function useIncomeSummary(from: string, to: string, enabled: boolean) {
+export function useIncomeSummary(from: string, to: string, enabled: boolean, ownerId: string | null = null) {
   return useQuery({
-    queryKey: ['reports', 'income', from, to],
-    queryFn: () => apiGet<IncomeSummary>(`/reports/income?${query({ from, to })}`),
+    queryKey: ['reports', 'income', from, to, ownerId],
+    queryFn: () => apiGet<IncomeSummary>(`/reports/income?${query({ from, to, owner_id: ownerId })}`),
     enabled,
     placeholderData: keepPreviousData,
   })
 }
 
-export function useIncomeLines(from: string, to: string, category: string | null, enabled: boolean) {
+export function useIncomeLines(from: string, to: string, category: string | null, enabled: boolean, ownerId: string | null = null) {
   return useQuery({
-    queryKey: ['reports', 'income-lines', from, to, category],
-    queryFn: () => apiGet<IncomeLines>(`/reports/income/lines?${query({ from, to, category })}`),
+    queryKey: ['reports', 'income-lines', from, to, category, ownerId],
+    queryFn: () => apiGet<IncomeLines>(`/reports/income/lines?${query({ from, to, category, owner_id: ownerId })}`),
     enabled,
     placeholderData: keepPreviousData,
   })

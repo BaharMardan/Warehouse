@@ -180,3 +180,27 @@ def summarize_cancelled(rows) -> dict:
     return {"count": len(invoices),
             "amount": sum((row["amount"] for row in invoices), Decimal(0)),
             "invoices": invoices}
+
+
+def filter_owner(rows, owner_id):
+    return [row for row in rows if owner_id is None or (row.get("owner_id") or 0) == owner_id]
+
+
+def summarize_owners(rows, cancelled=()):
+    """Group by stable owner identity, preserving the existing income rules."""
+    buckets = OrderedDict()
+    for kind, source in (("active", rows), ("cancelled", cancelled)):
+        for row in source:
+            key = row.get("owner_id") or 0
+            if key not in buckets:
+                buckets[key] = {"owner_name": row.get("owner_name") or "صاحب کالای نامشخص",
+                                "active": [], "cancelled": []}
+            buckets[key][kind].append(row)
+    groups = []
+    for key, owner in buckets.items():
+        result = summarize(owner["active"])
+        voided = summarize_cancelled(owner["cancelled"])
+        groups.append({"owner_id": key, "owner_name": owner["owner_name"],
+                       "invoice_count": result["invoice_count"], **result["summary"],
+                       "cancelled_count": voided["count"], "cancelled_amount": voided["amount"]})
+    return sorted(groups, key=lambda group: (-group["net"], group["owner_name"], group["owner_id"]))

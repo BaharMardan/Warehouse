@@ -110,7 +110,7 @@ export function ReceiptContext({ id, number }: { id: number; number: string | nu
   return <Paper className="tally-receipt-context" withBorder p="md" mb="md">
     <Group justify="space-between" mb="xs">
       <Text fw={700}>اطلاعات قبض {number ?? id}</Text>
-      <Text size="sm" fw={600}>تعداد پالت این قبض: {receiptPending ? '…' : receiptError ? 'خطا در دریافت' : receipt?.pallet_quantity == null ? '—' : Number(receipt.pallet_quantity).toLocaleString('fa-IR')}</Text>
+      <Text size="sm" fw={600}>تعداد پالت این قبض: {receiptPending ? '…' : receiptError ? 'خطا در دریافت' : receipt?.pallet_quantity == null ? '—' : Number(receipt.pallet_quantity).toLocaleString('en-US')}</Text>
     </Group>
     <Text size="sm" c="dimmed" mb="sm">خدمات تالی را برای این قبض تکمیل می‌کنید. ردیف‌های زیر فقط جهت اطلاع نمایش داده می‌شوند.</Text>
     {isPending && <Text size="sm">در حال دریافت ردیف‌های قبض…</Text>}

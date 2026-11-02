@@ -21,11 +21,12 @@ function Figure({ label, value, hint, strong = false }: {
 
 /** Income of saved invoices issued in the period, per invoice-row category. */
 export function IncomeReport({ from, to, enabled }: { from: string; to: string; enabled: boolean }) {
+  const [ownerId, setOwnerId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string>(ALL)
   const linesRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
-  const summary = useIncomeSummary(from, to, enabled)
-  const lines = useIncomeLines(from, to, selected === ALL ? null : selected, enabled)
+  const summary = useIncomeSummary(from, to, enabled, ownerId)
+  const lines = useIncomeLines(from, to, selected === ALL ? null : selected, enabled, ownerId)
   const data = summary.data
 
   if (summary.isError) return <Alert color="red">دریافت گزارش درآمد ناموفق بود.</Alert>
@@ -41,14 +42,21 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   const adjustment = (key: string) => data.categories.find((c) => c.key === key)!
   const adjustmentOrCharge = (key: string) => data.categories.find((c) => c.key === key)?.label ?? key
   const { summary: totals } = data
+  const owners = data.owners.filter(owner => ownerId === null || String(owner.owner_id) === ownerId)
+  const ownerLabel = ownerId === null ? 'همهٔ صاحبان کالا' : data.owners.find(owner => String(owner.owner_id) === ownerId)?.owner_name ?? 'صاحب کالای انتخاب‌شده'
+  const ownerHeaders = ['صاحب کالا', 'تعداد صورتحساب', 'جمع هزینه‌ها', 'تخفیف', 'درآمد خالص', 'مالیات', 'جمع کل', 'پیش‌پرداخت', 'قابل پرداخت']
+  const ownerAmounts = (owner: typeof owners[number]) => [owner.gross, owner.discount, owner.net, owner.tax, owner.total_with_tax, owner.prepayment, owner.payable]
+  const exportOwners = () => downloadCsv(`income-by-owner_${from}_${to}.csv`, ownerHeaders,
+    [...owners.map(owner => [owner.owner_name, owner.invoice_count, ...ownerAmounts(owner)]),
+     ['جمع کل', data.invoice_count, totals.gross, totals.discount, totals.net, totals.tax, totals.total_with_tax, totals.prepayment, totals.payable]])
 
   const categoryRow = (category: IncomeCategory, index: number) => (
     <Table.Tr key={category.key} c={category.lines === 0 ? 'dimmed' : undefined}
       bg={selected === category.key ? 'var(--app-accent-light)' : undefined}>
-      <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+      <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
       <Table.Td>{category.label}</Table.Td>
-      <Table.Td><bdi dir="ltr">{category.invoices.toLocaleString('fa-IR')}</bdi></Table.Td>
-      <Table.Td><bdi dir="ltr">{category.lines.toLocaleString('fa-IR')}</bdi></Table.Td>
+      <Table.Td><bdi dir="ltr">{category.invoices.toLocaleString('en-US')}</bdi></Table.Td>
+      <Table.Td><bdi dir="ltr">{category.lines.toLocaleString('en-US')}</bdi></Table.Td>
       <Table.Td ta="left"><bdi dir="ltr">{money(category.amount)}</bdi></Table.Td>
       <Table.Td>
         <Button size="compact-sm" variant="subtle" color="forest" disabled={category.lines === 0}
@@ -61,7 +69,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
     <Table.Tr key={key} fw={700} bg="var(--mantine-color-default-hover)"
       style={{ borderTop: `${key === 'payable' ? 4 : 2}px solid var(--mantine-color-forest-8)` }}>
       <Table.Td colSpan={2}>{label}</Table.Td>
-      <Table.Td>{count == null ? '' : <bdi dir="ltr">{count.toLocaleString('fa-IR')}</bdi>}</Table.Td>
+      <Table.Td>{count == null ? '' : <bdi dir="ltr">{count.toLocaleString('en-US')}</bdi>}</Table.Td>
       <Table.Td />
       <Table.Td ta="left"><bdi dir="ltr">{money(value)}</bdi></Table.Td>
       <Table.Td />
@@ -93,14 +101,15 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
 
   const selectedLabel = selected === ALL ? 'همهٔ ردیف‌ها' : adjustmentOrCharge(selected)
   const print = (sections: string[]) => navigate(`/reports/print?${new URLSearchParams({
-    kind: 'income', from, to, sections: sections.join(','), ...(selected === ALL ? {} : { category: selected }),
+    kind: 'income', from, to, sections: sections.join(','), ...(ownerId !== null ? { owner_id: ownerId } : {}), ...(selected === ALL ? {} : { category: selected }),
   })}`)
 
   return (
     <Stack gap="lg">
       <Group justify="flex-end">
-        <PrintButton title="چاپ گزارش درآمد" defaults={['cards', 'summary']} onPrint={print} options={[
+        <PrintButton title="چاپ گزارش درآمد" defaults={['cards', 'summary', 'owners']} onPrint={print} options={[
           { value: 'cards', label: 'ارقام کلی (جمع درآمد، تخفیف، مالیات، پیش‌پرداخت و مبلغ قابل پرداخت)' },
+          { value: 'owners', label: 'درآمد به تفکیک صاحب کالا' },
           { value: 'summary', label: 'خلاصهٔ درآمد به تفکیک نوع ردیف و جمع‌ها' },
           { value: 'lines', label: `جزئیات ردیف‌ها — ${selectedLabel}`,
             description: 'دسته را در بخش «جزئیات ردیف‌ها» پایین صفحه انتخاب کنید.' },
@@ -109,7 +118,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
       </Group>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         <Figure strong label="جمع" value={totals.net}
-          hint={`${data.invoice_count.toLocaleString('fa-IR')} صورتحساب`} />
+          hint={`${data.invoice_count.toLocaleString('en-US')} صورتحساب`} />
         <Figure label="جمع هزینه‌ها (قبل از تخفیف)" value={totals.gross} />
         <Figure label="تخفیف" value={totals.discount} />
         <Figure label="مالیات بر ارزش افزوده" value={totals.tax} />
@@ -150,7 +159,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
         </Text> */}
         
         {/* {data.supplementary.invoices > 0 && <Text size="xs" c="dimmed" mt={4}>
-          در این جمع {data.supplementary.invoices.toLocaleString('fa-IR')} صورتحساب تکمیلی (باقی‌مانده) به مبلغ{' '}
+          در این جمع {data.supplementary.invoices.toLocaleString('en-US')} صورتحساب تکمیلی (باقی‌مانده) به مبلغ{' '}
           <bdi dir="ltr">{money(data.supplementary.amount)}</bdi> ریال هم هست؛ این‌ها درآمد جداگانه‌اند و دوبار شمرده نشده‌اند.
         </Text>} */}
       </Paper>
@@ -187,7 +196,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
               <Table.Tbody>
                 {lines.data.lines.map((l, index) => (
                   <Table.Tr key={l.line_id}>
-                    <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+                    <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
                     <Table.Td>{jalali(l.issued_at)}</Table.Td>
                     <Table.Td><Button component={Link} to={`/invoice/${l.invoice_id}`} variant="subtle"
                       color="forest" size="compact-sm">{l.invoice_id.toLocaleString('en-US')}</Button></Table.Td>
@@ -208,10 +217,34 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
       </Paper>
 
       <Paper withBorder p="md" radius="md">
+        <Group justify="space-between" mb="md">
+          <Title order={4}>درآمد و صورتحساب‌ها به تفکیک صاحب کالا (ریال)</Title>
+          <Button variant="light" color="forest" size="xs" disabled={!owners.length} onClick={exportOwners}>خروجی Excel (CSV)</Button>
+        </Group>
+        <Select label="گزارش بر اساس صاحب کالا" placeholder="همهٔ صاحبان کالا" searchable clearable
+          value={ownerId} onChange={setOwnerId} w={320}
+          data={data.owners.map(owner => ({ value: String(owner.owner_id), label: owner.owner_name }))} />
+        <Text size="sm" c="dimmed" mb="md">{ownerLabel}</Text>
+        {!owners.length ? <Text c="dimmed">در این بازه اطلاعاتی یافت نشد.</Text> : <Table.ScrollContainer minWidth={1350}>
+          <Table striped highlightOnHover><Table.Thead><Table.Tr>
+            {ownerHeaders.map(header => <Table.Th key={header}>{header}</Table.Th>)}<Table.Th />
+          </Table.Tr></Table.Thead><Table.Tbody>
+            {owners.map(owner => <Table.Tr key={owner.owner_id}>
+              <Table.Td>{owner.owner_name}</Table.Td><Table.Td>{owner.invoice_count.toLocaleString('en-US')}</Table.Td>
+              {ownerAmounts(owner).map((value, index) => <Table.Td key={index}><bdi dir="ltr">{money(value)}</bdi></Table.Td>)}
+              <Table.Td><Button variant="subtle" size="xs" color="forest" onClick={() => setOwnerId(String(owner.owner_id))}>مشاهده جزئیات</Button></Table.Td>
+            </Table.Tr>)}
+            <Table.Tr fw={700}><Table.Td>جمع کل</Table.Td><Table.Td>{data.invoice_count.toLocaleString('en-US')}</Table.Td>
+              {[totals.gross, totals.discount, totals.net, totals.tax, totals.total_with_tax, totals.prepayment, totals.payable].map((value, index) => <Table.Td key={index}><bdi dir="ltr">{money(value)}</bdi></Table.Td>)}<Table.Td />
+            </Table.Tr>
+          </Table.Tbody></Table></Table.ScrollContainer>}
+      </Paper>
+
+      <Paper withBorder p="md" radius="md">
         <Group justify="space-between" mb="xs">
           <Title order={4}>صورتحساب‌های باطل‌شده (در درآمد نیامده‌اند)</Title>
           <Badge color="gray" variant="light" size="lg">
-            {data.cancelled.count.toLocaleString('fa-IR')} مورد؛ <bdi dir="ltr">{money(data.cancelled.amount)}</bdi>
+            {data.cancelled.count.toLocaleString('en-US')} مورد؛ <bdi dir="ltr">{money(data.cancelled.amount)}</bdi>
           </Badge>
         </Group>
         {data.cancelled.count === 0 ? <Text c="dimmed">در این بازه صورتحساب باطل‌شده‌ای وجود ندارد.</Text> :
@@ -225,7 +258,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
               <Table.Tbody>
                 {data.cancelled.invoices.map((c, index) => (
                   <Table.Tr key={c.invoice_id}>
-                    <Table.Td>{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+                    <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
                     <Table.Td><bdi dir="ltr">{c.invoice_id}</bdi></Table.Td>
                     <Table.Td>{jalali(c.issued_at)}</Table.Td>
                     <Table.Td>{jalali(c.cancelled_at)}</Table.Td>

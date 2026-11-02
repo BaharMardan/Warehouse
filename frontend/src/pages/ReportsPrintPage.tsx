@@ -50,15 +50,17 @@ function Sheet({ title, meta, children }: { title: string; meta: string[]; child
   )
 }
 
-function IncomePrint({ sections, from, to, category }: { sections: string[]; from: string; to: string; category: string | null }) {
-  const summary = useIncomeSummary(from, to, true)
+function IncomePrint({ sections, from, to, category, ownerId }: { sections: string[]; from: string; to: string; category: string | null; ownerId: string | null }) {
+  const summary = useIncomeSummary(from, to, true, ownerId)
   const wantLines = sections.includes('lines')
-  const lines = useIncomeLines(from, to, category, wantLines)
+  const lines = useIncomeLines(from, to, category, wantLines, ownerId)
   const data: IncomeSummary | undefined = summary.data
   if (summary.isError || (wantLines && lines.isError)) return <Alert color="red">دریافت گزارش ناموفق بود.</Alert>
   if (!data || (wantLines && !lines.data)) return <Center py="xl"><Loader color="forest" /></Center>
 
   const t = data.summary
+  const owners = data.owners.filter(owner => ownerId === null || String(owner.owner_id) === ownerId)
+  const ownerName = ownerId === null ? 'همهٔ صاحبان کالا' : data.owners.find(owner => String(owner.owner_id) === ownerId)?.owner_name ?? 'صاحب کالای نامشخص'
   const cat = (key: string) => data.categories.find((c) => c.key === key)!
   const label = category ? cat(category)?.label : 'همهٔ ردیف‌ها'
   const numberedCategories = data.categories.filter((c) =>
@@ -67,10 +69,10 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
       : c.key === 'tax' || c.lines > 0)
   const row = (name: string, value: number, key: string, strong = false, counts?: [number, number]) => (
     <tr key={key} className={strong ? `rp-strong${key === 'payable' ? ' rp-payable' : ''}` : undefined}>
-      <td>{strong ? '' : (numberedCategories.findIndex((c) => c.key === key) + 1).toLocaleString('fa-IR')}</td>
+      <td>{strong ? '' : (numberedCategories.findIndex((c) => c.key === key) + 1).toLocaleString('en-US')}</td>
       <td className="rp-text">{name}</td>
-      <td>{counts ? ltr(counts[0].toLocaleString('fa-IR')) : ''}</td>
-      <td>{counts ? ltr(counts[1].toLocaleString('fa-IR')) : ''}</td>
+      <td>{counts ? ltr(counts[0].toLocaleString('en-US')) : ''}</td>
+      <td>{counts ? ltr(counts[1].toLocaleString('en-US')) : ''}</td>
       <td>{ltr(money(value))}</td>
     </tr>)
   const entry = (key: string) => row(cat(key).label, cat(key).amount, key, false, [cat(key).invoices, cat(key).lines])
@@ -78,7 +80,7 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
   return (
     <Sheet title="گزارش درآمد صورتحساب‌ها" meta={[
       `بازهٔ صدور: از ${jalali(from)} تا ${jalali(to)}`,
-      `تعداد صورتحساب: ${data.invoice_count.toLocaleString('fa-IR')}`]}>
+      `تعداد صورتحساب: ${data.invoice_count.toLocaleString('en-US')}`, `صاحب کالا: ${ownerName}`]}>
       {sections.includes('cards') && <>
         <h2>ارقام کلی</h2>
         <div className="rp-figures">
@@ -92,6 +94,19 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
         </div>
       </>}
 
+      {sections.includes('owners') && <>
+        <h2>درآمد به تفکیک صاحب کالا (ریال)</h2>
+        <table className="rp-table"><thead><tr>
+          {['صاحب کالا', 'تعداد صورتحساب', 'جمع هزینه‌ها', 'تخفیف', 'درآمد خالص', 'مالیات', 'جمع کل', 'پیش‌پرداخت', 'قابل پرداخت'].map(header => <th key={header}>{header}</th>)}
+        </tr></thead><tbody>
+          {owners.map(owner => <tr key={owner.owner_id}><td>{owner.owner_name}</td><td>{ltr(owner.invoice_count)}</td>
+            {[owner.gross, owner.discount, owner.net, owner.tax, owner.total_with_tax, owner.prepayment, owner.payable].map((value, index) => <td key={index}>{ltr(money(value))}</td>)}
+          </tr>)}
+          <tr className="rp-strong"><td>جمع کل</td><td>{ltr(data.invoice_count)}</td>
+            {[t.gross, t.discount, t.net, t.tax, t.total_with_tax, t.prepayment, t.payable].map((value, index) => <td key={index}>{ltr(money(value))}</td>)}
+          </tr>
+        </tbody></table>
+      </>}
       {sections.includes('summary') && <>
         <h2>خلاصهٔ درآمد به تفکیک نوع ردیف (ریال)</h2>
         <table className="rp-table">
@@ -116,7 +131,7 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
           <tbody>
             {lines.data.lines.map((l, index) => (
               <tr key={l.line_id}>
-                <td>{(index + 1).toLocaleString('fa-IR')}</td>
+                <td>{(index + 1).toLocaleString('en-US')}</td>
                 <td>{jalali(l.issued_at)}</td><td>{ltr(l.invoice_id)}</td><td>{l.tally_number ?? '—'}</td>
                 <td>{ltr(l.receipt_number ?? '—')}</td><td className="rp-text">{l.buyer_name ?? '—'}</td>
                 <td className="rp-text">{l.category_label}</td><td className="rp-text">{l.description ?? '—'}</td>
@@ -136,7 +151,7 @@ function IncomePrint({ sections, from, to, category }: { sections: string[]; fro
           <tbody>
             {data.cancelled.invoices.map((c, index) => (
               <tr key={c.invoice_id}>
-                <td>{(index + 1).toLocaleString('fa-IR')}</td>
+                <td>{(index + 1).toLocaleString('en-US')}</td>
                 <td>{ltr(c.invoice_id)}</td><td>{jalali(c.issued_at)}</td><td>{jalali(c.cancelled_at)}</td>
                 <td>{c.tally_number ?? '—'}</td><td>{ltr(c.receipt_number ?? '—')}</td>
                 <td className="rp-text">{c.buyer_name ?? '—'}</td><td>{ltr(money(c.amount))}</td>
@@ -171,7 +186,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
     params.get('unloaded_from') && `تخلیه از ${jalali(params.get('unloaded_from'))} تا ${jalali(params.get('unloaded_to'))}`,
   ].filter(Boolean) as string[]
   const figures: [string, string][] = [
-    ['تعداد تالی', t.tallies.toLocaleString('fa-IR')],
+    ['تعداد تالی', t.tallies.toLocaleString('en-US')],
     ['وزن اظهار (kg)', amount(t.weight)], ['وزن باسکول (kg)', amount(t.baskol)],
     ['کانتینر', amount(t.containers, 0)],
     ['ارزش کل کالاها (گمرکی، ریال)', money(t.customs_value)], ['ارزش کل بیمه‌شده (ریال)', money(t.insured_value)],
@@ -187,7 +202,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
           {figures.map(([name, value]) => <div key={name}><span>{name}</span><b>{ltr(value)}</b></div>)}
         </div>
         {t.insurance_unknown > 0 && <p className="rp-note">
-          {t.insurance_unknown > 0 && `${t.insurance_unknown.toLocaleString('fa-IR')} تالی بیمه‌دار بدون مبلغ بیمه‌نامه در جمع بیمه نیست.`}
+          {t.insurance_unknown > 0 && `${t.insurance_unknown.toLocaleString('en-US')} تالی بیمه‌دار بدون مبلغ بیمه‌نامه در جمع بیمه نیست.`}
         </p>}
       </>}
 
@@ -202,7 +217,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
           <tbody>
             {data.groups.map((g, index) => (
               <tr key={g.key}>
-                <td>{(index + 1).toLocaleString('fa-IR')}</td>
+                <td>{(index + 1).toLocaleString('en-US')}</td>
                 <td>{ltr(g.label)}</td><td className="rp-text">{list(g.descriptions)}</td><td>{list(g.package_types)}</td>
                 <td className="rp-text">{list(g.owners)}</td><td>{list(g.anbars)} / {list(g.locations)}</td>
                 <td>{ltr(amount(g.weight))}</td><td>{ltr(amount(g.pallets))}</td>
@@ -230,7 +245,7 @@ function StockPrint({ sections, params }: { sections: string[]; params: URLSearc
           <tbody>
             {data.rows.map((r, index) => (
               <tr key={r.detail_id}>
-                <td>{(index + 1).toLocaleString('fa-IR')}</td>
+                <td>{(index + 1).toLocaleString('en-US')}</td>
                 <td>{r.tally_number ?? r.tally_id}</td><td>{jalali(r.unloaded_at)}</td><td className="rp-text">{r.owner_name}</td>
                 <td>{ltr(r.hscode ?? '—')}</td><td className="rp-text">{r.description ?? '—'}</td><td>{r.package_type ?? '—'}</td>
                 <td>{r.anbar_name}{r.tagh_name ? ` / ${r.tagh_name}` : ''}</td><td>{r.location_label}</td>
@@ -261,7 +276,7 @@ export function ReportsPrintPage() {
         <BackButton to={params.get('source') === 'non-customs' ? '/non-customs' : '/reports'} />
       </Group>
       {kind === 'income' && can('reports.income') && from && to && sections.length > 0 &&
-        <IncomePrint sections={sections} from={from} to={to} category={params.get('category')} />}
+        <IncomePrint sections={sections} from={from} to={to} category={params.get('category')} ownerId={params.get('owner_id')} />}
       {kind === 'stock' && canStock && sections.length > 0 &&
         <StockPrint sections={sections} params={params} />}
       {!((kind === 'income' && can('reports.income')) || (kind === 'stock' && canStock)) &&

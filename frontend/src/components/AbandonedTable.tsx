@@ -4,7 +4,7 @@ import type { AgingItem, AgingGoods } from '../api/abandoned'
 import { jalali } from '../pages/invoiceTypes'
 
 const number = (value: number | string | null | undefined) =>
-  value == null ? '—' : Number(value).toLocaleString('fa-IR', { maximumFractionDigits: 3 })
+  value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 3 })
 
 export function AbandonedTable({ rows, warning = false, printable = false }: {
   rows: AgingItem[]; warning?: boolean; printable?: boolean
@@ -21,10 +21,10 @@ export function AbandonedTable({ rows, warning = false, printable = false }: {
       {warning && <Table.Th>روز تا متروکه‌شدن</Table.Th>}
     </Table.Tr></Table.Thead>
     <Table.Tbody>{lines.map(({ tally, goods }, index) => <Table.Tr key={`${tally.id}-${goods?.detail_id ?? 'empty'}`}>
-      <Table.Td>{printable ? (index + 1).toLocaleString('fa-IR') :
+      <Table.Td>{printable ? (index + 1).toLocaleString('en-US') :
         <Button component={Link} to={`/tally/id/${tally.id}`} variant="subtle" color="yellow" size="compact-sm"
           title={`تالی ${tally.tally_number || tally.id}`} aria-label={`مشاهده تالی ${tally.tally_number || tally.id}`}>
-          {(index + 1).toLocaleString('fa-IR')}
+          {(index + 1).toLocaleString('en-US')}
         </Button>}</Table.Td>
       <Table.Td><bdi dir="ltr">{goods?.hscode || '—'}</bdi></Table.Td>
       <Table.Td>{goods?.description || '—'}</Table.Td>
@@ -35,7 +35,7 @@ export function AbandonedTable({ rows, warning = false, printable = false }: {
       <Table.Td>{goods?.receipts.length ? goods.receipts.map(receipt =>
         <div key={receipt.id}><bdi dir="ltr">{receipt.number || receipt.id}</bdi></div>) : '—'}</Table.Td>
       <Table.Td>{jalali(tally.unloaded_at)}</Table.Td>
-      {warning && <Table.Td>{tally.days_remaining.toLocaleString('fa-IR')}</Table.Td>}
+      {warning && <Table.Td>{tally.days_remaining.toLocaleString('en-US')}</Table.Td>}
     </Table.Tr>)}</Table.Tbody>
   </Table>
 }

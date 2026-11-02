@@ -31,7 +31,7 @@ export function AbandonedPage() {
   const section = (title: string, rows: AgingItem[], warning: boolean) =>
     <Paper withBorder p="md" radius="md">
       <Group mb="md" justify="space-between">
-        <Group><Title order={3}>{title}</Title><Badge color="yellow">{rows.length.toLocaleString('fa-IR')}</Badge></Group>
+        <Group><Title order={3}>{title}</Title><Badge color="yellow">{rows.length.toLocaleString('en-US')}</Badge></Group>
         {!warning && <Button color="yellow" leftSection={<IconPrint size={18} />} disabled={!rows.length}
           onClick={() => navigate('/abandoned/print', { state: { rows, userId: user?.id } })}>چاپ فهرست</Button>}
       </Group>
@@ -59,7 +59,7 @@ export function AbandonedPage() {
               style={{ width: '100%', padding: 32, textAlign: 'right', background: 'var(--mantine-color-yellow-light)' }}>
               <Stack gap="sm">
                 <Group justify="space-between"><Title order={3}>{item.title}</Title>
-                  <Badge color="yellow" size="lg">{item.count.toLocaleString('fa-IR')}</Badge>
+                  <Badge color="yellow" size="lg">{item.count.toLocaleString('en-US')}</Badge>
                 </Group>
                 <Text size="sm" c="dimmed">{item.description}</Text>
                 <Text size="sm" fw={700} c="yellow.8">مشاهده فهرست</Text>

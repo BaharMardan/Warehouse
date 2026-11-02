@@ -21,7 +21,7 @@ function normalizeNumberInput(event: FormEvent<HTMLInputElement>) {
   if (start != null && end != null) input.setSelectionRange(start, end)
 }
 
-type Goods = { id: number; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null; remaining_amount?: string | number }
+type Goods = { id: number; row_number: number; zarib_mahal: string | null; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null; remaining_amount?: string | number }
 type Service = { id: number; title: string; price: string | null }
 type Options = { other_services: Service[]; original_invoice_id: number; cargo: string; goods: Goods[]; original_insurance: string }
 type CargoInput = { source_id: number; hscode: string; kala_code: string; amount: string }
@@ -111,7 +111,7 @@ export function RemainingInvoiceModal({ receiptId, close, nonCustoms = false }: 
               </Group>
             <Select classNames={{ dropdown: 'remaining-goods-dropdown', option: 'remaining-colored-option' }} label="انتخاب کالا از تالی" placeholder="کالا را انتخاب کنید" searchable required value={row.source} onChange={value => selectGoods(row.key, value)}
               radius="md" disabled={issue.isPending} data={data.goods.map(row => ({ value: String(row.id),
-                label: `${row.description || 'کالا'} — HS ${row.hscode || '—'}${row.number_hamel ? ` — ${row.number_hamel}` : ''} — ردیف ${row.id}` }))} />
+                label: `${row.description || 'کالا'} — HS ${row.hscode || '—'}${row.number_hamel ? ` — ${row.number_hamel}` : ''} — ردیف ${row.row_number.toLocaleString('en-US')} — ضریب محل: ${row.zarib_mahal || 'نامشخص'}` }))} />
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
               <TextInput label="HS Code" required radius="md" value={row.hscode} onChange={e => updateRow(row.key, { hscode: normalizeSearchDigits(e.currentTarget.value) })} disabled={issue.isPending} maxLength={100} />
               <TextInput label="کد گروه کالا" required radius="md" value={row.code} onChange={e => updateRow(row.key, { code: normalizeSearchDigits(e.currentTarget.value) })} disabled={issue.isPending} maxLength={50} />

@@ -562,7 +562,7 @@ export function KartablPage() {
               >
                 {onlyWaiting
                   ? 'نمایش همه'
-                  : `فقط در انتظار انباردار (${waiting.length.toLocaleString('fa-IR')})`}
+                  : `فقط در انتظار انباردار (${waiting.length.toLocaleString('en-US')})`}
               </Button>
             )}
             <Button
@@ -665,7 +665,7 @@ export function KartablPage() {
 
       {data && data.length > 0 && (
         <Text size="xs" c="dimmed" mt="sm" ta="center">
-          {data.length.toLocaleString('fa-IR')} پرونده
+          {data.length.toLocaleString('en-US')} پرونده
         </Text>
       )}
     </div>

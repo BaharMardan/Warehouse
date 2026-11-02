@@ -597,7 +597,7 @@ export function GhabzDetailPage() {
                 label="تعداد پالت"
                 description={summary?.total_pallet_quantity == null
                   ? 'تعداد کل پالت در تالی ثبت نشده است'
-                  : `تعداد کل پالت تالی: ${summary.total_pallet_quantity.toLocaleString('fa-IR')} | قابل تخصیص به این قبض: ${summary.available_pallet_quantity?.toLocaleString('fa-IR') ?? '—'}`}
+                  : `تعداد کل پالت تالی: ${summary.total_pallet_quantity.toLocaleString('en-US')} | قابل تخصیص به این قبض: ${summary.available_pallet_quantity?.toLocaleString('en-US') ?? '—'}`}
                 inputMode="numeric"
                 size="md"
                 radius="md"

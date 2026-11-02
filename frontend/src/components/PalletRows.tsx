@@ -32,7 +32,7 @@ export function PalletRows({ rows, allocation = false, editable, pending, expect
         <Table.Th>{allocation ? 'پالت این قبض' : 'تعداد پالت این ردیف'}</Table.Th>
       </Table.Tr></Table.Thead>
       <Table.Tbody>{rows.map((row, index) => <Table.Tr key={row.id}>
-        <Table.Td className="tally-pallet-row-number">{(index + 1).toLocaleString('fa-IR')}</Table.Td><Table.Td><IranianPlate value={row.number_hamel} /></Table.Td>
+        <Table.Td className="tally-pallet-row-number">{(index + 1).toLocaleString('en-US')}</Table.Td><Table.Td><IranianPlate value={row.number_hamel} /></Table.Td>
         <Table.Td>{row.description ?? '—'}</Table.Td><Table.Td>{row.hscode ?? '—'}</Table.Td>
         <Table.Td>{row.zarib_mahal ?? '—'}</Table.Td>
         {allocation && <Table.Td>{row.pallets == null ? 'ابتدا پالت تالی را تکمیل کنید' : row.pallets - (row.used_pallets ?? 0)}</Table.Td>}
@@ -43,7 +43,7 @@ export function PalletRows({ rows, allocation = false, editable, pending, expect
       </Table.Tr>)}</Table.Tbody>
     </Table></Table.ScrollContainer>
     <Group justify="space-between" mt="sm">
-      <Text size="sm">جمع پالت ردیف‌ها: {total.toLocaleString('fa-IR')}{expected != null && ` / ${expected.toLocaleString('fa-IR')}`}</Text>
+      <Text size="sm">جمع پالت ردیف‌ها: {total.toLocaleString('en-US')}{expected != null && ` / ${expected.toLocaleString('en-US')}`}</Text>
       {editable && <Button loading={pending} disabled={!valid} onClick={() => onSave(entries)}>ذخیره پالت ردیف‌ها</Button>}
     </Group>
     {editable && !valid && <Text size="xs" c="orange" mt="xs">برای تمام ردیف‌ها تعداد صحیح و مثبت وارد کنید؛ جمع و مانده قابل تخصیص نیز باید رعایت شود.</Text>}

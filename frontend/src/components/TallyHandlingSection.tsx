@@ -202,7 +202,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
             allowDeselect={false}
           />
           {(form.code === '201' || form.code === '401')
-            ? <Text size="sm" c="dimmed">تعداد کانتینر: ۱. {excess > 0 ? `${excessTitle}: ${excess.toLocaleString('fa-IR')} تن (${labels[form.choice ?? '']})` : 'مازاد وزن ندارد.'}</Text>
+            ? <Text size="sm" c="dimmed">تعداد کانتینر: ۱. {excess > 0 ? `${excessTitle}: ${excess.toLocaleString('en-US')} تن (${labels[form.choice ?? '']})` : 'مازاد وزن ندارد.'}</Text>
             : <TextInput label="تعداد" inputMode="numeric" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.currentTarget.value })} />}
         </>}
         {form.choice === automatic && <Text size="sm" c="dimmed">مبلغ از نرخ گروه کالا × وزن اظهارِ حامل انتخاب‌شده محاسبه می‌شود.</Text>}
@@ -219,7 +219,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
     const main = craneCatalog.find(row => row.code === crane.code)?.price_unloding
     const extra = craneCatalog.find(row => row.code === excessCode)?.price_unloding
     const empty = craneCatalog.find(row => row.code === emptyCode)?.price_loading
-    const money = (value: number | null | undefined) => value == null ? 'ثبت نشده' : `${Number(value).toLocaleString('fa-IR')} ریال`
+    const money = (value: number | null | undefined) => value == null ? 'ثبت نشده' : `${Number(value).toLocaleString('en-US')} ریال`
     return <Paper withBorder radius="md" p="md"><Stack gap="sm">
       <Text fw={700}>آیا جابه‌جایی کانتینر با جرثقیل انجام می‌شود؟</Text>
       <Radio.Group value={craneAnswer} onChange={value => {
@@ -235,7 +235,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
             rateId: null, choice: 'normal', quantity: '1' })} allowDeselect={false} />
         {size && <Stack gap={4}>
           <Text size="sm">تخلیه کانتینر پُر: {money(main)}</Text>
-          <Text size="sm">مازاد وزن: {excess.toLocaleString('fa-IR')} تن × {money(extra)}</Text>
+          <Text size="sm">مازاد وزن: {excess.toLocaleString('en-US')} تن × {money(extra)}</Text>
           <Text size="sm">بارگیری کانتینر خالی: {money(empty)}</Text>
           {main != null && empty != null && (excess === 0 || extra != null) &&
             <Text size="sm" fw={700}>جمع جرثقیل: {money(Number(main) + excess * Number(extra ?? 0) + Number(empty))}</Text>}
@@ -269,13 +269,13 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
         const craneRow = craneRows.find((row) => row.number_hamel === number && !row.is_auto_excess && !row.is_auto_empty)
         const excessRows = [...stripRows, ...stuffingRows, ...craneRows].filter((row) => row.number_hamel === number && row.is_auto_excess)
         return <Table.Tr key={number}>
-          <Table.Td className="tally-handling-row-number">{(index + 1).toLocaleString('fa-IR')}</Table.Td>
+          <Table.Td className="tally-handling-row-number">{(index + 1).toLocaleString('en-US')}</Table.Td>
           <Table.Td><IranianPlate value={number} /></Table.Td>
           <Table.Td>{transportationFor(number) === 'yes' ? 'بله' : transportationFor(number) === 'no' ? 'خیر' : 'ثبت نشده'}</Table.Td>
           <Table.Td>{stripRow?.rate_title ?? (stripRow ? labels[stripRow.pricing_type ?? ''] : '—')}</Table.Td>
           <Table.Td>{stuffingRow?.rate_title ?? (stuffingRow ? labels[stuffingRow.pricing_type ?? ''] : '—')}</Table.Td>
           <Table.Td>{craneRow ? craneRow.rate_title ?? 'کانتینر' : 'خیر'}</Table.Td>
-          <Table.Td>{excessRows.length ? excessRows.map((row) => <Text key={`${row.parent_service_id}-${row.rate_code}`} size="sm" c="blue">{row.service_kind === 'strip' ? 'استریپ' : row.service_kind === 'stuffing' ? 'استافینگ' : 'جرثقیل'}: {row.rate_title}: {Number(row.number_service).toLocaleString('fa-IR')} تن ({labels[row.pricing_type ?? '']})</Text>) : '—'}</Table.Td>
+          <Table.Td>{excessRows.length ? excessRows.map((row) => <Text key={`${row.parent_service_id}-${row.rate_code}`} size="sm" c="blue">{row.service_kind === 'strip' ? 'استریپ' : row.service_kind === 'stuffing' ? 'استافینگ' : 'جرثقیل'}: {row.rate_title}: {Number(row.number_service).toLocaleString('en-US')} تن ({labels[row.pricing_type ?? '']})</Text>) : '—'}</Table.Td>
           {canEdit && <Table.Td><Button size="xs" color="blue" variant="light" onClick={() => openFor(number)}>ویرایش خدمات</Button></Table.Td>}
         </Table.Tr>
       })}</Table.Tbody>
@@ -296,7 +296,7 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
         {serviceBox('strip', strip, setStrip)}
         {serviceBox('stuffing', stuffing, setStuffing)}
         {craneBox()}
-        <Paper withBorder radius="md" p="md"><Stack gap="sm"><Text fw={700}>آیا بار شامل باربری می‌شود؟</Text><Radio.Group value={transport ?? ''} onChange={setTransport}><Group><Radio value="yes" label="بله" /><Radio value="no" label="خیر" /></Group></Radio.Group>{transport === 'yes' && <Text size="sm" c="dimmed">نرخ ثابت از تنظیمات: {freightRate == null ? '—' : `${Number(freightRate).toLocaleString('fa-IR')} ریال`}</Text>}</Stack></Paper>
+        <Paper withBorder radius="md" p="md"><Stack gap="sm"><Text fw={700}>آیا بار شامل باربری می‌شود؟</Text><Radio.Group value={transport ?? ''} onChange={setTransport}><Group><Radio value="yes" label="بله" /><Radio value="no" label="خیر" /></Group></Radio.Group>{transport === 'yes' && <Text size="sm" c="dimmed">نرخ ثابت از تنظیمات: {freightRate == null ? '—' : `${Number(freightRate).toLocaleString('en-US')} ریال`}</Text>}</Stack></Paper>
         {!sizesMatch && <Alert color="red">اندازه کانتینر خدمات با نوع حامل در ردیف تالی یکسان نیست. انتخاب خدمات را اصلاح کنید.</Alert>}
         {save.isError && <Alert color="red">{errorMessage(save.error, 'ثبت خدمات ناموفق بود.')}</Alert>}
       </Stack>

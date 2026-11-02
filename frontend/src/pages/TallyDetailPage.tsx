@@ -377,7 +377,7 @@ type InsuranceCheck = {
 }
 
 function formatMoney(value: number): string {
-  return Number(value).toLocaleString('fa-IR')
+  return Number(value).toLocaleString('en-US')
 }
 
 function firstPresent(...values: unknown[]): unknown {

@@ -22,6 +22,9 @@ INCOME_ROWS_SQL = """
 SELECT s."ID_SORAT" AS invoice_id, s."SORAT_CREATE_AT" AS issued_at,
        s."TALI_ID_HEADER" AS tally_id, t."TALI_NUMBER" AS tally_number,
        g."GHABZ_NUMBER" AS receipt_number,
+       COALESCE(t."ID_PRODUCT_OWNEAR", s."BUYER_COMPANY_ID") AS owner_id,
+       COALESCE(NULLIF(TRIM(ow."COMPANY_NAME"), ''),
+                NULLIF(TRIM(ow."NAME" || ' ' || ow."FAMILY"), '')) AS owner_name,
        COALESCE(NULLIF(TRIM(o."COMPANY_NAME"), ''),
                 NULLIF(TRIM(o."NAME" || ' ' || o."FAMILY"), '')) AS buyer_name,
        d."ID_SORA_DETAILS" AS line_id, d."ROW_KIND" AS row_kind,
@@ -34,6 +37,7 @@ LEFT JOIN "FA_REMAINING_INVOICE" rem ON rem."INVOICE_ID" = s."ID_SORAT"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
+LEFT JOIN "FA_PRODUCT_OWNER" ow ON ow."ID_OWNER" = COALESCE(t."ID_PRODUCT_OWNEAR", s."BUYER_COMPANY_ID")
 WHERE NVL(s."SORAT_IS_DELETED", 'no') = 'no'
   AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')
   AND s."SORAT_CREATE_AT" >= :start_at AND s."SORAT_CREATE_AT" < :end_before
@@ -47,6 +51,9 @@ SELECT s."ID_SORAT" AS invoice_id, s."SORAT_CREATE_AT" AS issued_at,
        s."SORAT_MODIFY_AT" AS cancelled_at,
        s."TALI_ID_HEADER" AS tally_id, t."TALI_NUMBER" AS tally_number,
        g."GHABZ_NUMBER" AS receipt_number,
+       COALESCE(t."ID_PRODUCT_OWNEAR", s."BUYER_COMPANY_ID") AS owner_id,
+       COALESCE(NULLIF(TRIM(ow."COMPANY_NAME"), ''),
+                NULLIF(TRIM(ow."NAME" || ' ' || ow."FAMILY"), '')) AS owner_name,
        COALESCE(NULLIF(TRIM(o."COMPANY_NAME"), ''),
                 NULLIF(TRIM(o."NAME" || ' ' || o."FAMILY"), '')) AS buyer_name,
        (SELECT NVL(SUM(NVL(d."PRICE_DETAILS", 0) - NVL(d."TAKHFIF_DETAILS", 0)), 0)
@@ -62,6 +69,7 @@ FROM "FA_SORAT_HESAB_HEADER" s
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
+LEFT JOIN "FA_PRODUCT_OWNER" ow ON ow."ID_OWNER" = COALESCE(t."ID_PRODUCT_OWNEAR", s."BUYER_COMPANY_ID")
 WHERE s."SORAT_IS_DELETED" = 'yes'
   AND s."SORAT_CREATE_AT" >= :start_at AND s."SORAT_CREATE_AT" < :end_before
 ORDER BY s."SORAT_CREATE_AT", s."ID_SORAT"
@@ -137,25 +145,31 @@ def cancelled_rows(period):
 
 @router.get("/income")
 def income_summary(period=Depends(report_period),
-                   user: dict = Depends(require_permission("reports.income"))):
+                   user: dict = Depends(require_permission("reports.income")), owner_id: int | None = None):
     """Income per invoice-row category and the grand totals, by invoice issue date.
 
     Income counts active invoices only. An invoice that was cancelled and issued
     again counts once, under the new invoice; cancelled ones are listed apart.
     Prepayment is a payment, not income: it only reduces the payable balance.
     """
-    result = income_report.summarize(income_rows(period))
-    cancelled = income_report.summarize_cancelled(cancelled_rows(period))
-    return serializable({"from": period[0], "to": period[1], **result, "cancelled": cancelled})
+    if owner_id is not None and owner_id < 0:
+        raise HTTPException(422, "صاحب کالا نامعتبر است")
+    rows, voided = income_rows(period), cancelled_rows(period)
+    result = income_report.summarize(income_report.filter_owner(rows, owner_id))
+    cancelled = income_report.summarize_cancelled(income_report.filter_owner(voided, owner_id))
+    return serializable({"from": period[0], "to": period[1], "owner_id": owner_id,
+        **result, "cancelled": cancelled, "owners": income_report.summarize_owners(rows, voided)})
 
 
 @router.get("/income/lines")
 def income_lines(period=Depends(report_period), category: str | None = None,
-                 user: dict = Depends(require_permission("reports.income"))):
+                 user: dict = Depends(require_permission("reports.income")), owner_id: int | None = None):
     """Every invoice row in the period, optionally of one category."""
     if category is not None and category not in income_report.CATEGORY_LABELS:
         raise HTTPException(422, "دستهٔ درخواستی نامعتبر است")
-    lines = [line for line in income_report.classified(income_rows(period))
+    if owner_id is not None and owner_id < 0:
+        raise HTTPException(422, "صاحب کالا نامعتبر است")
+    lines = [line for line in income_report.classified(income_report.filter_owner(income_rows(period), owner_id))
              if category is None or line["category"] == category]
     total = sum((line["amount"] for line in lines), Decimal(0))
     shown = [{**line, "category_label": income_report.CATEGORY_LABELS[line["category"]]}

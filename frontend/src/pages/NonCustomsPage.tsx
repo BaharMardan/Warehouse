@@ -25,7 +25,7 @@ function normalizeNumberInput(event: FormEvent<HTMLInputElement>) {
 
 type Row = { row_number: number; zarib_mahal: string | null; receipt_id: number; source_id: number; tally_id: number; tally_number: string; receipt_number: string; invoice_id: number; invoice_active: number; owner_name: string; description: string; hscode: string; cargo: string; weight: string; quantity: string; pallets: string; start_date: string }
 type Stock = { items: Row[]; totals: { weight: string; quantity: string; pallets: string } }
-const fmt = (n: string | number) => Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 4 })
+const fmt = (n: string | number) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })
 const rowKey = (r: Row) => `${r.receipt_id}:${r.source_id}`
 type AmountValues = { weight: string; quantity: string; pallets: string }
 type DraftRow = AmountValues & { key: number; selection: string | null }
@@ -168,7 +168,7 @@ export function NonCustomsPage() {
             value={amounts[k]} disabled={save.isPending} min={0} max={Number(exitRow[k])} decimalScale={4} onChange={v => setAmounts(a => ({ ...a, [k]: String(v) }))} />)}
         </>}
         {save.isError && <Alert color="red">{errorMessage(save.error, 'ثبت انجام نشد؛ اطلاعات و موجودی را بررسی کنید.')}</Alert>}
-        <Button loading={save.isPending} disabled={!exitRow && (!selectedTally || !validDrafts || !settled || !start)} onClick={() => save.mutate()}>{exitRow ? 'ثبت خروج' : `ثبت ${drafts.length.toLocaleString('fa-IR')} ردیف`}</Button>
+        <Button loading={save.isPending} disabled={!exitRow && (!selectedTally || !validDrafts || !settled || !start)} onClick={() => save.mutate()}>{exitRow ? 'ثبت خروج' : `ثبت ${drafts.length.toLocaleString('en-US')} ردیف`}</Button>
       </Stack>
     </Modal>
     {billing !== null && <RemainingInvoiceModal receiptId={billing} nonCustoms close={() => setBilling(null)} />}

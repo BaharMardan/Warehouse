@@ -52,7 +52,7 @@ function formatAmount(value: unknown): string {
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[,\u066C]/g, '')
   const amount = Number(normalized)
-  return Number.isFinite(amount) ? amount.toLocaleString('fa-IR') : String(value)
+  return Number.isFinite(amount) ? amount.toLocaleString('en-US') : String(value)
 }
 
 export function RefSelect({

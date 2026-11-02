@@ -27,12 +27,12 @@ export function KeeperQueueBell() {
   return (
     <Tooltip
       label={waiting > 0
-        ? `${waiting.toLocaleString('fa-IR')} سند در انتظار تکمیل`
+        ? `${waiting.toLocaleString('en-US')} سند در انتظار تکمیل`
         : 'سند در انتظار تکمیل ندارید'}
       withArrow
     >
       <Indicator
-        label={waiting.toLocaleString('fa-IR')}
+        label={waiting.toLocaleString('en-US')}
         size={18}
         color="orange"
         disabled={waiting === 0}

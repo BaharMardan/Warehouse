@@ -56,7 +56,7 @@ export function RolesPanel() {
   }
   const confirmDelete = (role: RoleRow) => {
     const holders = role.user_count > 0
-      ? `\nاین نقش از ${role.user_count.toLocaleString('fa-IR')} کاربر گرفته می‌شود.`
+      ? `\nاین نقش از ${role.user_count.toLocaleString('en-US')} کاربر گرفته می‌شود.`
       : ''
     if (confirm(`حذف نقش «${role.title}»؟${holders}`)) remove.mutate(role.id)
   }
@@ -75,7 +75,7 @@ export function RolesPanel() {
           </Group>
         ),
     },
-    { key: 'users', label: 'کاربران', render: (role) => role.user_count.toLocaleString('fa-IR') },
+    { key: 'users', label: 'کاربران', render: (role) => role.user_count.toLocaleString('en-US') },
     {
       key: '__actions', label: 'عملیات', render: (role) => (
         <Group gap={4} justify="center" wrap="nowrap">

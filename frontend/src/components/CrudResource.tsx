@@ -414,7 +414,7 @@ export function CrudResource<T extends Record<string, any>>({ config }: { config
 
       {records.length > 0 && (
         <Text size="xs" c="dimmed" mt="sm" ta="center">
-          نمایش {filtered.length.toLocaleString('fa-IR')} از {records.length.toLocaleString('fa-IR')} مورد
+          نمایش {filtered.length.toLocaleString('en-US')} از {records.length.toLocaleString('en-US')} مورد
         </Text>
       )}
 

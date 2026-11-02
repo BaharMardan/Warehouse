@@ -267,7 +267,7 @@ export function OwnersPage() {
       key: 'representatives', label: 'نمایندگان صاحب کالا', render: (owner) => owner.type === 'حقوقی' ? (
         <Group gap={6} wrap="nowrap">
           <UsersRound size={16} />
-          <Text size="sm">{owner.representatives.length.toLocaleString('fa-IR')} نفر</Text>
+          <Text size="sm">{owner.representatives.length.toLocaleString('en-US')} نفر</Text>
         </Group>
       ) : <Text c="dimmed">—</Text>,
     },
@@ -373,7 +373,7 @@ export function OwnersPage() {
 
       {(ownersQuery.data?.length ?? 0) > 0 && (
         <Text size="xs" c="dimmed" mt="sm" ta="center">
-          نمایش {filteredOwners.length.toLocaleString('fa-IR')} از {(ownersQuery.data?.length ?? 0).toLocaleString('fa-IR')} مورد
+          نمایش {filteredOwners.length.toLocaleString('en-US')} از {(ownersQuery.data?.length ?? 0).toLocaleString('en-US')} مورد
         </Text>
       )}
 
@@ -490,7 +490,7 @@ export function OwnersPage() {
                 {form.representatives.map((representative, index) => (
                   <Paper key={index} withBorder radius="md" p="md" bg="var(--mantine-color-gray-light)">
                     <Group justify="space-between" mb="sm">
-                      <Text fw={600} size="sm">نماینده {Number(index + 1).toLocaleString('fa-IR')}</Text>
+                      <Text fw={600} size="sm">نماینده {Number(index + 1).toLocaleString('en-US')}</Text>
                       <Tooltip label="حذف نماینده">
                         <ActionIcon
                           variant="subtle" color="red" radius="md"

@@ -1005,7 +1005,7 @@ function StatCard({ icon, value, label, color }: {
         <ThemeIcon size={56} radius="md" variant="filled" color={color}>{icon}</ThemeIcon>
         <div style={{ minWidth: 0 }}>
           <Text fw={800} lh={1.05} style={{ fontSize: '2.15rem' }}>
-            {value.toLocaleString('fa-IR')}
+            {value.toLocaleString('en-US')}
           </Text>
           <Text size="sm" c="dimmed" mt={4} fw={500}>{label}</Text>
         </div>
@@ -1278,7 +1278,7 @@ export function TallyListPage() {
 
       {data && data.length > 0 && (
         <Text size="xs" c="dimmed" mt="sm" ta="center">
-          نمایش {filtered.length.toLocaleString('fa-IR')} از {rows.length.toLocaleString('fa-IR')} تالی
+          نمایش {filtered.length.toLocaleString('en-US')} از {rows.length.toLocaleString('en-US')} تالی
         </Text>
       )}
     </Box>

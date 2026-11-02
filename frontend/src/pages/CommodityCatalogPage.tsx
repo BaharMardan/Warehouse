@@ -253,7 +253,7 @@ export function CommodityCatalogPage() {
       {items.length > 0 && (
         <Group justify="space-between" mt="sm" wrap="wrap" gap="sm">
           <Text size="sm" c="dimmed">
-            {data!.total.toLocaleString('fa-IR')} کالا{isFetching ? ' …' : ''}
+            {data!.total.toLocaleString('en-US')} کالا{isFetching ? ' …' : ''}
           </Text>
           <Pagination value={page} onChange={setPage} total={totalPages} radius="md" />
         </Group>
