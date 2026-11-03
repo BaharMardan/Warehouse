@@ -1,7 +1,4 @@
-"""Temporary manual numbering using the existing BY DEFAULT identity column.
-
-Before restoring generated numbers, resync the identity using START WITH LIMIT VALUE.
-"""
+"""Manual invoice numbers are unique among active records; internal IDs never change."""
 import re
 import oracledb
 from fastapi import HTTPException
@@ -30,9 +27,10 @@ def require_number(value):
 
 def ensure_available(cur, value):
     from app.services import receipt_db as db
-    if db.one(cur, 'SELECT "ID_SORAT" AS id FROM "FA_SORAT_HESAB_HEADER" WHERE "ID_SORAT" = :invoice_number',
+    if db.one(cur, """SELECT "ID_SORAT" AS id FROM "FA_SORAT_HESAB_HEADER"
+        WHERE "INVOICE_NUMBER" = :invoice_number AND NVL("SORAT_IS_DELETED", 'no') = 'no'""",
               {"invoice_number": value}):
-        raise HTTPException(409, "این شماره صورتحساب قبلاً استفاده شده است؛ شماره دیگری وارد کنید")
+        raise HTTPException(409, "این شماره متعلق به یک صورتحساب فعال است؛ شماره دیگری وارد کنید")
 
 
 def insert_numbered_header(cur, sql, params):
@@ -40,5 +38,5 @@ def insert_numbered_header(cur, sql, params):
         cur.execute(sql, params)
     except oracledb.IntegrityError as exc:
         if exc.args and getattr(exc.args[0], "code", None) == 1:
-            raise HTTPException(409, "این شماره صورتحساب قبلاً استفاده شده است؛ شماره دیگری وارد کنید") from exc
+            raise HTTPException(409, "این شماره متعلق به یک صورتحساب فعال است؛ شماره دیگری وارد کنید") from exc
         raise

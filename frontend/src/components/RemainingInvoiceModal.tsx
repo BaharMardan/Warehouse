@@ -23,7 +23,7 @@ function normalizeNumberInput(event: FormEvent<HTMLInputElement>) {
 
 type Goods = { id: number; row_number: number; zarib_mahal: string | null; description: string | null; hscode: string | null; kala_code: string | null; number_hamel: string | null; remaining_amount?: string | number }
 type Service = { id: number; title: string; price: string | null }
-type Options = { other_services: Service[]; original_invoice_id: number; cargo: string; goods: Goods[]; original_insurance: string }
+type Options = { other_services: Service[]; original_invoice_number?: number; original_invoice_id: number; cargo: string; goods: Goods[]; original_insurance: string }
 type CargoInput = { source_id: number; hscode: string; kala_code: string; amount: string }
 type CargoRow = { key: string; source: string | null; hscode: string; code: string; amount: string | number }
 const emptyRow = (): CargoRow => ({ key: requestId(), source: null, hscode: '', code: '', amount: '' })
@@ -93,7 +93,7 @@ export function RemainingInvoiceModal({ receiptId, close, nonCustoms = false }: 
       {data && <>
         <Paper className="remaining-original" withBorder radius="md" p="sm">
           <Group justify="space-between" gap="xs">
-            <Badge variant="light" size="lg">صورتحساب اصلی {data.original_invoice_id}</Badge>
+            <Badge variant="light" size="lg">صورتحساب اصلی {data.original_invoice_number ?? data.original_invoice_id}</Badge>
             <Text size="sm" c="dimmed">بیمهٔ اصلی: <bdi>{money(data.original_insurance)}</bdi> ریال</Text>
           </Group>
         </Paper>

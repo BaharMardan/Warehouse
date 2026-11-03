@@ -172,6 +172,8 @@ def test_preview_does_not_require_or_use_dates(monkeypatch):
         raise AssertionError(sql)
     monkeypatch.setattr(db, "rows", rows)
     def one(cur, sql, params=None):
+        if '"INVOICE_NUMBER" AS invoice_number' in sql:
+            return {"invoice_number": 314}
         assert sql == api.INSURANCE_SQL
         return {"amount": 100}
     monkeypatch.setattr(db, "one", one)
@@ -318,3 +320,21 @@ def test_batch_preview_checks_every_goods_row_and_tariff(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         api.preview(None, {"id": 858, "tally_id": 1523}, {"is_volumetric": "weight"}, request)
     assert exc.value.status_code == 422
+
+
+def test_reused_manual_number_uses_new_record_id(wired):
+    conn, cur, request = wired
+    cur.fetchone.return_value = (1901,)
+    assert api.issue_invoice(858, request, {"id": 1}) == {"invoice_id": 1901}
+    header = next(call for call in cur.execute.call_args_list if 'INSERT INTO "FA_SORAT_HESAB_HEADER"' in call.args[0])
+    assert header.args[1]["invoice_number"] == 900
+    assert header.args[1]["invoice_id"] == 1901
+    assert cur.execute.call_args.args[1]["iid"] == 1901
+
+
+def test_remaining_retry_matches_public_number_and_returns_record_id(wired, monkeypatch):
+    conn, cur, request = wired
+    monkeypatch.setattr(db, "one", lambda *a, **k: {"id": 1901, "invoice_number": 900,
+        "receipt_id": 858, "preview_hash": request.preview_hash, "deleted": "no"})
+    assert api.issue_invoice(858, request, {"id": 1}) == {"invoice_id": 1901}
+    cur.execute.assert_not_called()

@@ -132,7 +132,7 @@ function IncomePrint({ sections, from, to, category, ownerId }: { sections: stri
             {lines.data.lines.map((l, index) => (
               <tr key={l.line_id}>
                 <td>{(index + 1).toLocaleString('en-US')}</td>
-                <td>{jalali(l.issued_at)}</td><td>{ltr(l.invoice_id)}</td><td>{l.tally_number ?? '—'}</td>
+                <td>{jalali(l.issued_at)}</td><td>{ltr(l.invoice_number ?? l.invoice_id)}</td><td>{l.tally_number ?? '—'}</td>
                 <td>{ltr(l.receipt_number ?? '—')}</td><td className="rp-text">{l.buyer_name ?? '—'}</td>
                 <td className="rp-text">{l.category_label}</td><td className="rp-text">{l.description ?? '—'}</td>
                 <td>{ltr(money(l.amount))}</td>
@@ -152,7 +152,7 @@ function IncomePrint({ sections, from, to, category, ownerId }: { sections: stri
             {data.cancelled.invoices.map((c, index) => (
               <tr key={c.invoice_id}>
                 <td>{(index + 1).toLocaleString('en-US')}</td>
-                <td>{ltr(c.invoice_id)}</td><td>{jalali(c.issued_at)}</td><td>{jalali(c.cancelled_at)}</td>
+                <td>{ltr(c.invoice_number ?? c.invoice_id)}</td><td>{jalali(c.issued_at)}</td><td>{jalali(c.cancelled_at)}</td>
                 <td>{c.tally_number ?? '—'}</td><td>{ltr(c.receipt_number ?? '—')}</td>
                 <td className="rp-text">{c.buyer_name ?? '—'}</td><td>{ltr(money(c.amount))}</td>
                 <td>{c.reissued ? 'دوباره صادر شده' : 'صادر نشده'}</td>

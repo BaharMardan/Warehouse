@@ -10,7 +10,7 @@ export type IncomeTotals = {
   total_with_tax: number; prepayment: number; payable: number
 }
 export type CancelledInvoice = {
-  invoice_id: number; issued_at: string | null; cancelled_at: string | null
+  invoice_id: number; invoice_number?: number; issued_at: string | null; cancelled_at: string | null
   tally_id: number | null; tally_number: string | null; receipt_number: string | null
   buyer_name: string | null; amount: number; reissued: number
 }
@@ -26,7 +26,7 @@ export type IncomeSummary = {
   cancelled: { count: number; amount: number; invoices: CancelledInvoice[] }
 }
 export type IncomeLine = {
-  invoice_id: number; issued_at: string | null; tally_id: number | null; tally_number: string | null
+  invoice_id: number; invoice_number?: number; issued_at: string | null; tally_id: number | null; tally_number: string | null
   receipt_number: string | null; buyer_name: string | null; line_id: number
   description: string | null; quantity: number | null; weight: number | null
   amount: number; category: string; category_label: string

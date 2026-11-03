@@ -19,7 +19,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 MAX_LINES = 20000
 
 INCOME_ROWS_SQL = """
-SELECT s."ID_SORAT" AS invoice_id, s."SORAT_CREATE_AT" AS issued_at,
+SELECT s."ID_SORAT" AS invoice_id, s."INVOICE_NUMBER" AS invoice_number, s."SORAT_CREATE_AT" AS issued_at,
        s."TALI_ID_HEADER" AS tally_id, t."TALI_NUMBER" AS tally_number,
        g."GHABZ_NUMBER" AS receipt_number,
        COALESCE(t."ID_PRODUCT_OWNEAR", s."BUYER_COMPANY_ID") AS owner_id,
@@ -47,7 +47,7 @@ ORDER BY s."SORAT_CREATE_AT", s."ID_SORAT", d."ID_SORA_DETAILS"
 # Cancelling an invoice only marks its header deleted (routers/invoice.py), so the
 # detail rows still hold its amounts. SORAT_MODIFY_AT is then the cancellation time.
 CANCELLED_SQL = """
-SELECT s."ID_SORAT" AS invoice_id, s."SORAT_CREATE_AT" AS issued_at,
+SELECT s."ID_SORAT" AS invoice_id, s."INVOICE_NUMBER" AS invoice_number, s."SORAT_CREATE_AT" AS issued_at,
        s."SORAT_MODIFY_AT" AS cancelled_at,
        s."TALI_ID_HEADER" AS tally_id, t."TALI_NUMBER" AS tally_number,
        g."GHABZ_NUMBER" AS receipt_number,
@@ -62,7 +62,8 @@ SELECT s."ID_SORAT" AS invoice_id, s."SORAT_CREATE_AT" AS issued_at,
            AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')) AS amount,
        CASE WHEN EXISTS (SELECT 1 FROM "FA_SORAT_HESAB_HEADER" n
                           WHERE n."ID_GHABZ_ANBAR" = s."ID_GHABZ_ANBAR"
-                            AND n."ID_SORAT" > s."ID_SORAT"
+                            AND n."ID_SORAT" <> s."ID_SORAT"
+                            AND n."SORAT_CREATE_AT" >= s."SORAT_CREATE_AT"
                             AND NVL(n."SORAT_IS_DELETED", 'no') = 'no')
             THEN 1 ELSE 0 END AS reissued
 FROM "FA_SORAT_HESAB_HEADER" s

@@ -58,11 +58,12 @@ def serializable(value):
 
 def calculate(*, payload: RemainingInput, source: dict, tariff: dict, cargo: str,
               settings: dict, original_id: int, original_insurance,
-              receipt_id: int, tally_id: int, service_catalog=None):
+              receipt_id: int, tally_id: int, service_catalog=None, original_number=None):
     if payload.source_id != int(source["id"]):
         raise ValueError("کالای انتخاب‌شده متعلق به این تالی نیست")
     if not payload.hscode.strip() or not payload.kala_code.strip():
         raise ValueError("HS Code و کد گروه کالا الزامی هستند")
+    original_number = original_number or original_id
     cargo = ri.cargo_type(cargo)
     days = payload.days
     loc = sc.location(source.get("zarib_mahal"))
@@ -81,7 +82,7 @@ def calculate(*, payload: RemainingInput, source: dict, tariff: dict, cargo: str
     insurance_base = Decimal(str(original_insurance or 0))
     insurance_amount = sc.round_rial(insurance_base * payload.insurance_percent / 100)
     insurance = ri.InvoiceRow("insurance", "بیمه باقی‌مانده", insurance_amount,
-        f"بیمه صورتحساب اصلی {original_id}: {sc.fmt(insurance_base)} × {sc.fmt(payload.insurance_percent)}٪ = {sc.fmt(insurance_amount)}")
+        f"بیمه صورتحساب اصلی {original_number}: {sc.fmt(insurance_base)} × {sc.fmt(payload.insurance_percent)}٪ = {sc.fmt(insurance_amount)}")
     for name in ("system_service_rate", "tax_rate"):
         number = Decimal(str(settings.get(name)))
         if not number.is_finite() or number < 0:
@@ -109,11 +110,11 @@ def calculate(*, payload: RemainingInput, source: dict, tariff: dict, cargo: str
     snapshot = serializable({"inputs": payload.model_dump(include=set(RemainingInput.model_fields)),
         "other_services": service_snapshot, "source": source, "tariff": tariff, "cargo": cargo,
         "billed_days": days, "day_basis": "manual",
-        "settings": settings, "original_invoice_id": original_id, "original_insurance": insurance_base,
+        "settings": settings, "original_invoice_id": original_id, "original_invoice_number": original_number, "original_insurance": insurance_base,
         "receipt_id": receipt_id, "tally_id": tally_id})
     result = {"rows": serializable([asdict(row) for row in rows]), "total": str(totals.payable),
               "subtotal": str(totals.subtotal), "tax": str(totals.tax), "snapshot": snapshot,
-              "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {original_id}؛ نوع بار: {ri.CARGO_LABELS[cargo]}؛ تعداد روز واردشده: {days} روز"}
+              "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {original_number}؛ نوع بار: {ri.CARGO_LABELS[cargo]}؛ تعداد روز واردشده: {days} روز"}
     result["preview_hash"] = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     return result
 
@@ -145,7 +146,7 @@ def calculate_many(*, payload: RemainingBatchInput, sources: list[dict], tariffs
     snapshot = serializable(snapshot)
     result = {"rows": serializable([asdict(row) for row in rows]), "total": str(totals.payable),
         "subtotal": str(totals.subtotal), "tax": str(totals.tax), "snapshot": snapshot,
-        "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {context['original_id']}؛ نوع بار: {ri.CARGO_LABELS[snapshot['cargo']]}؛ " +
+        "calc_note": f"صورتحساب باقی‌مانده؛ اصلی {context.get('original_number') or context['original_id']}؛ نوع بار: {ri.CARGO_LABELS[snapshot['cargo']]}؛ " +
                      f"تعداد روز واردشده: {payload.days} روز"}
     result["preview_hash"] = hashlib.sha256(json.dumps(result, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     return result

@@ -95,7 +95,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
   const exportLines = () => lines.data && downloadCsv(
     `income-lines_${selected}_${from}_${to}.csv`,
     ['ردیف', 'تاریخ صدور', 'شماره صورتحساب', 'شماره تالی', 'شماره قبض', 'خریدار', 'دسته', 'شرح', 'تعداد', 'وزن', 'مبلغ (ریال)'],
-    lines.data.lines.map((l, index) => [index + 1, jalali(l.issued_at), l.invoice_id, l.tally_number, l.receipt_number,
+    lines.data.lines.map((l, index) => [index + 1, jalali(l.issued_at), l.invoice_number ?? l.invoice_id, l.tally_number, l.receipt_number,
       l.buyer_name, l.category_label, l.description, l.quantity, l.weight, l.amount]),
   )
 
@@ -199,7 +199,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
                     <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
                     <Table.Td>{jalali(l.issued_at)}</Table.Td>
                     <Table.Td><Button component={Link} to={`/invoice/${l.invoice_id}`} variant="subtle"
-                      color="forest" size="compact-sm">{l.invoice_id.toLocaleString('en-US')}</Button></Table.Td>
+                      color="forest" size="compact-sm">{(l.invoice_number ?? l.invoice_id).toLocaleString('en-US')}</Button></Table.Td>
                     <Table.Td>{l.tally_id ? <Button component={Link} to={`/tally/id/${l.tally_id}`}
                       variant="subtle" color="forest" size="compact-sm">{l.tally_number ?? l.tally_id}</Button> : '—'}</Table.Td>
                     <Table.Td><bdi dir="ltr">{l.receipt_number ?? '—'}</bdi></Table.Td>
@@ -259,7 +259,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
                 {data.cancelled.invoices.map((c, index) => (
                   <Table.Tr key={c.invoice_id}>
                     <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
-                    <Table.Td><bdi dir="ltr">{c.invoice_id}</bdi></Table.Td>
+                    <Table.Td><bdi dir="ltr">{c.invoice_number ?? c.invoice_id}</bdi></Table.Td>
                     <Table.Td>{jalali(c.issued_at)}</Table.Td>
                     <Table.Td>{jalali(c.cancelled_at)}</Table.Td>
                     <Table.Td>{c.tally_number ?? '—'}</Table.Td>

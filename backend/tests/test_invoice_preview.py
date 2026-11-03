@@ -84,13 +84,14 @@ def test_issue_requires_a_preview(wired):
     conn.commit.assert_not_called()
 
 
-def test_duplicate_including_cancelled_number_cannot_issue(wired, monkeypatch):
+def test_active_duplicate_number_cannot_issue(wired, monkeypatch):
     _, conn, cur = wired
     result = api.preview_invoice(1, preview_payload())
     original = db.one
     def one(cursor, sql, params=None):
         if params and "invoice_number" in params:
-            assert "SORAT_IS_DELETED" not in sql
+            assert "SORAT_IS_DELETED" in sql
+            assert "INVOICE_NUMBER" in sql
             return {"id": 555}
         return original(cursor, sql, params)
     monkeypatch.setattr(db, "one", one)

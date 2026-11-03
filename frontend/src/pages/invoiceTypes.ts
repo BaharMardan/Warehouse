@@ -2,7 +2,8 @@ import { toJalaali } from 'jalaali-js'
 
 export type InvoiceHeader = {
   original_invoice_id?: number | null
-  id_sorat: number; created_at: string | null; seller_name: string | null
+  original_invoice_number?: number | null
+  invoice_number: number; id_sorat: number; created_at: string | null; seller_name: string | null
   seller_address: string | null; seller_phone: string | null
   seller_economic_code: string | null; seller_national_id: string | null; seller_postal_code: string | null
   buyer_id: number | null; buyer_name: string | null; buyer_address: string | null
@@ -23,13 +24,13 @@ export type InvoiceLine = {
 }
 export type RowKind = 'system' | 'storage' | 'service' | 'insurance' | 'tax' | 'prepayment' | 'discount'
 export type RemainingSnapshot = {
-  original_invoice_id: number; receipt_id: number; tally_id: number; cargo: string
+  original_invoice_number?: number; original_invoice_id: number; receipt_id: number; tally_id: number; cargo: string
   inputs: { days?: number; source_id: number; hscode: string; kala_code: string; amount: string; insurance_percent: string }
   rows?: { inputs: Omit<RemainingSnapshot["inputs"], "days" | "insurance_percent"> & { days?: number; insurance_percent?: string }; source: RemainingSnapshot["source"] }[]
   source: { description: string | null }; original_insurance: string
 }
 export type SavedInvoice = { remaining?: RemainingSnapshot | null; header: InvoiceHeader; details: InvoiceLine[]; grand_total: string }
-export type InvoiceListRow = Pick<InvoiceHeader, 'id_sorat' | 'created_at' | 'seller_name' | 'buyer_id' | 'buyer_name' | 'tali_id' | 'tali_number' | 'ghabz_id' | 'is_accepted'> & { grand_total: string | null; original_invoice_id?: number | null }
+export type InvoiceListRow = Pick<InvoiceHeader, 'id_sorat' | 'invoice_number' | 'original_invoice_number' | 'created_at' | 'seller_name' | 'buyer_id' | 'buyer_name' | 'tali_id' | 'tali_number' | 'ghabz_id' | 'is_accepted'> & { grand_total: string | null; original_invoice_id?: number | null }
 
 export const money = (value: string | number | null | undefined) =>
   value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })

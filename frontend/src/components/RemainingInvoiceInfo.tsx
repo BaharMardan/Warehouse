@@ -5,7 +5,7 @@ export function RemainingInvoiceInfo({ info, receiptNumber }: { info?: Remaining
   if (!info) return null
   return <div dir="rtl" style={{ marginBlock: 12, padding: 12, border: '1px solid #ddd', borderRadius: 8 }}>
     <strong>صورتحساب باقی‌مانده</strong>
-    <div>صورتحساب اصلی: <a href={`/invoice/${info.original_invoice_id}`}>{info.original_invoice_id}</a>
+    <div>صورتحساب اصلی: <a href={`/invoice/${info.original_invoice_id}`}>{info.original_invoice_number ?? info.original_invoice_id}</a>
       {' — '}قبض اصلی: <a href={`/ghabz/${info.receipt_id}`}><bdi dir="ltr">{receiptNumber || '—'}</bdi></a></div>
     {info.inputs.days != null && <div>تعداد روز: {quantity(info.inputs.days)}</div>}
     {info.inputs.insurance_percent != null && <div>درصد بیمه باقی‌مانده: {quantity(info.inputs.insurance_percent)}٪</div>}

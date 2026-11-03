@@ -60,7 +60,7 @@ def preview(cur, current, tally, payload):
         calculator = calculate_many if isinstance(payload, RemainingBatchInput) else calculate
         selection = {"sources": sources, "tariffs": selected_tariffs} if isinstance(payload, RemainingBatchInput) else {"source": sources[0], "tariff": selected_tariffs[0]}
         return calculator(payload=payload, **selection, cargo=tally.get("is_volumetric"),
-            settings=settings, original_id=iid,
+            settings=settings, original_id=iid, original_number=invoice_label(cur, iid),
             service_catalog=db.rows(cur, SERVICE_CATALOG_SQL) if payload.other_services else [],
             original_insurance=insurance, receipt_id=current["id"], tally_id=current["tally_id"])
     except (ValueError, ArithmeticError, TypeError) as exc:
@@ -79,7 +79,7 @@ def options(receipt_id: int, non_customs: bool = False):
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
             iid = original(cur, receipt_id)
-            return serializable({"original_invoice_id": iid, "cargo": tally["is_volumetric"],
+            return serializable({"original_invoice_id": iid, "original_invoice_number": invoice_label(cur, iid), "cargo": tally["is_volumetric"],
                 "other_services": db.rows(cur, SERVICE_CATALOG_SQL),
                 "goods": warehouse_goods(cur, receipt_id, current["tally_id"]) if non_customs else db.rows(cur, GOODS_SQL, {"tid": current["tally_id"]}),
                 "original_insurance": db.one(cur, INSURANCE_SQL, {"iid": iid})["amount"]})
@@ -101,12 +101,12 @@ def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue
         with conn.cursor() as cur:
             current, _, tally = db.receipt(cur, receipt_id, lock=True)
             prior = db.one(cur, '''SELECT r."INVOICE_ID" AS id, r."RECEIPT_ID" AS receipt_id,
-                r."PREVIEW_HASH" AS preview_hash, h."SORAT_IS_DELETED" AS deleted
+                r."PREVIEW_HASH" AS preview_hash, h."SORAT_IS_DELETED" AS deleted, h."INVOICE_NUMBER" AS invoice_number
                 FROM "FA_REMAINING_INVOICE" r JOIN "FA_SORAT_HESAB_HEADER" h ON h."ID_SORAT" = r."INVOICE_ID"
                 WHERE r."REQUEST_ID" = :request_id''', {"request_id": str(payload.request_id)})
             if prior:
                 if (prior["receipt_id"] != receipt_id or prior["preview_hash"] != payload.preview_hash
-                    or prior["deleted"] == 'yes' or prior["id"] != payload.invoice_number):
+                    or prior["deleted"] == 'yes' or prior.get("invoice_number", prior["id"]) != payload.invoice_number):
                     raise HTTPException(409, "درخواست قبلاً استفاده شده است؛ پنجره را دوباره باز کنید")
                 return {"invoice_id": prior["id"]}
             if non_customs:
@@ -116,17 +116,18 @@ def issue_invoice(receipt_id: int, payload: RemainingIssue | RemainingBatchIssue
                 raise HTTPException(409, "مقادیر یا تعرفه‌ها تغییر کرده‌اند؛ پیش‌نمایش را دوباره محاسبه کنید")
             invoice_number = require_number(payload.invoice_number)
             ensure_available(cur, invoice_number)
+            cur.execute('SELECT "SEQ_FA_INVOICE_RECORD".NEXTVAL FROM dual')
+            invoice_id = int(cur.fetchone()[0])
             insert_numbered_header(cur, '''INSERT INTO "FA_SORAT_HESAB_HEADER"
-                ("ID_SORAT", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
+                ("ID_SORAT", "INVOICE_NUMBER", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
                  "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE",
                  "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI")
-                SELECT :invoice_number, "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
+                SELECT :invoice_id, :invoice_number, "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID", "BUYER_COMPANY_ADDRESS",
                  "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Tehran' AS DATE), :actor, 'no', 'no', :note, "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI"
                 FROM "FA_SORAT_HESAB_HEADER" WHERE "ID_SORAT" = :original_id''',
-                {"invoice_number": invoice_number, "actor": user["id"], "note": result["calc_note"], "original_id": result["snapshot"]["original_invoice_id"]})
-            invoice_id = invoice_number
+                {"invoice_id": invoice_id, "invoice_number": invoice_number, "actor": user["id"], "note": result["calc_note"], "original_id": result["snapshot"]["original_invoice_id"]})
             cur.executemany('''INSERT INTO "FA_SORA_HESAB_DETAILS"
                 ("ID_SORA_HEADER", "DESCRIPTION", "NUMBER_KALA", "WEIGHTE", "PRICE_DETAILS",
                  "ROW_KIND", "CALC_NOTE", "TAKHFIF_DETAILS", "TAKHFIF_ALL", "CREATE_AT", "CREATE_BY", "IS_DELETED")
@@ -159,3 +160,8 @@ def check_warehouse(cur, receipt_id, payload, tally):
     from app.routers.non_customs import stock
     from app.services.non_customs import validate_bill
     validate_bill(payload, [r for r in stock(cur, receipt_id) if r["invoice_active"] == 1], tally.get("is_volumetric"))
+
+
+def invoice_label(cur, invoice_id):
+    row = db.one(cur, 'SELECT "INVOICE_NUMBER" AS invoice_number FROM "FA_SORAT_HESAB_HEADER" WHERE "ID_SORAT"=:id', {"id": invoice_id})
+    return row.get("invoice_number", invoice_id) if row else invoice_id

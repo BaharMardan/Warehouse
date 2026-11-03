@@ -42,7 +42,7 @@ export function InvoiceListPage() {
         </Table.Tr></Table.Thead>
         <Table.Tbody>{data.map(row => <Table.Tr key={row.id_sorat} style={{ cursor: 'pointer' }}
           onClick={() => navigate(`/invoice/${row.id_sorat}`)}>
-          <Table.Td><bdi dir="ltr">{row.id_sorat}</bdi>{row.original_invoice_id && <Text size="xs" c="orange">باقی‌مانده — اصلی {row.original_invoice_id}</Text>}</Table.Td>
+          <Table.Td><bdi dir="ltr">{row.invoice_number ?? row.id_sorat}</bdi>{row.original_invoice_id && <Text size="xs" c="orange">باقی‌مانده — اصلی {row.original_invoice_number ?? row.original_invoice_id}</Text>}</Table.Td>
           <Table.Td>{jalali(row.created_at)}</Table.Td>
           <Table.Td><bdi dir="ltr">{row.tali_number ?? '—'}</bdi></Table.Td>
           <Table.Td>{row.seller_name || '—'}</Table.Td><Table.Td>{row.buyer_name || '—'}</Table.Td>
@@ -56,7 +56,7 @@ export function InvoiceListPage() {
     </Paper>
     <Modal opened={selected !== null} onClose={close} title="ابطال صورتحساب" centered dir="rtl"
       closeOnClickOutside={!cancel.isPending} closeOnEscape={!cancel.isPending} withCloseButton={!cancel.isPending}>
-      <Text>آیا از ابطال صورتحساب شماره {selected?.id_sorat} اطمینان دارید؟</Text>
+      <Text>آیا از ابطال صورتحساب شماره {selected?.invoice_number ?? selected?.id_sorat} اطمینان دارید؟</Text>
       <Text size="sm" c="dimmed" mt="sm">قبض و تالی حفظ می‌شوند و امکان صدور مجدد صورتحساب فراهم می‌شود.</Text>
       {cancel.isError && <Alert color="red" mt="sm">{errorMessage(cancel.error, 'ابطال صورتحساب انجام نشد. دوباره تلاش کنید.')}</Alert>}
       <Group justify="flex-end" mt="lg">

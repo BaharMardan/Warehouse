@@ -19,7 +19,7 @@ export function InvoiceDetailPage() {
   })
   return <div dir="rtl">
     <Group justify="space-between" mb="md">
-      <Title order={2}>صورتحساب <bdi dir="ltr">{data?.header.id_sorat ?? id}</bdi></Title>
+      <Title order={2}>صورتحساب <bdi dir="ltr">{data?.header.invoice_number ?? data?.header.id_sorat ?? id}</bdi></Title>
       <Group><Button color="red" leftSection={<IconPrint size={18} />}
         onClick={() => window.open(`/invoice/${invoiceId}/print`, '_blank', 'noopener,noreferrer')}
         disabled={!data}>چاپ صورتحساب</Button><BackButton to="/invoice" /></Group>

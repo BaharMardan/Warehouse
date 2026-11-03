@@ -85,7 +85,7 @@ export function InvoicePrintPage() {
               <h1>
                 <span className="tally-print-screen-title">پیش‌نمایش</span>
                 <span className="tally-print-paper-title">{data.remaining ? 'صورتحساب باقی‌مانده' : 'صورتحساب'}</span>
-                <bdi dir="ltr">{h.id_sorat}</bdi>
+                <bdi dir="ltr">{h.invoice_number ?? h.id_sorat}</bdi>
               </h1>
               <p>چاپ روی کاغذ A4 با حالت افقی</p>
             </div>

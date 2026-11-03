@@ -655,11 +655,11 @@ def issue_invoice(receipt_id: int, user: dict = Depends(require_permission("invo
                 {"id": tally["id_product_ownear"]}) or {}
             output = cur.var(int)
             insert_numbered_header(cur, """INSERT INTO "FA_SORAT_HESAB_HEADER"
-                ("ID_SORAT", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID",
+                ("ID_SORAT", "INVOICE_NUMBER", "TALI_ID_HEADER", "ID_GHABZ_ANBAR", "BUYER_COMPANY_ID",
                  "BUYER_COMPANY_ADDRESS", "BUYER_COMPANY_PHONE", "BUYER_EGHTESADI_CODE", "BUYER_SHENASE_MELLI",
                  "SORAT_CREATE_AT", "SORAT_CREATE_BY", "SORAT_IS_DELETED", "IS_ACCEPTED", "CALC_NOTE",
                  "COMPANY_NAME", "SELLER_COMPANY_ADDRESS", "SELLER_SHENASE_MELLI")
-                VALUES (:invoice_number, :tid, :rid, :buyer, :address, :phone, :economic, :national, SYSDATE, :actor,
+                VALUES ("SEQ_FA_INVOICE_RECORD".NEXTVAL, :invoice_number, :tid, :rid, :buyer, :address, :phone, :economic, :national, SYSDATE, :actor,
                         'no', 'no', :calc_note, :seller_name, :seller_address, :seller_national_id)
                 RETURNING "ID_SORAT" INTO :new_id""",
                 {**SELLER, "invoice_number": invoice_number, "tid": current["tally_id"], "rid": receipt_id, "buyer": tally["id_product_ownear"],

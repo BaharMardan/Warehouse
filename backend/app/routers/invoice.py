@@ -208,19 +208,21 @@ router = APIRouter(prefix="/invoice", tags=["invoice"])
 # Saved invoices are read from their persisted rows, never recalculated with
 # today's tariffs.
 INVOICE_LIST_SQL = """
-SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
+SELECT s."ID_SORAT" AS id_sorat, s."INVOICE_NUMBER" AS invoice_number, s."SORAT_CREATE_AT" AS created_at,
        s."COMPANY_NAME" AS seller_name, s."BUYER_COMPANY_ID" AS buyer_id,
        COALESCE(NULLIF(TRIM(o."COMPANY_NAME"), ''),
                 NULLIF(TRIM(o."NAME" || ' ' || o."FAMILY"), '')) AS buyer_name,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
        s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
        r."ORIGINAL_INVOICE_ID" AS original_invoice_id,
+       original."INVOICE_NUMBER" AS original_invoice_number,
        (SELECT SUM(NVL(d."PRICE_DETAILS", 0) - NVL(d."TAKHFIF_DETAILS", 0))
           FROM "FA_SORA_HESAB_DETAILS" d
          WHERE d."ID_SORA_HEADER" = s."ID_SORAT"
            AND NVL(d."IS_DELETED", 'N') NOT IN ('Y', 'yes')) AS grand_total
 FROM "FA_SORAT_HESAB_HEADER" s
 LEFT JOIN "FA_REMAINING_INVOICE" r ON r."INVOICE_ID" = s."ID_SORAT"
+LEFT JOIN "FA_SORAT_HESAB_HEADER" original ON original."ID_SORAT" = r."ORIGINAL_INVOICE_ID"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 WHERE NVL(s."SORAT_IS_DELETED", 'no') = 'no'
@@ -228,7 +230,7 @@ ORDER BY s."ID_SORAT" DESC
 """
 
 INVOICE_HEADER_SQL = """
-SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
+SELECT s."ID_SORAT" AS id_sorat, s."INVOICE_NUMBER" AS invoice_number, s."SORAT_CREATE_AT" AS created_at,
        s."COMPANY_NAME" AS seller_name,
        s."SELLER_COMPANY_ADDRESS" AS seller_address,
        s."SELLER_COMPANY_PHONE" AS seller_phone,
@@ -252,10 +254,12 @@ SELECT s."ID_SORAT" AS id_sorat, s."SORAT_CREATE_AT" AS created_at,
        s."TALI_ID_HEADER" AS tali_id, t."TALI_NUMBER" AS tali_number,
        s."ID_GHABZ_ANBAR" AS ghabz_id, s."IS_ACCEPTED" AS is_accepted,
        r."ORIGINAL_INVOICE_ID" AS original_invoice_id,
+       original."INVOICE_NUMBER" AS original_invoice_number,
        s."CALC_NOTE" AS calc_note, g."GHABZ_NUMBER" AS ghabz_number,
        r."SNAPSHOT_JSON" AS remaining_snapshot
 FROM "FA_SORAT_HESAB_HEADER" s
 LEFT JOIN "FA_REMAINING_INVOICE" r ON r."INVOICE_ID" = s."ID_SORAT"
+LEFT JOIN "FA_SORAT_HESAB_HEADER" original ON original."ID_SORAT" = r."ORIGINAL_INVOICE_ID"
 LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = s."BUYER_COMPANY_ID"
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = s."TALI_ID_HEADER"
 LEFT JOIN "fa_ghabz_anbar_header" g ON g."ID_ghabz" = s."ID_GHABZ_ANBAR"
@@ -306,6 +310,8 @@ def get_invoice(invoice_id: int):
         """, {"tid": header["tali_id"]})
     details = merge_handling(details, selections)
     remaining = json.loads(header.pop('remaining_snapshot', None) or 'null')
+    if remaining:
+        remaining['original_invoice_number'] = header.get('original_invoice_number') or remaining['original_invoice_id']
     return {'remaining': remaining, 'header': _serialize_saved({**header, **SELLER}),
             'details': [_serialize_saved(row) for row in details],
             'grand_total': str(total)}
