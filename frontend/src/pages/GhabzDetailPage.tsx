@@ -445,6 +445,7 @@ type DetailRow = {
   id_ghabz_anbar_details: number
   id_ghabz_anbar_headar: number
   code_kala: number | null
+  goods_group_code: string | null
   code_kala_kantiner: number | null
   description_kala: string | null
   hscode: string | null
@@ -653,7 +654,7 @@ export function GhabzDetailPage() {
             <Table.Tbody>
               {lines.map((r) => (
                 <Table.Tr key={r.id_ghabz_anbar_details}>
-                  <Table.Td><bdi dir="ltr">{r.code_kala ?? '—'}</bdi></Table.Td>
+                  <Table.Td><bdi dir="ltr">{r.goods_group_code ?? '—'}</bdi></Table.Td>
                   <Table.Td><bdi dir="ltr">{r.hscode ?? '—'}</bdi></Table.Td>
                   <Table.Td>{r.description_kala ?? '—'}</Table.Td>
                   <Table.Td>{r.type_basteh ?? '—'}</Table.Td>
@@ -689,7 +690,7 @@ export function GhabzDetailPage() {
         title="مشاهده جزئیات ردیف" size="lg">
         {selectedLine && (
           <Grid>
-            <Grid.Col span={6}><TextInput label="کد گروه کالا" readOnly value={selectedLine.code_kala ?? '—'} /></Grid.Col>
+            <Grid.Col span={6}><TextInput label="کد گروه کالا" readOnly value={selectedLine.goods_group_code ?? '—'} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="HS Code" readOnly value={selectedLine.hscode ?? '—'} /></Grid.Col>
             <Grid.Col span={12}><TextInput label="شرح کالا" readOnly value={selectedLine.description_kala ?? '—'} /></Grid.Col>
             <Grid.Col span={6}><TextInput label="نوع بسته‌بندی" readOnly value={selectedLine.type_basteh ?? '—'} /></Grid.Col>

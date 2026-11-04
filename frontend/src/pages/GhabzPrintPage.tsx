@@ -393,6 +393,7 @@ type GhabzHeader = {
 type GhabzLine = {
   id_ghabz_anbar_details: number
   code_kala: number | null
+  goods_group_code: string | null
   description_kala: string | null
   hscode: string | null
   type_basteh: string | null
@@ -616,7 +617,7 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
               {rows.map((row, index) => (
                 <tr key={row.id_ghabz_anbar_details}>
                   <td>{page * ROWS_PER_PAGE + index + 1}</td>
-                  <td className="tally-print-ltr">{valueOf(row.code_kala)}</td>
+                  <td className="tally-print-ltr">{valueOf(row.goods_group_code)}</td>
                   <td className="tally-print-ltr">{valueOf(row.hscode)}</td>
                   <td>{valueOf(row.description_kala)}</td>
                   <td>{valueOf(row.tagh_name)}</td>

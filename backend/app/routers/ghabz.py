@@ -867,6 +867,7 @@ SELECT
     d."ID_ghabz_anbar_DETAILS" AS id_ghabz_anbar_details,
     d."ID_GHABZ_ANBAR_HEADAR"  AS id_ghabz_anbar_headar,
     d."code_kala"              AS code_kala,
+    p."CODE"                   AS goods_group_code,
     d."code_kala_kantiner"     AS code_kala_kantiner,
     d."DESCRIPTION_KALA"       AS description_kala,
     d."HSCODE"                 AS hscode,
@@ -879,6 +880,7 @@ SELECT
     d."ID_TAGH_ANBAR"          AS id_tagh_anbar,
     tg."NAME_TAGH"             AS tagh_name
 FROM "FA_ghabz_anbar_DETAILES" d
+LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = d."code_kala"
 LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = d."ID_TAGH_ANBAR"
 WHERE d."ID_GHABZ_ANBAR_HEADAR" = :hid AND d."IS_DELETED" = 'no'
 ORDER BY d."ID_ghabz_anbar_DETAILS"
