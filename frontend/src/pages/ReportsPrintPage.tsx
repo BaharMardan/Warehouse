@@ -30,7 +30,6 @@ function Sheet({ title, meta, children }: { title: string; meta: string[]; child
           </button>
           <div>
             <h1>{title}</h1>
-            <p>چاپ روی کاغذ A4 با حالت افقی</p>
           </div>
         </div>
         <div className="rp-brand">

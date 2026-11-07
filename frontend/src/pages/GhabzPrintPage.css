@@ -112,7 +112,7 @@
 
 .ghabz-print-signatures {
   height: 23mm;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .ghabz-print-launch-button {
@@ -142,3 +142,14 @@
   font-size: 7pt;
   white-space: nowrap;
 }
+
+/* Receipt text is slightly larger; keep the existing font family. */
+.ghabz-print-page .tally-print-info-line,
+.ghabz-print-page .tally-print-info-card-wide .tally-print-info-line {
+  font-size: 7.2pt;
+}
+.ghabz-print-page .tally-print-table { font-size: 7pt; }
+.ghabz-print-page .tally-print-table th { font-size: 6.8pt; }
+.ghabz-print-page .tally-print-notes { font-size: 7pt; }
+.ghabz-print-page .tally-print-signatures > div { font-size: 8pt; }
+.ghabz-print-page .ghabz-print-carriers { font-size: 8pt; }

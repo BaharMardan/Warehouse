@@ -273,7 +273,6 @@
 //               <h1>
 //                 پیش‌نمایش <bdi dir="ltr">{data.tali_number}</bdi>
 //               </h1>
-//               <p>چاپ روی کاغذ A4 با حالت افقی</p>
 //             </div>
 //           </div>
 
@@ -739,7 +738,6 @@ function TallySheet({
                 <span className="tally-print-paper-title">تالی</span>
                 <bdi dir="ltr">{data.tali_number}</bdi>
               </h1>
-              <p>چاپ روی کاغذ A4 با حالت افقی</p>
             </div>
           </div>
 

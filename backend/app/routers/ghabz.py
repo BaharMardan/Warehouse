@@ -812,29 +812,29 @@ SELECT
     NVL(h."IS_MASTER", 'no') AS is_master,
     h."number_ghabz"         AS number_ghabz,
     h."TALI_ID"              AS tali_id,
-    h."NUMBER_tali"          AS number_tali,
-    h."NUMBER_KARANEH"       AS number_karaneh,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."TALI_NUMBER" ELSE h."NUMBER_tali" END)          AS number_tali,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."NUMBER_KARANEH" ELSE h."NUMBER_KARANEH" END)       AS number_karaneh,
     h."number_ghabz_uniqe"   AS number_ghabz_uniqe,
-    h."number_royea"         AS number_royea,
-    h."number_MARZE"         AS number_marze,
-    h."TRACKING_NUMBER"      AS tracking_number,
-    h."DATE_UNLOADING"       AS date_unloading,
-    h."DATE_ENTER_MARZE"     AS date_enter_marze,
-    h."ID_MARZE"             AS id_marze,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."CUSTOMS_PROCEDURE" ELSE h."number_royea" END)         AS number_royea,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."RADEF_MARZE" ELSE h."number_MARZE" END)         AS number_marze,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."TRACKING_NUMBER" ELSE h."TRACKING_NUMBER" END)      AS tracking_number,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."DATE_UNLOADING" ELSE h."DATE_UNLOADING" END)       AS date_unloading,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."DATE_ENTER_MARZE" ELSE h."DATE_ENTER_MARZE" END)     AS date_enter_marze,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_MARZE" ELSE h."ID_MARZE" END)             AS id_marze,
     t_marze."SYS_TERM_VALUE" AS marze_name,
-    h."ID_COUNTRY"           AS id_country,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_COUNTRY" ELSE h."ID_COUNTRY" END)           AS id_country,
     t_country."SYS_TERM_VALUE" AS country_name,
-    h."ID_COMPANY"           AS id_company,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_COMPANY" ELSE h."ID_COMPANY" END)           AS id_company,
     TRIM(c."COMPANY_NAME")   AS company_name,
-    h."ID_PRODUCT_OWNEAR"    AS id_product_ownear,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_PRODUCT_OWNEAR" ELSE h."ID_PRODUCT_OWNEAR" END)    AS id_product_ownear,
     {OWNER_NAME_SQL}         AS owner_name,
     h."ID_anbar"             AS id_anbar,
     a."NAME_ANBAR"           AS anbar_name,
     a."NAME_MASOL"           AS anbar_masol,
-    h."NAME_ANBARDAR"        AS name_anbardar,
-    h."status_BIMEH"         AS status_bimeh,
-    h."NUMBER_BIMEH"         AS number_bimeh,
-    h."COMPANY_BIMEH"        AS company_bimeh,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."NAME_ANBARDAR" ELSE h."NAME_ANBARDAR" END)        AS name_anbardar,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."IS_BIMEH" ELSE h."status_BIMEH" END)         AS status_bimeh,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."NUMBER_BIMEH" ELSE h."NUMBER_BIMEH" END)         AS number_bimeh,
+    (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."COMPANY_BIMEH" ELSE h."COMPANY_BIMEH" END)        AS company_bimeh,
     h."PALLET_QUANTITY"      AS pallet_quantity,
     CASE t."IS_VOLUMETRIC" WHEN 'yes' THEN 'volumetric'
          WHEN 'no' THEN 'weight' ELSE t."IS_VOLUMETRIC" END AS cargo_type,
@@ -853,10 +853,10 @@ SELECT
     u."FULL_NAME"            AS created_by_full_name
 FROM "fa_ghabz_anbar_header" h
 LEFT JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = h."TALI_ID" AND t."IS_DELETED" = 'no'
-LEFT JOIN "FA_SYS_TERMS"         t_marze   ON t_marze."SYS_TERM_ID"   = h."ID_MARZE"
-LEFT JOIN "FA_SYS_TERMS"         t_country ON t_country."SYS_TERM_ID" = h."ID_COUNTRY"
-LEFT JOIN "FA_TRANSPORT_COMPANY" c         ON c."ID_COMPANY"          = h."ID_COMPANY"
-LEFT JOIN "FA_PRODUCT_OWNER"     o         ON o."ID_OWNER"            = h."ID_PRODUCT_OWNEAR"
+LEFT JOIN "FA_SYS_TERMS"         t_marze   ON t_marze."SYS_TERM_ID"   = (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_MARZE" ELSE h."ID_MARZE" END)
+LEFT JOIN "FA_SYS_TERMS"         t_country ON t_country."SYS_TERM_ID" = (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_COUNTRY" ELSE h."ID_COUNTRY" END)
+LEFT JOIN "FA_TRANSPORT_COMPANY" c         ON c."ID_COMPANY"          = (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_COMPANY" ELSE h."ID_COMPANY" END)
+LEFT JOIN "FA_PRODUCT_OWNER"     o         ON o."ID_OWNER"            = (CASE WHEN t."ID_TALI" IS NOT NULL THEN t."ID_PRODUCT_OWNEAR" ELSE h."ID_PRODUCT_OWNEAR" END)
 LEFT JOIN "FA_ANBAR"             a         ON a."ID_ANBAR"            = h."ID_anbar"
 LEFT JOIN "FA_USERS"             u         ON u."ID"                  = h."CREATE_BY"
 WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no'

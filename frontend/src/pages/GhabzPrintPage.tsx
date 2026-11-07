@@ -5,7 +5,7 @@
 // import { toJalaali } from 'jalaali-js'
 // import {
 //   Building2, CalendarDays, FileText, IdCard, MapPin, PackageCheck,
-//   PencilLine, ReceiptText, ShieldCheck, Stamp, Truck, UserRound,
+//   ReceiptText, ShieldCheck, Stamp, Truck, UserRound,
 // } from 'lucide-react'
 // import { apiGet } from '../api/client'
 // import { IconPrint } from '../components/icons'
@@ -198,7 +198,6 @@
 //                 <span className="tally-print-paper-title">قبض انبار</span>
 //                 <bdi dir="ltr">{valueOf(receiptNumber)}</bdi>
 //               </h1>
-//               <p>چاپ روی کاغذ A4 با حالت افقی</p>
 //             </div>
 //           </div>
 //           <div className="tally-print-brand">
@@ -288,7 +287,6 @@
 //         </div>
 
 //         <footer className="tally-print-signatures ghabz-print-signatures">
-//           <div><strong><PencilLine aria-hidden /> مدیر عملیات</strong><span /></div>
 //           <div><strong><Stamp aria-hidden /> صدور اسناد</strong><span /></div>
 //         </footer>
 //       </div>
@@ -353,7 +351,7 @@ import { useParams } from 'react-router-dom'
 import { toJalaali } from 'jalaali-js'
 import {
   Building2, CalendarDays, FileText, IdCard, MapPin, PackageCheck,
-  PencilLine, ReceiptText, ShieldCheck, Stamp, Truck, UserRound,
+  ReceiptText, ShieldCheck, Stamp, Truck, UserRound,
 } from 'lucide-react'
 import { apiGet } from '../api/client'
 import { IconPrint } from '../components/icons'
@@ -537,7 +535,6 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
                 <span className="tally-print-paper-title">قبض انبار</span>
                 <bdi dir="ltr">{valueOf(receiptNumber)}</bdi>
               </h1>
-              <p>چاپ روی کاغذ A4 با حالت افقی</p>
             </div>
           </div>
           <div className="tally-print-brand">
@@ -659,7 +656,6 @@ function GhabzSheet({ header, rows, page, pageCount, carriers, printUser }: {
 
         <footer className="tally-print-signatures ghabz-print-signatures">
           <div><strong><Stamp aria-hidden /> صدور اسناد</strong><span /></div>
-          <div><strong><PencilLine aria-hidden /> مدیر عملیات</strong><span /></div>
         </footer>
       </div>
       {pageCount > 1 && <div className="tally-print-page-number">صفحه {page + 1} از {pageCount}</div>}
