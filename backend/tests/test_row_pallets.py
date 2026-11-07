@@ -47,7 +47,7 @@ def test_mixed_locations_and_hs_codes_are_priced_per_row():
     assert all('SAME' in r.description for r in result)
 
 
-@pytest.mark.parametrize('a,b,total', [(2, None, 9), (2, 7, 8), (0, 7, 7), (1.5, 7, 8.5)])
+@pytest.mark.parametrize('a,b,total', [(2, None, 9), (2, 7, 8), (-1, 7, 6), (1.5, 7, 8.5)])
 def test_invoice_rejects_missing_or_inconsistent_row_counts(a, b, total):
     with pytest.raises(ValueError):
         ri.storage_rows('volumetric', [line(1, a, 'انبارداری مسقف', '111', 100),
@@ -145,3 +145,23 @@ def test_existing_explicit_allocation_is_preserved():
     stock = [dict(id=1, pallets=20), dict(id=2, pallets=20)]
     saved = [dict(tally_detail_id=1, pallets=7), dict(tally_detail_id=2, pallets=13)]
     assert rp.resolve_counts(stock, [source(1, '.5'), source(2, '.5')], 20, saved) == {1: 7, 2: 13}
+
+
+def test_zero_row_is_explicit_and_shared_pallet_is_counted_once():
+    assert rp.validate_counts(rows(), entries(0, 1), expected=1) == {1: 0, 2: 1}
+    assert handoff.PalletInput(lines=entries(0, 1)).lines[0].pallets == 0
+    result = ri.storage_rows('volumetric', [
+        line(1, 0, 'انبارداری مسقف', '111', 100),
+        line(2, 1, 'انبارداری مسقف', '222', 100)], 10, pallets=1)
+    assert [r.quantity for r in result] == [1]
+    assert [r.price for r in result] == [Decimal(1800)]
+
+
+def test_all_zero_rows_cannot_define_a_volumetric_load():
+    with pytest.raises(ValueError):
+        rp.validate_counts(rows(), entries(0, 0))
+
+
+def test_automatic_receipt_counts_keep_explicit_zero():
+    assert rp.automatic_counts([dict(id=1, pallets=0), dict(id=2, pallets=1)],
+                               [source(1), source(2)], 1) == {1: 0, 2: 1}

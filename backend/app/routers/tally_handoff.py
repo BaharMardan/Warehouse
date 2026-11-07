@@ -225,7 +225,7 @@ def return_to_operator(tali_id: int, current_user: dict = Depends(require_permis
 
 class PalletEntry(BaseModel):
     tally_detail_id: int
-    pallets: int = Field(strict=True, ge=1, le=100000)
+    pallets: int = Field(strict=True, ge=0, le=100000)
 
 
 class PalletInput(BaseModel):

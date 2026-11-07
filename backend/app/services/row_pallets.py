@@ -18,8 +18,8 @@ def validate_counts(rows, entries, *, expected=None, allocation=False):
         count = Decimal(str(entry['pallets']))
         if key not in by_id or key in values:
             raise ValueError('ردیف تالی نامعتبر یا تکراری است')
-        if not count.is_finite() or count < 1 or count != count.to_integral_value():
-            raise ValueError('تعداد پالت هر ردیف باید عدد صحیح و مثبت باشد')
+        if not count.is_finite() or count < 0 or count != count.to_integral_value():
+            raise ValueError('تعداد پالت هر ردیف باید عدد صحیح و نامنفی باشد')
         if allocation:
             row = by_id[key]
             available = Decimal(str(row.get('pallets') or 0)) - Decimal(str(row.get('used_pallets') or 0))
@@ -31,6 +31,8 @@ def validate_counts(rows, entries, *, expected=None, allocation=False):
     total = sum(values.values())
     if expected is not None and total != Decimal(str(expected)):
         raise ValueError('جمع پالت ردیف‌ها باید با تعداد پالت ثبت‌شده برابر باشد')
+    if total <= 0:
+        raise ValueError('جمع تعداد پالت باید مثبت باشد')
     if total > 100000:
         raise ValueError('جمع تعداد پالت نباید بیشتر از ۱۰۰۰۰۰ باشد')
     return values

@@ -20,9 +20,9 @@ export function PalletRows({ rows, allocation = false, editable, pending, expect
   const value = (row: PalletRow) => draft[row.id] ?? String((allocation ? row.selected_pallets : row.pallets) ?? '')
   const entries = rows.map(row => ({ tally_detail_id: row.id, pallets: Number(value(row)) }))
   const total = entries.reduce((sum, r) => sum + (Number.isFinite(r.pallets) ? r.pallets : 0), 0)
-  const valid = rows.length > 0 && entries.every((entry, index) => Number.isInteger(entry.pallets) && entry.pallets > 0
+  const valid = rows.length > 0 && entries.every((entry, index) => value(rows[index]).trim() !== '' && Number.isInteger(entry.pallets) && entry.pallets >= 0
     && (!allocation || entry.pallets <= Number(rows[index].pallets ?? 0) - Number(rows[index].used_pallets ?? 0)))
-    && total <= 100000 && (expected == null || total === expected)
+    && total > 0 && total <= 100000 && (expected == null || total === expected)
   return <>
     <Table.ScrollContainer minWidth={760}><Table className="tally-pallet-table" withTableBorder withColumnBorders>
       <Table.Thead><Table.Tr>
@@ -46,6 +46,6 @@ export function PalletRows({ rows, allocation = false, editable, pending, expect
       <Text size="sm">جمع پالت ردیف‌ها: {total.toLocaleString('en-US')}{expected != null && ` / ${expected.toLocaleString('en-US')}`}</Text>
       {editable && <Button loading={pending} disabled={!valid} onClick={() => onSave(entries)}>ذخیره پالت ردیف‌ها</Button>}
     </Group>
-    {editable && !valid && <Text size="xs" c="orange" mt="xs">برای تمام ردیف‌ها تعداد صحیح و مثبت وارد کنید؛ جمع و مانده قابل تخصیص نیز باید رعایت شود.</Text>}
+    {editable && !valid && <Text size="xs" c="orange" mt="xs">برای تمام ردیف‌ها تعداد صحیح و نامنفی (صفر مجاز است) وارد کنید؛ جمع و مانده قابل تخصیص نیز باید رعایت شود.</Text>}
   </>
 }

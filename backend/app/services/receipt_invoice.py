@@ -263,8 +263,10 @@ def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
             rows = []
             for line in lines:
                 count = _dec(line["pallets"])
-                if not count.is_finite() or count < 1 or count != count.to_integral_value():
-                    raise ValueError("تعداد پالت هر ردیف باید عدد صحیح و مثبت باشد")
+                if not count.is_finite() or count < 0 or count != count.to_integral_value():
+                    raise ValueError("تعداد پالت هر ردیف باید عدد صحیح و نامنفی باشد")
+                if count == 0:
+                    continue
                 charge = sc.storage_charge("volumetric", rate=line.get("storage_price"),
                     loc=_location(line), days=days, pallets=count)
                 label = f"{_storage_label(line)} — {_name(line)} — حامل {line.get('number_hamel') or '—'}"
