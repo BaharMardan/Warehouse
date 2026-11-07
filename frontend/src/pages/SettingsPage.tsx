@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Center, Group, Loader, NumberInput, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
+import { Alert, Button, Center, Group, Loader, NumberInput, Switch, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
 import { Cog, Save } from 'lucide-react'
 import { apiGet, apiSend, errorMessage } from '../api/client'
 import { BackButton } from '../components/BackButton'
@@ -75,7 +75,11 @@ export function SettingsPage() {
                     <Text className="settings-rate-title">{setting.title}</Text>
                     <Text className="settings-rate-description">{setting.description}</Text>
                   </div>
-                  <NumberInput
+                  {setting.key === 'manual_tally_numbering' ? <Switch
+                    label="ورود دستی شماره تالی"
+                    checked={values[setting.key] === 1}
+                    onChange={event => { const checked = event.currentTarget.checked; setValues(current => ({ ...current, [setting.key]: checked ? 1 : 0 })) }}
+                  /> : <NumberInput
                     className="settings-rate-input"
                     min={0}
                     decimalScale={4}
@@ -86,7 +90,7 @@ export function SettingsPage() {
                       ...current,
                       [setting.key]: value === '' ? '' : Number(value),
                     }))}
-                  />
+                  />}
                 </Group>
               </Paper>
             ))}

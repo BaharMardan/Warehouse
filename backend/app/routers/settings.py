@@ -20,6 +20,12 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 # durable settings are added here, seeded in the migration and rendered by the
 # front-end without letting callers create arbitrary keys.
 SETTINGS = {
+    "manual_tally_numbering": {
+        "title": "شماره‌گذاری دستی تالی",
+        "value": Decimal("0"),
+        "unit": "",
+        "description": "برای ورود شماره‌های قبلی روشن کنید؛ پس از اتمام ورود، خاموش کنید تا شماره‌گذاری خودکار ادامه یابد.",
+    },
     "tax_rate": {
         "title": "نرخ مالیات بر ارزش افزوده",
         "value": Decimal("10"),
@@ -82,6 +88,8 @@ def update_setting(
     if setting_key not in SETTINGS:
         raise HTTPException(status_code=404, detail="تنظیمات موردنظر یافت نشد")
 
+    if setting_key == "manual_tally_numbering" and payload.value_number not in (0, 1):
+        raise HTTPException(422, 'حالت شماره‌گذاری باید صفر یا یک باشد')
     definition = SETTINGS[setting_key]
     with get_connection() as connection:
         with connection.cursor() as cursor:

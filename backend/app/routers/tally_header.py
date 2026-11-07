@@ -175,7 +175,7 @@ from app.core.db import get_connection
 from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
 from app.services.base import execute, fetch_all, fetch_one
-from app.services.tally_numbering import allocate_next_tally_number
+from app.services.tally_numbering import choose_tally_number, manual_numbering
 from app.services.receipt_db import guarded_write, validate_header_dates
 
 
@@ -265,6 +265,13 @@ def get_tally_header_by_number(tali_number: str):
     return row
 
 
+@router.get("/numbering", dependencies=[Depends(require_permission("tally.edit"))])
+def tally_numbering_mode():
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            return {"manual": manual_numbering(cursor)}
+
+
 @router.get("/{row_id}", dependencies=[Depends(require_permission("tally.view"))])
 def get_tally_header(row_id: int):
     row = fetch_one(_PLAN["one"], {"id": row_id})
@@ -278,7 +285,7 @@ def create_tally_header(
     item: TaliHeaderInput,
     current_user: dict = Depends(require_permission("tally.edit")),
 ):
-    # Always discard a client value. TALI_NUMBER is a server-owned identifier.
+    # The configured numbering mode is enforced inside the creation transaction.
     payload = item.model_dump()
     payload.pop("tali_number", None)
     params = _coerce_dates(payload)
@@ -291,7 +298,7 @@ def create_tally_header(
                 cursor.execute("SELECT SYSDATE FROM DUAL")
                 database_now = cursor.fetchone()[0]
                 params["create_at"] = database_now
-                params["tali_number"] = allocate_next_tally_number(cursor)
+                params["tali_number"] = choose_tally_number(cursor, item.tali_number)
 
                 new_id_var = cursor.var(int)
                 cursor.execute(
@@ -308,6 +315,11 @@ def create_tally_header(
             return created
         except HTTPException:
             conn.rollback()
+            raise
+        except oracledb.IntegrityError as exc:
+            conn.rollback()
+            if exc.args and getattr(exc.args[0], 'code', None) == 1:
+                raise HTTPException(409, 'این شماره تالی قبلاً ثبت شده است') from exc
             raise
         except (oracledb.DatabaseError, ValueError, RuntimeError) as exc:
             conn.rollback()

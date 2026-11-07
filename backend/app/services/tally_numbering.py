@@ -42,3 +42,32 @@ def allocate_next_tally_number(cursor) -> str:
     if isinstance(value, (list, tuple)):
         value = value[0]
     return str(int(value))
+
+
+MODE_SQL = 'SELECT "VALUE_NUMBER" FROM "FA_APP_SETTINGS" WHERE "SETTING_KEY" = \'manual_tally_numbering\''
+
+
+def manual_numbering(cursor, *, lock=False):
+    cursor.execute(MODE_SQL + (' FOR UPDATE' if lock else ''))
+    row = cursor.fetchone()
+    return row is not None and int(row[0]) == 1
+
+
+def choose_tally_number(cursor, supplied):
+    from fastapi import HTTPException
+    # Serialize creates with mode changes; the existing DB unique key is also retained.
+    manual = manual_numbering(cursor, lock=True)
+    if manual:
+        value = str(supplied or '').strip().translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'))
+        if not value.isascii() or not value.isdigit() or len(value) > 15 or int(value) <= 0:
+            raise HTTPException(422, 'شماره تالی را به‌صورت عدد صحیح مثبت، حداکثر ۱۵ رقم وارد کنید')
+        value = str(int(value))
+        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :number', {'number': value})
+        if cursor.fetchone():
+            raise HTTPException(409, 'این شماره تالی قبلاً ثبت شده است')
+        return value
+    while True:
+        value = allocate_next_tally_number(cursor)
+        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :number', {'number': value})
+        if not cursor.fetchone():
+            return value

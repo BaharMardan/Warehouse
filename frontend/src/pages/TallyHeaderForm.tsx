@@ -253,6 +253,13 @@ export function TallyHeaderForm() {
     ),
     enabled: isEdit, // only fetch in edit mode
   })
+  const [manualNumber, setManualNumber] = useState('')
+  const { data: numbering, isError: numberingError } = useQuery({
+    queryKey: ['tally-numbering-mode'],
+    queryFn: () => apiGet<{ manual: boolean }>('/tally-header/numbering'),
+    enabled: !isEdit,
+    staleTime: 0,
+  })
   const [createdHeader, setCreatedHeader] = useState<{ id_tali: number; tali_number: string } | null>(null)
   const editId = existing?.id_tali == null ? createdHeader?.id_tali ?? null : Number(existing.id_tali)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
@@ -396,7 +403,7 @@ export function TallyHeaderForm() {
           ? `/tally/${encodeURIComponent(String(publicNumber))}`
           : `/tally/id/${editId}`)
       } else {
-        const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', toPayload(form))
+        const created = await apiSend<{ id_tali: number; tali_number: string }>('/tally-header', 'POST', { ...toPayload(form), tali_number: numbering?.manual ? normalizeDigits(manualNumber).trim() : null })
         setCreatedHeader(created)
         await uploadReceipt(created.id_tali)
         navigate(`/tally/${encodeURIComponent(created.tali_number)}`)
@@ -613,9 +620,12 @@ export function TallyHeaderForm() {
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="شماره تالی"
-              value={isEdit ? String(existing?.tali_number ?? '') : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
-              readOnly
-              disabled={!isEdit}
+              value={isEdit ? String(existing?.tali_number ?? '') : numbering?.manual ? manualNumber : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
+              onChange={event => setManualNumber(normalizeDigits(event.currentTarget.value))}
+              required={!isEdit && numbering?.manual}
+              readOnly={isEdit || !numbering?.manual}
+              disabled={!isEdit && !numbering}
+              error={numberingError ? 'دریافت حالت شماره‌گذاری ناموفق بود؛ صفحه را تازه‌سازی کنید' : undefined}
               styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
             />
           </Grid.Col>
