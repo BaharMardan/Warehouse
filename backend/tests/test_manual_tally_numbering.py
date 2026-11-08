@@ -53,3 +53,15 @@ def test_numbering_setting_only_accepts_boolean_values(value):
     with pytest.raises(HTTPException) as e:
         update_setting('manual_tally_numbering', SettingInput(value_number=value), {'id': 1})
     assert e.value.status_code == 422
+
+
+def test_manual_number_lookup_executes_on_oracle(monkeypatch):
+    from app.core.db import get_connection
+    from app.services import tally_numbering as numbering
+    monkeypatch.setattr(numbering, 'manual_numbering', lambda *a, **k: True)
+    with get_connection() as connection:
+        with connection.cursor() as c:
+            # Read-only round trip exercises Oracle's reserved bind-name rules.
+            c.execute('SELECT MAX(TO_NUMBER("TALI_NUMBER" DEFAULT NULL ON CONVERSION ERROR)) FROM "FA_TALI_HEADER"')
+            unused = str(int(c.fetchone()[0] or 0) + 1)
+            assert numbering.choose_tally_number(c, unused) == unused

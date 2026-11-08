@@ -62,12 +62,12 @@ def choose_tally_number(cursor, supplied):
         if not value.isascii() or not value.isdigit() or len(value) > 15 or int(value) <= 0:
             raise HTTPException(422, 'شماره تالی را به‌صورت عدد صحیح مثبت، حداکثر ۱۵ رقم وارد کنید')
         value = str(int(value))
-        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :number', {'number': value})
+        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :tally_number', {'tally_number': value})
         if cursor.fetchone():
             raise HTTPException(409, 'این شماره تالی قبلاً ثبت شده است')
         return value
     while True:
         value = allocate_next_tally_number(cursor)
-        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :number', {'number': value})
+        cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :tally_number', {'tally_number': value})
         if not cursor.fetchone():
             return value
