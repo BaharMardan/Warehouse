@@ -205,7 +205,11 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
             ? <Text size="sm" c="dimmed">تعداد کانتینر: ۱. {excess > 0 ? `${excessTitle}: ${excess.toLocaleString('en-US')} تن (${labels[form.choice ?? '']})` : 'مازاد وزن ندارد.'}</Text>
             : <TextInput label="تعداد" inputMode="numeric" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.currentTarget.value })} />}
         </>}
-        {form.choice === automatic && <Text size="sm" c="dimmed">مبلغ از نرخ گروه کالا × وزن اظهارِ حامل انتخاب‌شده محاسبه می‌شود.</Text>}
+        {form.choice === automatic && <Text size="sm" c="dimmed">
+          {handoff?.cargo_type === 'volumetric'
+            ? 'مبلغ از نرخ گروه کالا × تعداد پالتِ حامل انتخاب‌شده محاسبه می‌شود.'
+            : 'مبلغ از نرخ گروه کالا × وزن اظهارِ حامل انتخاب‌شده محاسبه می‌شود.'}
+        </Text>}
         {form.choice && <TextInput label="توضیحات" value={form.description} onChange={(event) => setForm({ ...form, description: event.currentTarget.value })} />}
       </Stack>
     </Paper>

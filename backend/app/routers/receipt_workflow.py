@@ -262,14 +262,20 @@ SELECT j."id_tali_kala_strip" AS id, j."pricing_type" AS pricing_type,
        j."NUMBER_SERVICE" AS number_service,
        CASE WHEN j."service_kind" = 'crane' THEN COALESCE(j."code", c."code") ELSE c."code" END AS rate_code, c."title" AS rate_title,
        c."normal" AS normal, c."non_standard" AS non_standard, c."dangerous" AS dangerous,
-       (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) * p."price_unloding")
+       (SELECT SUM(CASE WHEN h."IS_VOLUMETRIC" IN ('yes', 'volumetric')
+                        THEN NVL(COALESCE(d."ROW_PALLETS", d."NUMBER_PALLET"), 0)
+                        ELSE CEIL(NVL(d."WEIGHTE", 0) / 1000) END * p."price_unloding")
           FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
             ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+          JOIN "FA_TALI_HEADER" h ON h."ID_TALI" = d."ID_HEADERS_TALI"
          WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
            AND d."IS_DELETED" = 'no') AS unloading_amount,
-       (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) * p."price_loading")
+       (SELECT SUM(CASE WHEN h."IS_VOLUMETRIC" IN ('yes', 'volumetric')
+                        THEN NVL(COALESCE(d."ROW_PALLETS", d."NUMBER_PALLET"), 0)
+                        ELSE CEIL(NVL(d."WEIGHTE", 0) / 1000) END * p."price_loading")
           FROM "FA_TALI_DETAILES" d JOIN "fa_kala_price" p
             ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+          JOIN "FA_TALI_HEADER" h ON h."ID_TALI" = d."ID_HEADERS_TALI"
          WHERE d."ID_HEADERS_TALI" = j."tali_id" AND d."NUMBER_HAMEL" = j."number_hamel"
            AND d."IS_DELETED" = 'no') AS loading_amount
 FROM "fa_tali_kala_strip" j

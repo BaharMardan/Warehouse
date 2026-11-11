@@ -614,11 +614,14 @@ SELECT j."id_tali_kala_strip" AS id, j."tali_id" AS tali_id,
        j."pricing_type" AS pricing_type, j."service_kind" AS service_kind,
        k."code" AS rate_code, k."title" AS rate_title,
        CASE WHEN j."pricing_type" IN ('unloading', 'loading') THEN
-         (SELECT SUM(CEIL(NVL(d."WEIGHTE", 0) / 1000) *
+         (SELECT SUM(CASE WHEN h."IS_VOLUMETRIC" IN ('yes', 'volumetric')
+                          THEN NVL(COALESCE(d."ROW_PALLETS", d."NUMBER_PALLET"), 0)
+                          ELSE CEIL(NVL(d."WEIGHTE", 0) / 1000) END *
                      CASE j."pricing_type" WHEN 'loading' THEN p."price_loading"
                           ELSE p."price_unloding" END)
             FROM "FA_TALI_DETAILES" d
             JOIN "fa_kala_price" p ON p."id_kala_price" = d."CODE_GROUPE_KALA"
+            JOIN "FA_TALI_HEADER" h ON h."ID_TALI" = d."ID_HEADERS_TALI"
            WHERE d."ID_HEADERS_TALI" = j."tali_id"
              AND d."NUMBER_HAMEL" = j."number_hamel" AND d."IS_DELETED" = 'no')
          ELSE NULL END AS calculated_amount

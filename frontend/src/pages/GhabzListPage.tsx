@@ -134,15 +134,19 @@
 //   )
 // }
 
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { BackButton } from '../components/BackButton'
 import { PageHeader } from '../components/PageHeader'
 import { Badge, Button, Table, Paper, Loader, Center, Text } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
 import { toJalaali } from 'jalaali-js'
 import { apiGet } from '../api/client'
 import { TallyNumber } from '../components/TallyNumber'
+import { ListSearchBar } from '../components/ListSearchBar'
 import { usePermissions } from '../auth/usePermissions'
+import { matchesSearch } from '../utils/listSearch'
 
 type GhabzRow = {
   id_ghabz: number
@@ -178,6 +182,13 @@ export function GhabzListPage() {
     queryKey: ['ghabz-list'],
     queryFn: () => apiGet<GhabzRow[]>('/ghabz/list'),
   })
+  const [search, setSearch] = useState('')
+  const [debounced] = useDebouncedValue(search, 200)
+  const rows = useMemo(() => (data ?? []).filter(row => matchesSearch(debounced, [
+    row.ghabz_number, row.number_ghabz, row.number_tali, row.marze_name, row.country_name,
+    row.company_name, row.owner_name, row.anbar_name, isoToJalali(row.date_unloading),
+    row.created_by_full_name, row.created_by_username,
+  ])), [data, debounced])
 
   return (
     <div dir="rtl">
@@ -190,13 +201,19 @@ export function GhabzListPage() {
           </>
         }
       />
+      {!!data?.length && (
+        <ListSearchBar value={search} onChange={setSearch} placeholder="جستجو در قبض‌های انبار…" />
+      )}
       <Paper shadow="none" p={0}>
         {isLoading && <Center py="xl"><Loader /></Center>}
         {isError && <Center py="xl"><Text c="red">خطا در بارگذاری قبض‌ها.</Text></Center>}
         {data && data.length === 0 && (
           <Center py="xl"><Text c="dimmed">هنوز قبضی ثبت نشده است.</Text></Center>
         )}
-        {data && data.length > 0 && (
+        {data && data.length > 0 && rows.length === 0 && (
+          <Center py="xl"><Text c="dimmed">نتیجه‌ای یافت نشد.</Text></Center>
+        )}
+        {rows.length > 0 && (
           <Table striped highlightOnHover styles={{
                 th: {
                   backgroundColor: '#10af7f',
@@ -219,7 +236,7 @@ export function GhabzListPage() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {data.map((row) => (
+              {rows.map((row) => (
                 <Table.Tr key={row.id_ghabz} style={{ cursor: 'pointer' }}
                   onClick={() => navigate(`/ghabz/${row.id_ghabz}`)}>
                   <Table.Td>

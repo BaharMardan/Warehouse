@@ -33,11 +33,20 @@ def test_handling_sql_rounds_each_goods_line(router, kind):
     assert len(expressions) == (2 if router == "receipt_workflow" else 1)
     expression = expressions[(kind == "loading") if router == "receipt_workflow" else 0]
     expression = expression.replace('j."pricing_type"', "'" + kind + "'")
+    rate = 100 if kind == "loading" else 200
+    expression = expression.replace('p.', 'd.').replace('h.', 'd.')
     with sqlite3.connect(":memory:") as db:
         db.create_function("NVL", 2, lambda value, default: default if value is None else value)
         db.create_function("CEIL", 1, math.ceil)
         # Real-valued weights preserve Oracle's division semantics in SQLite.
-        db.execute('CREATE TABLE goods (WEIGHTE REAL, price_loading REAL, price_unloding REAL)')
-        db.executemany('INSERT INTO goods VALUES (?, 100, 200)', [(15100,), (15000,), (1,), (None,)])
-        amount = db.execute('SELECT ' + expression.replace('p.', 'd.') + ' FROM goods d').fetchone()[0]
-    assert amount == 32 * (100 if kind == "loading" else 200)
+        db.execute('CREATE TABLE goods (WEIGHTE REAL, ROW_PALLETS INT, NUMBER_PALLET INT, '
+                   'IS_VOLUMETRIC TEXT, price_loading REAL, price_unloding REAL)')
+        rows = [(15100, 3, 9), (15000, None, 4), (1, 0, 2), (None, None, None)]
+        for cargo in ("weight", "container", "volumetric", "yes"):
+            db.execute('DELETE FROM goods')
+            db.executemany('INSERT INTO goods VALUES (?, ?, ?, ?, 100, 200)',
+                           [(w, rp, np, cargo) for w, rp, np in rows])
+            amount = db.execute('SELECT ' + expression + ' FROM goods d').fetchone()[0]
+            # Weight and container goods bill whole tons per line; volumetric goods
+            # bill their pallets (the keeper's row count, else the tally's).
+            assert amount == (3 + 4 + 0 + 0 if cargo in ("volumetric", "yes") else 32) * rate, cargo
