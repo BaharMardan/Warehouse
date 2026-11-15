@@ -332,3 +332,21 @@ def test_screenshot_insurance_uses_two_months():
     row = ri.insurance_row(671695063084, insured(3870986209), 0, 60)
     assert row.price == Decimal(734606485)
     assert "× 2 ماه" in row.note
+
+
+@pytest.mark.parametrize('weights', [[116540, None, None, None, None], [23308]*5])
+def test_identical_weight_goods_round_total_once(weights):
+    result = ri.storage_rows('weight', [line(id=i+1, weight_kg=w) for i,w in enumerate(weights)], 1)
+    assert len(result) == 1
+    assert result[0].weight == Decimal(116540)
+    assert result[0].price == Decimal(9828527)  # 117 tons; currency rounded half up
+
+
+def test_missing_weight_cannot_borrow_from_different_hscode():
+    with pytest.raises(ValueError):
+        ri.storage_rows('weight', [line(weight_kg=116540), line(id=2,hscode='OTHER',weight_kg=None)], 1)
+
+
+def test_negative_weight_cannot_reduce_group_total():
+    with pytest.raises(ValueError):
+        ri.storage_rows('weight', [line(weight_kg=116540), line(id=2,weight_kg=-1)], 1)

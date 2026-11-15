@@ -242,16 +242,33 @@ def storage_rows(cargo: str, lines: list[dict], days: int, *, pallets=None,
         raise ValueError("ردیف‌های اصلی تالی متعلق به این قبض را انتخاب کنید")
 
     if cargo == "weight":
-        rows = []
+        # A homogeneous goods group can carry its declared total on one row.
+        # Sum actual kg before rounding; carrier rows must not multiply rounding.
+        groups = OrderedDict()
         for line in lines:
             try:
+                loc = _location(line)
+                weight = _dec(line.get("weight_kg"))
+                if not weight.is_finite() or weight < 0:
+                    raise ValueError("وزن اظهار باید عدد نامنفی باشد")
+                key = (str(line.get("hscode") or "").strip().upper(),
+                       line.get("goods_group"), line.get("kala_code"),
+                       _dec(line.get("storage_price")), loc.multiplier)
+            except ValueError as exc:
+                raise ValueError(f"{_name(line)}: {exc}") from exc
+            groups.setdefault(key, []).append(line)
+        rows = []
+        for group in groups.values():
+            line = group[0]
+            weight = sum((_dec(item.get("weight_kg")) for item in group), Decimal(0))
+            quantity = sum((_dec(item.get("quantity")) for item in group), Decimal(0))
+            try:
                 charge = sc.storage_charge("weight", rate=line.get("storage_price"),
-                                           loc=_location(line), days=days,
-                                           weight_kg=line.get("weight_kg"))
+                                           loc=_location(line), days=days, weight_kg=weight)
             except ValueError as exc:
                 raise ValueError(f"{_name(line)}: {exc}") from exc
             rows.append(InvoiceRow("storage", _storage_label(line), charge.amount, charge.note,
-                                   quantity=line.get("quantity"), weight=line.get("weight_kg")))
+                                   quantity=quantity, weight=weight))
         return rows
 
     if cargo == "volumetric":
