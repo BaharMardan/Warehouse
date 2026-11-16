@@ -136,14 +136,14 @@ def test_location_rejects_missing_or_unknown(bad):
 def test_weight_storage_converts_kg_to_tons():
     charge = storage_charge("weight", rate=56003, loc=location("انبارداری مسقف"),
                             days=30, weight_kg=435436)
-    # 435,436 kg is billed as 436 whole tons.
-    assert charge.amount == Decimal(1098778860)
-    assert charge.note == "56,003 × 1.5 (مسقف 50٪) × (435,436 کیلوگرم ÷ 1,000، گرد به بالا 436 تن) × 30 روز = 1,098,778,860"
+    # Exact declared weight is converted to tons without rounding.
+    assert charge.amount == Decimal(1097357504)
+    assert charge.note == "56,003 × 1.5 (مسقف 50٪) × 435,436 کیلوگرم ÷ 1,000 × 30 روز = 1,097,357,504"
 
 
-def test_weight_storage_rounds_partial_ton_up():
+def test_weight_storage_preserves_fractional_tons():
     charge = storage_charge("weight", rate=56003, loc=location("مسقف"), days=30, weight_kg=100)
-    assert charge.amount == Decimal(2520135)   # One whole ton
+    assert charge.amount == Decimal(252014)   # Exact 0.1 ton; only final rials rounded
 
 
 def test_volumetric_storage_uses_the_given_pallets():
