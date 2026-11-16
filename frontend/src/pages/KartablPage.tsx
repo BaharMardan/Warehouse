@@ -301,7 +301,10 @@
 // }
 
 
-import type { CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
+import { useDebouncedValue } from '@mantine/hooks'
+import { ListSearchBar } from '../components/ListSearchBar'
+import { matchesSearch } from '../utils/listSearch'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -508,7 +511,15 @@ export function KartablPage() {
 
   // The bell links here with ?waiting=1, so a keeper lands on their own queue.
   const waiting = (data ?? []).filter((row) => row.handoff_step === 'keeper')
-  const rows = onlyWaiting ? waiting : data
+  const [search, setSearch] = useState('')
+  const [debounced] = useDebouncedValue(search, 200)
+  const rows = useMemo(() => (data ?? []).filter(row =>
+    (!onlyWaiting || row.handoff_step === 'keeper') && matchesSearch(debounced, [
+      row.tali_number, row.kala_description, row.owner_name, row.company_name,
+      row.representative_name, isoToJalali(row.date_unloading),
+      ...parseReceipts(row.receipts).map(receipt => receipt.number),
+      STATUS[row.workflow_status]?.label,
+    ])), [data, onlyWaiting, debounced])
 
   return (
     <div dir="rtl">
@@ -576,6 +587,10 @@ export function KartablPage() {
         }
       />
 
+      {!!data?.length && (
+        <ListSearchBar value={search} onChange={setSearch} placeholder="جستجو در کارتابل…" />
+      )}
+
       {/* colour legend: what each row tint means, mirroring the tally badges */}
       <Group gap="lg" mb="md" px="xs">
         {(Object.keys(STATUS) as (keyof typeof STATUS)[]).map((key) => (
@@ -599,7 +614,7 @@ export function KartablPage() {
         {rows && rows.length === 0 && (
           <Center py="xl">
             <Text c="dimmed">
-              {onlyWaiting ? 'تالی در انتظار انباردار نیست.' : 'هنوز پرونده‌ای ثبت نشده است.'}
+              {debounced.trim() ? 'نتیجه‌ای یافت نشد.' : onlyWaiting ? 'تالی در انتظار انباردار نیست.' : 'هنوز پرونده‌ای ثبت نشده است.'}
             </Text>
           </Center>
         )}
