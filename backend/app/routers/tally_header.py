@@ -172,6 +172,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth.deps import require_permission
 from app.core.db import get_connection
+from pydantic import BaseModel
+from app.services import receipt_db
 from app.crud.registry import TaliHeaderInput
 from app.crud.sql import Audit, plan
 from app.services.base import execute, fetch_all, fetch_one
@@ -357,3 +359,41 @@ def delete_tally_header(
     if guarded_write("FA_TALI_HEADER", "ID_TALI", "delete",
                      _PLAN["delete"], params, row_id=row_id) == 0:
         raise HTTPException(status_code=404, detail="تالی یافت نشد")
+
+
+# Presentation preferences may change for existing finalized receipts too.
+
+
+class ReceiptLayoutInput(BaseModel):
+    separate_rows: bool
+
+
+RECEIPT_LAYOUT_SQL = """SELECT p."SEPARATE_ROWS" AS separate_rows
+FROM "FA_TALI_HEADER" t
+LEFT JOIN "FA_TALLY_RECEIPT_LAYOUT" p ON p."TALLY_ID" = t."ID_TALI"
+WHERE t."ID_TALI" = :id AND t."IS_DELETED" = 'no'"""
+
+
+@router.get('/{row_id}/receipt-layout', dependencies=[Depends(require_permission('tally.view'))])
+def get_receipt_layout(row_id: int):
+    row = fetch_one(RECEIPT_LAYOUT_SQL, {'id': row_id})
+    if row is None:
+        raise HTTPException(404, 'تالی یافت نشد')
+    return {'separate_rows': row['separate_rows'] == 'yes'}
+
+
+@router.put('/{row_id}/receipt-layout')
+def set_receipt_layout(row_id: int, item: ReceiptLayoutInput,
+                       current_user: dict = Depends(require_permission('tally.edit'))):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            receipt_db.lock_tally(cur, row_id)
+            cur.execute("""MERGE INTO "FA_TALLY_RECEIPT_LAYOUT" p
+                USING (SELECT :tid AS tid FROM DUAL) s ON (p."TALLY_ID" = s.tid)
+                WHEN MATCHED THEN UPDATE SET p."SEPARATE_ROWS" = :value,
+                    p."MODIFY_AT" = SYSTIMESTAMP, p."MODIFY_BY" = :actor
+                WHEN NOT MATCHED THEN INSERT ("TALLY_ID", "SEPARATE_ROWS", "MODIFY_AT", "MODIFY_BY")
+                    VALUES (:tid, :value, SYSTIMESTAMP, :actor)""",
+                {'tid': row_id, 'value': 'yes' if item.separate_rows else 'no', 'actor': current_user['id']})
+        conn.commit()
+    return {'separate_rows': item.separate_rows}

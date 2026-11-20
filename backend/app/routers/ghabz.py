@@ -1249,9 +1249,84 @@ LINE_CARRIERS_SQL = CARRIERS_SQL.replace(
 )
 
 
+# Read original descriptions without SQL string aggregation limits. Explicit
+# allocations take precedence; older receipts fall back to their HS-code groups.
+DESCRIPTIONS_SQL = """
+SELECT UPPER(TRIM(t."HSCODE")) AS hscode,
+       t."DESCRIPTION_KALA" AS description_kala
+FROM "fa_ghabz_anbar_header" h
+JOIN "FA_TALI_DETAILES" t ON t."ID_HEADERS_TALI" = h."TALI_ID"
+WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no' AND t."IS_DELETED" = 'no'
+  AND (
+    EXISTS (SELECT 1 FROM "FA_GHABZ_TALLY_SOURCE" m
+            WHERE m."RECEIPT_ID" = h."ID_ghabz"
+              AND m."TALLY_DETAIL_ID" = t."ID_TALI_DETAILS"
+              AND (m."QUANTITY_SHARE" > 0 OR m."WEIGHT_SHARE" > 0 OR m."BASKOL_SHARE" > 0))
+    OR NOT EXISTS (SELECT 1 FROM "FA_GHABZ_TALLY_SOURCE" m
+                   WHERE m."RECEIPT_ID" = h."ID_ghabz")
+  )
+ORDER BY t."ID_TALI_DETAILS"
+"""
+
+
+def receipt_descriptions(sources):
+    grouped = {}
+    for source in sources:
+        key = normalize_hscode(source.get("hscode"))
+        grouped.setdefault(key, []).append(str(source.get("description_kala") or "").strip())
+    result = {}
+    for key, descriptions in grouped.items():
+        distinct = list(dict.fromkeys(text for text in descriptions if text))
+        if not distinct:
+            continue
+        text = "، ".join(distinct)
+        if len(distinct) > 1:
+            count = str(len(descriptions)).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+            text += f" ({count} ردیف)"
+        result[key] = text
+    return result
+
+
+RECEIPT_LAYOUT_SQL = """SELECT p."SEPARATE_ROWS" AS separate_rows
+FROM "fa_ghabz_anbar_header" h
+JOIN "FA_TALLY_RECEIPT_LAYOUT" p ON p."TALLY_ID" = h."TALI_ID"
+WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no'"""
+
+LAYOUT_SOURCES_SQL = """SELECT t."ID_TALI_DETAILS" AS id, t."HSCODE" AS hscode,
+    t."DESCRIPTION_KALA" AS description_kala, t."CODE_GROUPE_KALA" AS code_kala,
+    p."CODE" AS goods_group_code, t."TYPE_BASTEM" AS type_basteh,
+    t."ID_TAGH_ANBAR" AS id_tagh_anbar, tg."NAME_TAGH" AS tagh_name,
+    t."NUMBER_HAMEL" AS number_hamel, t."NUMBER_KALA" AS number_kala,
+    t."WEIGHTE" AS weighte_asnad, t."WEIGHTE_BASKOL" AS weighte_baskol
+FROM "FA_TALI_DETAILES" t
+LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = t."CODE_GROUPE_KALA"
+LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = t."ID_TAGH_ANBAR"
+WHERE t."ID_HEADERS_TALI" = :tid AND t."IS_DELETED" = 'no'
+ORDER BY t."ID_TALI_DETAILS"
+"""
+
+
+def separate_receipt_details(header_id, rows):
+    from app.services.receipt_layout import separate_lines
+    from app.routers.receipt_workflow import preview_sources
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            current, siblings, _ = receipt_db.receipt(cur, header_id)
+            sources = receipt_db.rows(cur, LAYOUT_SOURCES_SQL, {'tid': current['tally_id']})
+            try:
+                selections = None if current['is_master'] == 'yes' else preview_sources(cur, current, siblings)
+                return separate_lines(rows, sources, selections)
+            except ValueError as exc:
+                raise HTTPException(409, 'تخصیص ردیف‌های اصلی با جمع قبض مطابق نیست؛ ردیف‌های مرتبط با قبض را بررسی کنید.') from exc
+
+
 @router.get("/{header_id}/details", dependencies=[Depends(require_permission("ghabz.view"))])
 def list_ghabz_details(header_id: int):
     rows = fetch_all(DETAILS_SQL, {"hid": header_id})
+    layout = fetch_all(RECEIPT_LAYOUT_SQL, {"hid": header_id}) if rows else []
+    if layout and layout[0]['separate_rows'] == 'yes':
+        return separate_receipt_details(header_id, rows)
+    descriptions = receipt_descriptions(fetch_all(DESCRIPTIONS_SQL, {"hid": header_id})) if rows else {}
     by_hscode = {}
     for row in rows:
         hscode = str(row.get("hscode") or "").strip().upper()
@@ -1262,6 +1337,8 @@ def list_ghabz_details(header_id: int):
             ))
         fallback = str(row.get("number_hamel") or "").strip()
         row["carriers"] = by_hscode.get(hscode, [fallback] if fallback else [])
+        if hscode in descriptions:
+            row["description_kala"] = descriptions[hscode]
     return rows
 
 

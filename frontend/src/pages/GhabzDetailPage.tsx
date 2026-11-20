@@ -443,6 +443,7 @@ import { ReceiptWorkflow, useReceiptWorkflow } from '../components/ReceiptWorkfl
 
 type DetailRow = {
   id_ghabz_anbar_details: number
+  source_row_id?: number
   id_ghabz_anbar_headar: number
   code_kala: number | null
   goods_group_code: string | null
@@ -653,7 +654,7 @@ export function GhabzDetailPage() {
             </Table.Tr></Table.Thead>
             <Table.Tbody>
               {lines.map((r) => (
-                <Table.Tr key={r.id_ghabz_anbar_details}>
+                <Table.Tr key={`${r.id_ghabz_anbar_details}-${r.source_row_id ?? "group"}`}>
                   <Table.Td><bdi dir="ltr">{r.goods_group_code ?? '—'}</bdi></Table.Td>
                   <Table.Td><bdi dir="ltr">{r.hscode ?? '—'}</bdi></Table.Td>
                   <Table.Td>{r.description_kala ?? '—'}</Table.Td>
@@ -667,7 +668,7 @@ export function GhabzDetailPage() {
                       <Button size="xs" variant="light" onClick={() => setSelectedLine(r)}>
                         مشاهده جزئیات
                       </Button>
-                      {canEdit && (
+                      {canEdit && r.source_row_id == null && (
                         <Button
                           size="xs"
                           variant="light"

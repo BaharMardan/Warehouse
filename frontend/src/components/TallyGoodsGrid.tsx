@@ -1070,6 +1070,7 @@ import {
 import './TallyGoodsGrid.css'
 import { handoffKey } from '../api/handoff'
 import { useHandoff } from './TallyHandoff'
+import { ReceiptRowLayoutToggle } from './ReceiptRowLayoutToggle'
 
 /**
  * TallyGoodsGrid — the tally's goods lines (ردیف‌های کالا) as ONE in-place editable grid.
@@ -1893,6 +1894,7 @@ export function TallyGoodsGrid({ tallyId, headerExtra }: Props) {
           </span>
           <div>
             <Title order={3}>ردیف‌های کالا</Title>
+            <ReceiptRowLayoutToggle tallyId={tallyId ?? null} />
             <Text>اطلاعات کالا، باسکول، محل نگهداری و حامل</Text>
           </div>
         </div>

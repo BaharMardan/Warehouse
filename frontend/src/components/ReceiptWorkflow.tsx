@@ -96,6 +96,7 @@ export function ReceiptKeeperQueue() {
 
 
 type ReceiptRow = {
+  source_row_id?: number
   id_ghabz_anbar_details: number; hscode: string | null; description_kala: string | null
   number_kala: number | null; weighte_asnad: number | null; weighte_baskol: number | null
   type_basteh: string | null
@@ -120,7 +121,7 @@ export function ReceiptContext({ id, number }: { id: number; number: string | nu
         <Table.Th>HS Code</Table.Th><Table.Th>شرح کالا</Table.Th><Table.Th>نوع بسته</Table.Th>
         <Table.Th>تعداد</Table.Th><Table.Th>وزن اسناد</Table.Th><Table.Th>وزن باسکول</Table.Th>
       </Table.Tr></Table.Thead>
-      <Table.Tbody>{data.map(row => <Table.Tr key={row.id_ghabz_anbar_details}>
+      <Table.Tbody>{data.map(row => <Table.Tr key={`${row.id_ghabz_anbar_details}-${row.source_row_id ?? "group"}`}>
         <Table.Td>{row.hscode ?? '—'}</Table.Td><Table.Td>{row.description_kala ?? '—'}</Table.Td>
         <Table.Td>{row.type_basteh ?? '—'}</Table.Td><Table.Td>{row.number_kala ?? '—'}</Table.Td>
         <Table.Td>{row.weighte_asnad ?? '—'}</Table.Td><Table.Td>{row.weighte_baskol ?? '—'}</Table.Td>
