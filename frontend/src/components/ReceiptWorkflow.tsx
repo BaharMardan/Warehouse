@@ -38,11 +38,14 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
   const qc = useQueryClient()
   const action = useMutation({
     mutationFn: ({ path, method = 'POST', body }: { path: string; method?: 'PUT' | 'POST' | 'DELETE'; body?: unknown }) =>
-      apiSend<{ invoice_id?: number }>(path.startsWith('/invoice/') ? path : `/ghabz/${id}/${path}`, method, body),
+      apiSend<{ invoice_id?: number; tally_id?: number; receipts_voided?: boolean }>(path.startsWith('/invoice/') ? path : `/ghabz/${id}/${path}`, method, body),
     onSuccess: async (result, variables) => {
       await Promise.all(['receipt-workflow', 'receipt-sources', 'receipt-keeper-queue',
-        'keeper-queue', 'abandoned', 'tally-header', 'tally-list', 'tally-insurance-check', 'tally-handoff', 'kartabl-list', 'invoice-list', 'ghabz-summary'].map(key =>
+        'keeper-queue', 'abandoned', 'tally-header', 'tally-list', 'tally-insurance-check', 'tally-handoff', 'kartabl-list', 'invoice-list', 'ghabz-summary', 'ghabz-list', 'ghabz-details', 'ghabz-print-details', 'receipt-context'].map(key =>
           qc.invalidateQueries({ queryKey: [key] })))
+      if (variables.path === 'return' && result?.receipts_voided && result.tally_id) {
+        navigate(`/tally/id/${result.tally_id}`, { replace: true })
+      }
       if (variables.path === 'invoice' && result?.invoice_id) navigate(`/invoice/${result.invoice_id}`)
     },
   })
@@ -60,7 +63,7 @@ export function ReceiptWorkflow({ id, placement = 'receipt' }: { id: number; pla
     {placement === 'tally' && editable && <Button color="teal" style={{ marginInlineStart: 'auto' }} loading={action.isPending}
       onClick={() => action.mutate({ path: 'final-checklist' })}>ثبت نهایی</Button>}
     {placement !== 'tally' && state.can_return && can('workflow.return') && <Button color="orange" variant="light" loading={action.isPending}
-      onClick={() => { if (window.confirm('تمام قبض‌های این تالی برای اصلاح ردیف‌های کالا و خدمات باز می‌شوند و باید دوباره ثبت نهایی شوند. ادامه می‌دهید؟')) action.mutate({ path: 'return' }) }}>بازگشت برای اصلاح</Button>}
+      onClick={() => { if (window.confirm('همهٔ قبض‌های این تالی باطل و از فهرست فعال حذف می‌شوند. پس از اصلاح، باید قبض‌ها دوباره صادر شوند. سابقه حفظ می‌شود. ادامه می‌دهید؟')) action.mutate({ path: 'return' }) }}>بازگشت برای اصلاح</Button>}
     {placement !== 'tally' && state.invoice_id && can('workflow.return') && <Button color="red" variant="light" loading={action.isPending}
       onClick={() => { if (window.confirm('صورتحساب باطل شود؟ پس از ابطال آخرین صورتحساب فعال، تمام بخش‌های تالی برای اصلاح باز می‌شوند.')) action.mutate({ path: `/invoice/${state.invoice_id}`, method: 'DELETE' }) }}>ابطال صورتحساب</Button>}
     {placement === 'receipt' && state.show_invoice && state.status === 'finalized' && can('invoice.issue') &&

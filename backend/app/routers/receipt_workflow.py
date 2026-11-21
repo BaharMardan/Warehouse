@@ -477,9 +477,9 @@ def return_receipt(receipt_id: int, user: dict = Depends(require_permission("wor
                 {"tid": current["tally_id"]})
             if active["cnt"] or any(r["status"] == "invoice_issued" for r in siblings):
                 db.conflict("برای اصلاح خدمات مشترک، ابتدا تمام صورتحساب‌های این تالی را باطل کنید")
-            db.reopen_for_correction(cur, current["tally_id"], user["id"])
+            db.void_receipts_for_correction(cur, current["tally_id"], user["id"])
         conn.commit()
-    return get_workflow(receipt_id)
+    return {"tally_id": current["tally_id"], "receipts_voided": True}
 
 
 def calculate_invoice(cur, current, tally, payload):

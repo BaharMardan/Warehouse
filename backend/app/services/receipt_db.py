@@ -129,6 +129,35 @@ def reopen_for_correction(cursor, tally_id, actor_id):
     record(cursor, "keeper", tally_id, actor_id)
 
 
+def void_receipts_for_correction(cursor, tally_id, actor_id):
+    """Caller holds tally lock and has rejected all active invoices.
+
+    Retain document records and their audit/finalization history; discard only
+    derived allocations. Invoice cancellation keeps its existing reopen behavior.
+    """
+    for table in ('FA_RECEIPT_PALLETS', 'FA_GHABZ_TALLY_SOURCE'):
+        cursor.execute(f"""DELETE FROM "{table}" WHERE "RECEIPT_ID" IN (
+            SELECT "ID_ghabz" FROM "fa_ghabz_anbar_header"
+            WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no')""", {'tid': tally_id})
+    cursor.execute("""UPDATE "FA_ghabz_anbar_DETAILES"
+        SET "IS_DELETED" = 'yes', "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor
+        WHERE "IS_DELETED" = 'no' AND "ID_GHABZ_ANBAR_HEADAR" IN (
+            SELECT "ID_ghabz" FROM "fa_ghabz_anbar_header"
+            WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no')""",
+        {'tid': tally_id, 'actor': actor_id})
+    cursor.execute("""UPDATE "fa_ghabz_anbar_header"
+        SET "IS_DELETED" = 'yes', "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor
+        WHERE "TALI_ID" = :tid AND "IS_DELETED" = 'no'""",
+        {'tid': tally_id, 'actor': actor_id})
+    cursor.execute('DELETE FROM "FA_RECEIPT_SERVICE_POOL" WHERE "TALLY_ID" = :tid', {'tid': tally_id})
+    cursor.execute("""UPDATE "FA_TALI_HEADER" SET "HANDOFF_STEP" = 'operator',
+        "RETURNED_AT" = NULL, "RETURNED_BY" = NULL,
+        "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor WHERE "ID_TALI" = :tid""",
+        {'tid': tally_id, 'actor': actor_id})
+    from app.services.handoff_notifications import record
+    record(cursor, 'operator', tally_id, actor_id)
+
+
 def guard_source(cursor, tally_id, *, allow_correction=False):
     tally = lock_tally(cursor, tally_id)
     docs = receipts(cursor, tally_id)
