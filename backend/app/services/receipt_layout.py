@@ -38,7 +38,7 @@ def separate_lines(grouped, sources, selections):
             totals[key][field] += values[field]
         row = dict(parents[key])
         for field in ('code_kala', 'goods_group_code', 'description_kala', 'type_basteh',
-                      'id_tagh_anbar', 'tagh_name', 'number_hamel'):
+                      'id_anbar', 'anbar_name', 'id_tagh_anbar', 'tagh_name', 'number_hamel'):
             row[field] = source.get(field)
         carrier = str(source.get('number_hamel') or '').strip()
         row.update(values, source_row_id=sid, hscode=key,

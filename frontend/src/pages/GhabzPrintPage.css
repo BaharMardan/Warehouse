@@ -159,3 +159,9 @@
   overflow-wrap: anywhere;
   line-height: 1.5;
 }
+
+.ghabz-print-page .tally-print-table td:nth-child(5) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 6.5pt;
+}

@@ -622,6 +622,8 @@ export function TallyHeaderForm() {
               label="شماره تالی"
               value={isEdit ? String(existing?.tali_number ?? '') : numbering?.manual ? manualNumber : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
               onChange={event => setManualNumber(normalizeDigits(event.currentTarget.value))}
+              description={!isEdit && numbering?.manual ? 'مثال: ۱۹۴۱ یا ۱۹۴۱.۱' : undefined}
+              inputMode="decimal"
               required={!isEdit && numbering?.manual}
               readOnly={isEdit || !numbering?.manual}
               disabled={!isEdit && !numbering}

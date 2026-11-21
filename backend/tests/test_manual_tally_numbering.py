@@ -18,8 +18,8 @@ def test_manual_normalizes_digits_without_changing_counter():
     assert not any(call.args[0].lstrip().startswith('UPDATE') for call in c.execute.call_args_list)
 
 
-@pytest.mark.parametrize('value', [None, '', '0', '-1', '12.5', 'abc', '1234567890123456'])
-def test_manual_requires_positive_integer(value):
+@pytest.mark.parametrize('value', [None, '', '0', '-1', '12..5', 'abc', '1234567890123456'])
+def test_manual_rejects_invalid_number(value):
     with pytest.raises(HTTPException) as e:
         choose_tally_number(cursor(1), value)
     assert e.value.status_code == 422
@@ -65,3 +65,20 @@ def test_manual_number_lookup_executes_on_oracle(monkeypatch):
             c.execute('SELECT MAX(TO_NUMBER("TALI_NUMBER" DEFAULT NULL ON CONVERSION ERROR)) FROM "FA_TALI_HEADER"')
             unused = str(int(c.fetchone()[0] or 0) + 1)
             assert numbering.choose_tally_number(c, unused) == unused
+
+
+@pytest.mark.parametrize('supplied,expected', [
+    ('1941.1','1941.1'), ('۱۹۴۱.۱','1941.1'),
+    ('۱۹۴۱٫۱','1941.1'), ('001941.01','1941.01'),
+])
+def test_manual_accepts_dotted_tally_identifiers(supplied, expected):
+    c=cursor(1,None)
+    assert choose_tally_number(c,supplied)==expected
+    assert c.execute.call_args.args[1]['tally_number']==expected
+
+
+@pytest.mark.parametrize('value',['1941.','.1','0.1','1941/1','1e3','1.2.3','123456789012345.1'])
+def test_manual_rejects_malformed_dotted_identifier(value):
+    with pytest.raises(HTTPException) as e:
+        choose_tally_number(cursor(1),value)
+    assert e.value.status_code==422

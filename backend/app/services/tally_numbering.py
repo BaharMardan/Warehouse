@@ -1,3 +1,5 @@
+import re
+
 """Helpers for allocating immutable, continuous tally numbers."""
 
 
@@ -59,9 +61,12 @@ def choose_tally_number(cursor, supplied):
     manual = manual_numbering(cursor, lock=True)
     if manual:
         value = str(supplied or '').strip().translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'))
-        if not value.isascii() or not value.isdigit() or len(value) > 15 or int(value) <= 0:
-            raise HTTPException(422, 'شماره تالی را به‌صورت عدد صحیح مثبت، حداکثر ۱۵ رقم وارد کنید')
-        value = str(int(value))
+        value = value.replace('٫', '.')
+        parts = value.split('.')
+        if (not re.fullmatch(r'[0-9]+(?:\.[0-9]+)?', value)
+                or len(value.replace('.', '')) > 15 or int(parts[0]) <= 0):
+            raise HTTPException(422, 'شماره تالی را مانند 1941 یا 1941.1، حداکثر ۱۵ رقم وارد کنید')
+        value = str(int(parts[0])) + ('.' + parts[1] if len(parts) == 2 else '')
         cursor.execute('SELECT 1 FROM "FA_TALI_HEADER" WHERE "TALI_NUMBER" = :tally_number', {'tally_number': value})
         if cursor.fetchone():
             raise HTTPException(409, 'این شماره تالی قبلاً ثبت شده است')

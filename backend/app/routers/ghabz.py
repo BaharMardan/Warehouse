@@ -1234,6 +1234,10 @@ def get_ghabz_summary(header_id: int):
     if not rows:
         raise HTTPException(status_code=404, detail="قبض انبار یافت نشد")
     carriers = fetch_all(CARRIERS_SQL, {"hid": header_id})
+    locations = fetch_all(LOCATIONS_SQL, {"hid": header_id})
+    anbars = list(dict.fromkeys(str(row['anbar_name']).strip() for row in locations if row.get('anbar_name')))
+    if anbars:
+        rows[0]['anbar_name'] = '، '.join(anbars)
     return {**rows[0], "carrier_details": carriers, "carriers": list(dict.fromkeys(
         str(row["number_hamel"]).strip() for row in carriers if row.get("number_hamel")
     ))}
@@ -1269,6 +1273,36 @@ ORDER BY t."ID_TALI_DETAILS"
 """
 
 
+# Reuse the receipt-to-original-row scope for locations, including legacy HS groups.
+LOCATIONS_SQL = DESCRIPTIONS_SQL.replace(
+    't."DESCRIPTION_KALA" AS description_kala',
+    'a."NAME_ANBAR" AS anbar_name, tg."NAME_TAGH" AS tagh_name',
+).replace(
+    'WHERE h."ID_ghabz" = :hid',
+    'LEFT JOIN "FA_ANBAR" a ON a."ID_ANBAR" = t."ID_ANBAR" '
+    'LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = t."ID_TAGH_ANBAR" '
+    'WHERE h."ID_ghabz" = :hid',
+).replace(
+    'AND t."IS_DELETED" = \'no\'',
+    """AND t."IS_DELETED" = 'no'
+    AND EXISTS (SELECT 1 FROM "FA_ghabz_anbar_DETAILES" d
+        WHERE d."ID_GHABZ_ANBAR_HEADAR" = h."ID_ghabz" AND d."IS_DELETED" = 'no'
+          AND UPPER(TRIM(d."HSCODE")) = UPPER(TRIM(t."HSCODE")))""",
+)
+
+
+def receipt_locations(sources):
+    result = {}
+    for source in sources:
+        key = normalize_hscode(source.get('hscode'))
+        group = result.setdefault(key, {'anbar_names': [], 'tagh_names': []})
+        for field in ('anbar', 'tagh'):
+            name = str(source.get(field + '_name') or '').strip()
+            if name and name not in group[field + '_names']:
+                group[field + '_names'].append(name)
+    return result
+
+
 def receipt_descriptions(sources):
     grouped = {}
     for source in sources:
@@ -1295,11 +1329,13 @@ WHERE h."ID_ghabz" = :hid AND h."IS_DELETED" = 'no'"""
 LAYOUT_SOURCES_SQL = """SELECT t."ID_TALI_DETAILS" AS id, t."HSCODE" AS hscode,
     t."DESCRIPTION_KALA" AS description_kala, t."CODE_GROUPE_KALA" AS code_kala,
     p."CODE" AS goods_group_code, t."TYPE_BASTEM" AS type_basteh,
+    t."ID_ANBAR" AS id_anbar, a."NAME_ANBAR" AS anbar_name,
     t."ID_TAGH_ANBAR" AS id_tagh_anbar, tg."NAME_TAGH" AS tagh_name,
     t."NUMBER_HAMEL" AS number_hamel, t."NUMBER_KALA" AS number_kala,
     t."WEIGHTE" AS weighte_asnad, t."WEIGHTE_BASKOL" AS weighte_baskol
 FROM "FA_TALI_DETAILES" t
 LEFT JOIN "fa_kala_price" p ON p."id_kala_price" = t."CODE_GROUPE_KALA"
+LEFT JOIN "FA_ANBAR" a ON a."ID_ANBAR" = t."ID_ANBAR"
 LEFT JOIN "FA_TAGH_ANBAR" tg ON tg."ID_TAGH" = t."ID_TAGH_ANBAR"
 WHERE t."ID_HEADERS_TALI" = :tid AND t."IS_DELETED" = 'no'
 ORDER BY t."ID_TALI_DETAILS"
@@ -1327,6 +1363,7 @@ def list_ghabz_details(header_id: int):
     if layout and layout[0]['separate_rows'] == 'yes':
         return separate_receipt_details(header_id, rows)
     descriptions = receipt_descriptions(fetch_all(DESCRIPTIONS_SQL, {"hid": header_id})) if rows else {}
+    locations = receipt_locations(fetch_all(LOCATIONS_SQL, {"hid": header_id})) if rows else {}
     by_hscode = {}
     for row in rows:
         hscode = str(row.get("hscode") or "").strip().upper()
@@ -1337,6 +1374,11 @@ def list_ghabz_details(header_id: int):
             ))
         fallback = str(row.get("number_hamel") or "").strip()
         row["carriers"] = by_hscode.get(hscode, [fallback] if fallback else [])
+        if hscode in locations:
+            row.update(locations[hscode])
+            row['anbar_name'] = '، '.join(row['anbar_names']) or None
+            if row['tagh_names']:
+                row['tagh_name'] = '، '.join(row['tagh_names'])
         if hscode in descriptions:
             row["description_kala"] = descriptions[hscode]
     return rows
