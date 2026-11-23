@@ -24,7 +24,7 @@
   transition: background 160ms ease, color 160ms ease;
 }
 
-.tally-workflow-step:first-child {
+.tally-workflow-item:first-child .tally-workflow-step {
   clip-path: polygon(0 50%, 17px 0, 100% 0, 100% 100%, 17px 100%);
 }
 
@@ -74,10 +74,34 @@
     clip-path: polygon(0 50%, 12px 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 12px 100%);
   }
 
-  .tally-workflow-step:first-child {
+  .tally-workflow-item:first-child .tally-workflow-step {
     clip-path: polygon(0 50%, 12px 0, 100% 0, 100% 100%, 12px 100%);
   }
 
   .tally-workflow-step-label { font-size: 11px; }
   .tally-workflow-step-status { width: 17px; height: 17px; }
+}
+
+.tally-workflow-item {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tally-workflow-step {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tally-workflow-step[data-completed='true']:hover {
+  filter: brightness(0.94);
+}
+
+.tally-workflow-step:focus-visible {
+  outline: 3px solid var(--mantine-color-blue-8);
+  outline-offset: -5px;
+}
+
+.tally-workflow-step[aria-disabled='true'] {
+  cursor: default;
 }

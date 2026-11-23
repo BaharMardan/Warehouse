@@ -180,12 +180,14 @@ export function TallyHandlingSection({ tallyId }: { tallyId: number }) {
           label={`انتخاب ${title}`}
           placeholder="انتخاب کنید"
           data={[
+            { value: 'none', label: 'شامل نمی‌شود (بدون خدمت)' },
             ...catalog.filter((row) => allowsCode(row.code)).map((row) => ({ value: String(row.id_kala_strip), label: `${row.code ?? ''} ${row.title ? `(${row.title})` : ''}`.trim(), disabled: row.code === '202' || row.code === '402' })),
             { value: automatic, label: labels[automatic] },
           ]}
-          value={isAutomatic ? automatic : form.rateId == null || !allowsCode(form.code) ? null : String(form.rateId)}
+          value={!form.choice ? 'none' : isAutomatic ? automatic : form.rateId == null || !allowsCode(form.code) ? null : String(form.rateId)}
           onChange={(value) => {
-            if (value === automatic) setForm({ ...form, choice: automatic, rateId: null, code: null, quantity: '' })
+            if (value === 'none') setForm(emptyForm())
+            else if (value === automatic) setForm({ ...form, choice: automatic, rateId: null, code: null, quantity: '' })
             else if (value) {
               const row = catalog.find((item) => String(item.id_kala_strip) === value)
               setForm({ ...form, choice: form.choice === 'normal' || form.choice === 'non_standard' || form.choice === 'dangerous' ? form.choice : 'normal', rateId: Number(value), code: row?.code ?? null })

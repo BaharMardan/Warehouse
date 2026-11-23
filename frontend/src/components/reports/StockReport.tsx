@@ -208,8 +208,8 @@ export function StockReport({ from, to, enabled, nonCustoms = false }: { from: s
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         <Figure label="تالی‌های دارای کالا" value={t.tallies.toLocaleString('en-US')} />
-        <Figure label="وزن اظهار کل (کیلوگرم)" value={amount(t.weight)}
-          hint={`${amount(t.weight / 1000, 3)} تن؛ باسکول: ${amount(t.baskol)} کیلوگرم`} />
+        <Figure label="وزن اظهار کل (کیلوگرم)" value={amount(t.weight, 4)}
+          hint={`باسکول: ${amount(t.baskol, 4)} کیلوگرم`} />
         <Figure label="تعداد کالا" value={amount(t.quantity)} />
         <Figure label="پالت" value={amount(t.pallets)} />
         <Figure label="کانتینر" value={amount(t.containers, 0)} />
