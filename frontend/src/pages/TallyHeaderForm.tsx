@@ -257,7 +257,6 @@ export function TallyHeaderForm() {
   const { data: numbering, isError: numberingError } = useQuery({
     queryKey: ['tally-numbering-mode'],
     queryFn: () => apiGet<{ manual: boolean }>('/tally-header/numbering'),
-    enabled: !isEdit,
     staleTime: 0,
   })
   const [createdHeader, setCreatedHeader] = useState<{ id_tali: number; tali_number: string } | null>(null)
@@ -296,7 +295,10 @@ export function TallyHeaderForm() {
   })
 
   useEffect(() => {
-    if (existing) setForm(rowToState(existing))
+    if (existing) {
+      setForm(rowToState(existing))
+      setManualNumber(String(existing.tali_number ?? ''))
+    }
   }, [existing])
   const [form, setForm] = useState<TallyHeaderState>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -378,7 +380,7 @@ export function TallyHeaderForm() {
         const updated = await apiSend<Record<string, any>>(
           `/tally-header/${editId}`,
           'PUT',
-          payload,
+          { ...payload, ...(numbering?.manual ? { tali_number: normalizeDigits(manualNumber).trim() } : {}) },
         )
         if (updated.radef_marze !== payload.radef_marze) {
           throw new Error('مقدار ردیف مرزی در پاسخ ذخیره تأیید نشد.')
@@ -395,6 +397,7 @@ export function TallyHeaderForm() {
           queryClient.invalidateQueries({ queryKey: ['tally-summary', editId] }),
           queryClient.invalidateQueries({ queryKey: ['receipt-workflow'] }),
           queryClient.invalidateQueries({ queryKey: ['tally-handoff'] }),
+          ...['tally-list', 'ghabz-list', 'ghabz-summary', 'ghabz-print-summary', 'invoice-list'].map(key => queryClient.invalidateQueries({ queryKey: [key] })),
         ])
 
         await uploadReceipt(editId)
@@ -620,13 +623,13 @@ export function TallyHeaderForm() {
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
               label="شماره تالی"
-              value={isEdit ? String(existing?.tali_number ?? '') : numbering?.manual ? manualNumber : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
+              value={numbering?.manual ? manualNumber : isEdit ? String(existing?.tali_number ?? '') : 'پس از ثبت، به‌صورت خودکار تخصیص داده می‌شود'}
               onChange={event => setManualNumber(normalizeDigits(event.currentTarget.value))}
-              description={!isEdit && numbering?.manual ? 'مثال: ۱۹۴۱ یا ۱۹۴۱.۱' : undefined}
+              description={numbering?.manual ? 'مثال: ۱۹۴۱ یا ۱۹۴۱.۱' : undefined}
               inputMode="decimal"
-              required={!isEdit && numbering?.manual}
-              readOnly={isEdit || !numbering?.manual}
-              disabled={!isEdit && !numbering}
+              required={numbering?.manual}
+              readOnly={!numbering?.manual}
+              disabled={!numbering}
               error={numberingError ? 'دریافت حالت شماره‌گذاری ناموفق بود؛ صفحه را تازه‌سازی کنید' : undefined}
               styles={isEdit ? { input: { direction: 'ltr', textAlign: 'right' } } : undefined}
             />

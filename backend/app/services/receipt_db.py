@@ -207,6 +207,12 @@ def guarded_write(table, pk, action, sql, params, *, row_id=None, values=None):
                 if table == "FA_TALI_HEADER" and action == "update":
                     locked_header = lock_tally(cur, tid)
                     validate_header_dates({**locked_header, **values})
+                    if 'tali_number' in values:
+                        from app.services.tally_numbering import editable_tally_number
+                        number = editable_tally_number(cur, values['tali_number'], tid)
+                        values['tali_number'] = params['tali_number'] = number
+                        from app.services.tally_numbering import sync_receipt_numbers
+                        sync_receipt_numbers(cur, tid, number, locked_header.get('tali_number'), params['actor_id'])
                 else:
                     if table in SERVICE_TABLES:
                         guard_services(cur, tid)

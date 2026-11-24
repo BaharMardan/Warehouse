@@ -756,7 +756,7 @@ class TaliDetailInput(BaseModel):
     description_kala: str | None = None       # شرح کالا
     hscode: str | None = None                 # Hscode
     type_bastem: str | None = None            # نوع بسته‌بندی
-    number_kala: int | None = None             # تعداد
+    number_kala: float | None = Field(default=None, ge=0, allow_inf_nan=False)             # تعداد
     number_pallet: int | None = Field(default=None, ge=0)  # تعداد پالت
     value_kala: Decimal | None = Field(default=None, ge=0)  # ارزش کالا
     customs_value: Decimal | None = Field(default=None, ge=0)  # ارزش کالای گمرکی
@@ -873,7 +873,7 @@ class GhabzDetailInput(BaseModel):
     description_kala: str | None = None
     hscode: str | None = None
     type_basteh: str | None = None
-    number_kala: int | None = None
+    number_kala: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     number_kantiner: int | None = None
     weighte_asnad: float | None = None
     weighte_baskol: float | None = None

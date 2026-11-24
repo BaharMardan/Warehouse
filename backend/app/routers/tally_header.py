@@ -338,7 +338,6 @@ def update_tally_header(
     current_user: dict = Depends(require_permission("tally.edit")),
 ):
     provided = item.model_dump(exclude_unset=True)
-    provided.pop("tali_number", None)  # immutable even if a caller sends it manually
     existing = fetch_one(_PLAN["one"], {"id": row_id})
     if existing is None:
         raise HTTPException(status_code=404, detail="تالی یافت نشد")

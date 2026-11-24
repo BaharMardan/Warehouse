@@ -82,3 +82,43 @@ def test_manual_rejects_malformed_dotted_identifier(value):
     with pytest.raises(HTTPException) as e:
         choose_tally_number(cursor(1),value)
     assert e.value.status_code==422
+
+
+def test_manual_edit_normalizes_and_excludes_current_tally():
+    from app.services.tally_numbering import editable_tally_number
+    c=cursor(1,None)
+    assert editable_tally_number(c,'001941.1',42)=='1941.1'
+    assert c.execute.call_args.args[1]=={'tally_number':'1941.1','id':42}
+    assert '"ID_TALI" <> :id' in c.execute.call_args.args[0]
+
+
+def test_manual_edit_rejects_duplicate_and_auto_mode():
+    from app.services.tally_numbering import editable_tally_number
+    for c in (cursor(1,(1,)),cursor(0)):
+        with pytest.raises(HTTPException) as exc:
+            editable_tally_number(c,'1941',42)
+        assert exc.value.status_code==409
+
+
+def test_header_update_persists_normalized_manual_number_under_lock(monkeypatch):
+    from app.services import receipt_db as db
+    connection=MagicMock()
+    connection.__enter__.return_value=connection
+    cur=connection.cursor.return_value.__enter__.return_value
+    cur.fetchone.side_effect=[(1,),None]
+    cur.rowcount=1
+    monkeypatch.setattr(db,'get_connection',lambda:connection)
+    monkeypatch.setattr(db,'one',lambda *a: {'id_tali':42,'tali_number':'100'})
+    lock=MagicMock(return_value={'id_tali':42})
+    monkeypatch.setattr(db,'lock_tally',lock)
+    from app.services import tally_numbering
+    sync=MagicMock()
+    monkeypatch.setattr(tally_numbering,'sync_receipt_numbers',sync)
+    params={'id':42,'actor_id':1,'tali_number':'001941.1'}
+    assert db.guarded_write('FA_TALI_HEADER','ID_TALI','update','UPDATE_NUMBER',params,
+                           row_id=42,values={'tali_number':'001941.1'})==1
+    lock.assert_called_once_with(cur,42)
+    sync.assert_called_once_with(cur,42,'1941.1',None,1)
+    assert cur.execute.call_args.args[1]['tali_number']=='1941.1'
+    assert cur.execute.call_args.args[0]=='UPDATE_NUMBER'
+    connection.commit.assert_called_once()
