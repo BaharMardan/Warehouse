@@ -231,3 +231,79 @@ def stock(group_by: str = "hscode", hscode: str | None = None, owner_id: int | N
 def _facet(rows, id_field, name_field):
     seen = {row[id_field]: row[name_field] for row in rows if row[id_field] is not None}
     return [{"id": key, "name": name} for key, name in sorted(seen.items(), key=lambda kv: str(kv[1]))]
+
+
+RELEASE_INVOICES_SQL = """
+SELECT i."ID_SORAT" AS invoice_id, i."INVOICE_NUMBER" AS invoice_number,
+       i."SORAT_CREATE_AT" AS issued_at, h."ID_ghabz" AS receipt_id,
+       h."GHABZ_NUMBER" AS receipt_number, h."TALI_ID" AS tally_id,
+       h."IS_MASTER" AS is_master, h."PALLET_QUANTITY" AS pallet_quantity,
+       t."TALI_NUMBER" AS tally_number, t."IS_BIMEH" AS is_bimeh,
+       t."VOLUMETRIC_PALLETS" AS tally_pallets, COALESCE(t."ID_PRODUCT_OWNEAR", i."BUYER_COMPANY_ID") AS owner_id,
+       COALESCE(NULLIF(TRIM(o."COMPANY_NAME"), ''),
+                NULLIF(TRIM(o."NAME" || ' ' || o."FAMILY"), '')) AS owner_name,
+       (SELECT MAX(d."INSURED_VALUE") FROM "FA_TALI_DETAILES" d
+         WHERE d."ID_HEADERS_TALI" = t."ID_TALI" AND d."IS_DELETED" = 'no') AS insured_value
+FROM "FA_SORAT_HESAB_HEADER" i
+JOIN "fa_ghabz_anbar_header" h ON h."ID_ghabz" = i."ID_GHABZ_ANBAR"
+JOIN "FA_TALI_HEADER" t ON t."ID_TALI" = h."TALI_ID"
+LEFT JOIN "FA_PRODUCT_OWNER" o ON o."ID_OWNER" = COALESCE(t."ID_PRODUCT_OWNEAR", i."BUYER_COMPANY_ID")
+WHERE NVL(i."SORAT_IS_DELETED", 'no') = 'no' AND h."IS_DELETED" = 'no'
+  AND NOT EXISTS (SELECT 1 FROM "FA_REMAINING_INVOICE" r WHERE r."INVOICE_ID" = i."ID_SORAT")
+  AND i."SORAT_CREATE_AT" >= :start_at AND i."SORAT_CREATE_AT" < :end_before
+ORDER BY i."SORAT_CREATE_AT", i."ID_SORAT"
+"""
+
+RELEASE_GOODS_SQL = """
+SELECT d."ID_TALI_DETAILS" AS detail_id, d."HSCODE" AS hscode,
+       d."DESCRIPTION_KALA" AS description, d."WEIGHTE" AS weight,
+       d."NUMBER_KALA" AS quantity, d."CUSTOMS_VALUE" AS customs_value,
+       COALESCE(d."ROW_PALLETS", d."NUMBER_PALLET") AS row_pallets,
+       p."PALLETS" AS receipt_pallets, a."NAME_ANBAR" AS anbar_name,
+       d."ZARIB_MAHAL" AS zarib_mahal
+FROM "FA_TALI_DETAILES" d
+LEFT JOIN "FA_ANBAR" a ON a."ID_ANBAR" = d."ID_ANBAR"
+LEFT JOIN "FA_RECEIPT_PALLETS" p ON p."TALLY_DETAIL_ID" = d."ID_TALI_DETAILS" AND p."RECEIPT_ID" = :rid
+WHERE d."ID_HEADERS_TALI" = :tid AND d."IS_DELETED" = 'no'
+ORDER BY d."ID_TALI_DETAILS"
+"""
+
+
+@router.get('/released-goods')
+def released_goods(period=Depends(report_period), owner_id: int | None = None,
+                   user: dict = Depends(require_permission('reports.income'))):
+    from app.services.released_goods import build_report
+    from app.routers.receipt_workflow import source_rows, preview_sources
+    if owner_id is not None and owner_id < 0:
+        raise HTTPException(422, 'صاحب کالا نامعتبر است')
+    invoices = _period_rows(RELEASE_INVOICES_SQL, period)
+    invoices = income_report.filter_owner(invoices, owner_id)
+    if len(invoices) > MAX_LINES:
+        raise HTTPException(422, 'بازه تاریخ گزارش را کوتاه‌تر کنید')
+    inputs, unresolved = [], []
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for invoice in invoices:
+                current, siblings, _ = db.receipt(cur, invoice['receipt_id'])
+                try:
+                    if current['is_master'] == 'yes':
+                        selections = [{**row, 'quantity_share': 1, 'weight_share': 1, 'baskol_share': 1}
+                                      for row in source_rows(cur, current)]
+                    else:
+                        selections = preview_sources(cur, current, siblings)
+                    if not selections:
+                        raise ValueError('No source allocations')
+                except ValueError:
+                    unresolved.append({'invoice_number': invoice['invoice_number'], 'receipt_number': invoice['receipt_number']})
+                    continue
+                shares = {int(row['id']): row for row in selections}
+                goods = db.rows(cur, RELEASE_GOODS_SQL, {'tid': invoice['tally_id'], 'rid': invoice['receipt_id']})
+                for goods_row in goods:
+                    share = shares.get(int(goods_row['detail_id']))
+                    if share and any(share.get(k + '_share') for k in ('quantity', 'weight', 'baskol')):
+                        inputs.append({**invoice, **goods_row,
+                                       'weight_share': share['weight_share'], 'quantity_share': share['quantity_share']})
+    if len(inputs) > MAX_LINES:
+        raise HTTPException(422, 'بازه تاریخ گزارش را کوتاه‌تر کنید')
+    result = build_report(inputs)
+    return serializable({'from': period[0], 'to': period[1], **result, 'unresolved': unresolved})

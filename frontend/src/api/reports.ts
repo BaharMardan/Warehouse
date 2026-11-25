@@ -113,3 +113,25 @@ export function useStockReport(filters: StockFilters, enabled: boolean, nonCusto
     placeholderData: keepPreviousData,
   })
 }
+
+
+export type ReleasedGoodsData = {
+  rows: Array<{
+    invoice_id: number; invoice_number: number; receipt_id: number; receipt_number: string | null;
+    tally_id: number; tally_number: string | null; detail_id: number; issued_at: string;
+    hscode: string | null; description: string | null; owner_name: string | null;
+    anbar_name: string | null; location_label: string; weight: number; pallets: number | null;
+    customs_value: number; insured_value: number | null; insurance_first: boolean; pallets_estimated: boolean;
+  }>;
+  totals: { tallies: number; invoices: number; rows: number; weight: number; pallets: number;
+    customs_value: number; insured_value: number; insurance_unknown: number; pallets_estimated: number; pallets_missing: number };
+  unresolved: Array<{ invoice_number: number; receipt_number: string }>;
+}
+
+export function useReleasedGoods(from: string, to: string, enabled: boolean, ownerId: string | null) {
+  return useQuery({
+    queryKey: ['reports', 'released-goods', from, to, ownerId],
+    queryFn: () => apiGet<ReleasedGoodsData>(`/reports/released-goods?${query({ from, to, owner_id: ownerId })}`),
+    enabled,
+  })
+}

@@ -1,3 +1,4 @@
+import { ReleasedGoodsReport } from '../components/reports/ReleasedGoodsReport'
 import { Alert, Center, Group, Loader } from '@mantine/core'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -276,9 +277,13 @@ export function ReportsPrintPage() {
       </Group>
       {kind === 'income' && can('reports.income') && from && to && sections.length > 0 &&
         <IncomePrint sections={sections} from={from} to={to} category={params.get('category')} ownerId={params.get('owner_id')} />}
+      {kind === 'released-goods' && can('reports.income') && from && to &&
+        <Sheet title="گزارش کالاهای ترخیص‌شده" meta={[jalali(from), jalali(to)]}>
+          <ReleasedGoodsReport from={from} to={to} enabled={from <= to} ownerId={params.get('owner_id')} printable />
+        </Sheet>}
       {kind === 'stock' && canStock && sections.length > 0 &&
         <StockPrint sections={sections} params={params} />}
-      {!((kind === 'income' && can('reports.income')) || (kind === 'stock' && canStock)) &&
+      {!(((kind === 'income' || kind === 'released-goods') && can('reports.income')) || (kind === 'stock' && canStock)) &&
         <Alert color="red">گزارش درخواستی نامعتبر است یا دسترسی آن را ندارید.</Alert>}
     </main>
   )

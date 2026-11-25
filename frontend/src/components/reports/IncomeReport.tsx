@@ -1,3 +1,4 @@
+import { ReleasedGoodsReport } from './ReleasedGoodsReport'
 import { useRef, useState } from 'react'
 import { Alert, Badge, Button, Center, Group, Loader, Paper, Select, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core'
 import { Link, useNavigate } from 'react-router-dom'
@@ -240,39 +241,7 @@ export function IncomeReport({ from, to, enabled }: { from: string; to: string; 
           </Table.Tbody></Table></Table.ScrollContainer>}
       </Paper>
 
-      <Paper withBorder p="md" radius="md">
-        <Group justify="space-between" mb="xs">
-          <Title order={4}>صورتحساب‌های باطل‌شده (در درآمد نیامده‌اند)</Title>
-          <Badge color="gray" variant="light" size="lg">
-            {data.cancelled.count.toLocaleString('en-US')} مورد؛ <bdi dir="ltr">{money(data.cancelled.amount)}</bdi>
-          </Badge>
-        </Group>
-        {data.cancelled.count === 0 ? <Text c="dimmed">در این بازه صورتحساب باطل‌شده‌ای وجود ندارد.</Text> :
-          <Table.ScrollContainer minWidth={850}>
-            <Table striped>
-              <Table.Thead><Table.Tr>
-                <Table.Th>ردیف</Table.Th><Table.Th>صورتحساب</Table.Th><Table.Th>تاریخ صدور</Table.Th><Table.Th>تاریخ ابطال</Table.Th>
-                <Table.Th>تالی</Table.Th><Table.Th>قبض</Table.Th><Table.Th>خریدار</Table.Th>
-                <Table.Th ta="left">مبلغ باطل‌شده</Table.Th><Table.Th>وضعیت</Table.Th>
-              </Table.Tr></Table.Thead>
-              <Table.Tbody>
-                {data.cancelled.invoices.map((c, index) => (
-                  <Table.Tr key={c.invoice_id}>
-                    <Table.Td>{(index + 1).toLocaleString('en-US')}</Table.Td>
-                    <Table.Td><bdi dir="ltr">{c.invoice_number ?? c.invoice_id}</bdi></Table.Td>
-                    <Table.Td>{jalali(c.issued_at)}</Table.Td>
-                    <Table.Td>{jalali(c.cancelled_at)}</Table.Td>
-                    <Table.Td>{c.tally_number ?? '—'}</Table.Td>
-                    <Table.Td><bdi dir="ltr">{c.receipt_number ?? '—'}</bdi></Table.Td>
-                    <Table.Td>{c.buyer_name ?? '—'}</Table.Td>
-                    <Table.Td ta="left"><bdi dir="ltr">{money(c.amount)}</bdi></Table.Td>
-                    <Table.Td>{c.reissued ? 'دوباره صادر شده' : 'صادر نشده'}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>}
-      </Paper>
+      <ReleasedGoodsReport from={from} to={to} enabled={enabled} ownerId={ownerId} />
     </Stack>
   )
 }
