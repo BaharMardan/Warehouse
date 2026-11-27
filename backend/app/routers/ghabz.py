@@ -729,10 +729,11 @@ from app.services.ghabz_allotment import (
 )
 from app.services.ghabz_numbering import (
     MasterAlreadyIssued,
+    MasterNumberConflict,
     TallyNotFound,
     TallyNotNumbered,
     allocate_ghabz_number,
-    find_by_number,
+    find_master,
     master_number,
 )
 
@@ -1006,6 +1007,7 @@ WHERE "ID_GHABZ_ANBAR_HEADAR" = :header_id
 REVIVE_MASTER_SQL = """
 UPDATE "fa_ghabz_anbar_header"
    SET "IS_DELETED" = 'no', "WORKFLOW_STATUS" = 'created', "ALLOCATION_RATIO" = NULL,
+       "GHABZ_NUMBER" = :ghabz_number, "NUMBER_tali" = :tali_number,
        "FINALIZED_AT" = NULL, "FINALIZED_BY" = NULL,
        "INVOICE_ISSUED_AT" = NULL, "INVOICE_ISSUED_BY" = NULL,
        "MODIFY_AT" = SYSDATE, "MODIFY_BY" = :actor_id
@@ -1419,11 +1421,10 @@ def create_master_ghabz(
                 created_at = cursor.fetchone()[0]
                 actor_id = current_user["id"]
 
-                # Work out the number first, then look for a row already
-                # holding it. UQ_FA_GHABZ_NUMBER is what an insert collides
-                # with, so that is the key worth searching on.
+                # Sequence zero belongs to the tally even when its printed
+                # number changed after the old master was voided.
                 ghabz_number, sequence, tali_number = master_number(cursor, tali_id)
-                existing = find_by_number(cursor, ghabz_number)
+                existing = find_master(cursor, tali_id, ghabz_number)
                 rebuilt = existing is not None
 
                 if rebuilt:
@@ -1450,7 +1451,8 @@ def create_master_ghabz(
 
                     cursor.execute(
                         REVIVE_MASTER_SQL,
-                        {"header_id": header_id, "actor_id": actor_id},
+                        {"header_id": header_id, "actor_id": actor_id,
+                         "ghabz_number": ghabz_number, "tali_number": tali_number},
                     )
                     cursor.execute('DELETE FROM "FA_GHABZ_TALLY_SOURCE" WHERE "RECEIPT_ID" = :id',
                                    {"id": header_id})
@@ -1517,6 +1519,9 @@ def create_master_ghabz(
         except HTTPException:
             conn.rollback()
             raise
+        except MasterNumberConflict as exc:
+            conn.rollback()
+            raise HTTPException(status_code=409, detail="شماره قبض جدید قبلاً برای قبض دیگری استفاده شده است.") from exc
         except MasterAlreadyIssued as exc:
             conn.rollback()
             raise HTTPException(

@@ -208,6 +208,27 @@ def find_by_number(cursor, ghabz_number: str):
     return cursor.fetchone()
 
 
+class MasterNumberConflict(ValueError):
+    """The requested printed number belongs to a different receipt."""
+
+
+def find_master(cursor, tali_id: int, ghabz_number: str):
+    """Find the persistent sequence-zero slot even after a tally is renumbered.
+
+    The caller holds the tally lock. Deleted masters keep this slot, so a
+    changed printed number must not turn a rebuild into another INSERT.
+    Keep the number lookup as a guard for legacy rows and number collisions.
+    """
+    cursor.execute('''SELECT "ID_ghabz", "GHABZ_NUMBER", "IS_DELETED", NVL("IS_MASTER", 'no')
+        FROM "fa_ghabz_anbar_header"
+        WHERE "TALI_ID" = :tali_id AND "GHABZ_SEQ" = 0''', {'tali_id': tali_id})
+    existing = cursor.fetchone()
+    numbered = find_by_number(cursor, ghabz_number)
+    if existing and numbered and existing[0] != numbered[0]:
+        raise MasterNumberConflict(ghabz_number)
+    return existing or numbered
+
+
 def master_number(cursor, tali_id: int) -> tuple[str, int, str]:
     """The master's number for this tally, without deciding whether to issue it.
 
